@@ -1,0 +1,6 @@
+functions-framework==3.5.0
+langchain==0.2.16
+langchain-core==0.2.40
+langchain-google-genai==1.0.7
+langsmith==0.1.114
+requests==2.32.3
