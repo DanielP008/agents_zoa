@@ -1,4 +1,5 @@
 import json
+
 from core.db import SessionManager
 from routers.main_router import route_request
 
@@ -52,12 +53,12 @@ def process_message(payload: dict) -> dict:
         }
         
     if action == "finish":
-         # Flow complete
-         session_manager.set_target_agent(user_id, "receptionist_agent", None) # Reset
-         return {
-             "type": "text", 
-             "message": response.get("message"), 
-             "status": "completed"
-         }
+        # Flow complete
+        session_manager.set_target_agent(user_id, "receptionist_agent", None) # Reset
+        return {
+            "type": "text", 
+            "message": response.get("message"), 
+            "status": "completed"
+        }
 
     return {"error": "Unknown action"}

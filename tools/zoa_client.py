@@ -51,3 +51,8 @@ def create_claim(payload: dict) -> dict:
 def fetch_policy(policy_number: str) -> dict:
     """Obtiene datos de poliza via MCP."""
     return _call_zoa_mcp("fetch_policy", {"policy_number": policy_number})
+
+
+def send_message(to: str, text: str) -> dict:
+    """Envia un mensaje de texto al usuario via ZOA MCP."""
+    return _call_zoa_mcp("send_message", {"to": to, "text": text})

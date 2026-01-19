@@ -6,7 +6,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 
 from agents.llm import get_llm
-from tools.whatsapp_client import send_whatsapp_message
+from tools.zoa_client import send_message as send_whatsapp_message
 
 _BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 _ROUTES_PATH = os.path.join(_BASE_DIR, "contracts", "routes.json")
