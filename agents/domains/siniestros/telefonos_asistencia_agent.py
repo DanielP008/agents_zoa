@@ -5,7 +5,6 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 
 from agents.llm import get_llm
-from tools.state_store import get_state, set_state
 
 
 @tool
@@ -21,11 +20,8 @@ def get_assistance_phones(policy_type: str) -> dict:
 
 def handle(payload: dict) -> dict:
     user_text = payload.get("text", "")
-    user_id = payload.get("from", "unknown")
-    session_id = payload.get("session_id", user_id)
-    
-    state = get_state(session_id)
-    history = state.get("asistencia_history", [])
+    session = payload.get("session", {})
+    history = session.get("agent_memory", {}).get("asistencia_history", [])
 
     system_prompt = (
         "Eres el agente de Telefonos de Asistencia de ZOA. "
@@ -53,9 +49,9 @@ def handle(payload: dict) -> dict:
     # Update state
     history.append(("human", user_text))
     history.append(("ai", output_text))
-    set_state(session_id, {**state, "asistencia_history": history[-6:]})
 
     return {
-        "agent": "telefonos_asistencia_agent",
+        "action": "ask", # or finish if phones provided?
         "message": output_text,
+        "memory": {"asistencia_history": history[-6:]}
     }

@@ -6,7 +6,6 @@ from langchain_core.tools import tool
 
 from agents.llm import get_llm
 from tools.zoa_client import create_claim as zoa_create_claim
-from tools.state_store import get_state, set_state
 
 
 @tool
@@ -21,12 +20,8 @@ def create_claim_tool(data: str) -> dict:
 
 def handle(payload: dict) -> dict:
     user_text = payload.get("text", "")
-    user_id = payload.get("from", "unknown")
-    session_id = payload.get("session_id", user_id)
-    
-    # Simple state handling
-    state = get_state(session_id)
-    history = state.get("apertura_history", [])
+    session = payload.get("session", {})
+    history = session.get("agent_memory", {}).get("apertura_history", [])
 
     system_prompt = (
         "Eres el agente de Apertura de Siniestros de ZOA. "
@@ -55,9 +50,17 @@ def handle(payload: dict) -> dict:
     # Update state
     history.append(("human", user_text))
     history.append(("ai", output_text))
-    set_state(session_id, {**state, "apertura_history": history[-10:]}) # keep last 10
+    
+    # Check if we are done (tool called?) -> How to detect?
+    # For now simple: always return ask until explicitly finished?
+    # Or parsing the output_text for "registrado".
+    
+    action = "ask"
+    if "registrado" in output_text.lower() or "claim_id" in str(state):
+        action = "finish"
 
     return {
-        "agent": "apertura_siniestro_agent",
+        "action": action,
         "message": output_text,
+        "memory": {"apertura_history": history[-10:]}
     }

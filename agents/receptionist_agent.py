@@ -6,7 +6,6 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 
 from agents.llm import get_llm
-from tools.state_store import get_state, set_state
 
 _BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _ROUTES_PATH = os.path.join(_BASE_DIR, "contracts", "routes.json")
@@ -16,16 +15,39 @@ with open(_ROUTES_PATH, "r") as f:
     _VALID_DOMAINS = set(_ROUTES_CONFIG["domains"])
 
 
+def handle(payload: dict) -> dict:
+    # Adapt classify_domain to return action format
+    decision = classify_domain(payload)
+    domain = decision.get("domain")
+    
+    if domain == "siniestros":
+        return {
+            "action": "route",
+            "next_agent": "classifier_siniestros_agent",
+            "domain": "siniestros",
+            "message": "Entendido, te paso con el area de siniestros."
+        }
+    
+    if domain in ["gestion", "ventas"]:
+        return {
+            "action": "ask", # Keep user here
+            "message": f"El area de {domain} no esta disponible. Algo mas?"
+        }
+
+    return {
+        "action": "ask",
+        "message": "Hola, soy ZOA. Puedo ayudarte con Siniestros, Gestion o Ventas. Que necesitas?"
+    }
+
 def classify_domain(payload: dict) -> dict:
     user_text = payload.get("text", "")
-    user_id = payload.get("from", "unknown")
-    session_id = payload.get("session_id", user_id)
+    session = payload.get("session", {})
     
-    # Check if we are already in a domain loop
-    state = get_state(session_id)
-    if state.get("active_domain"):
-        return {
-            "domain": state.get("active_domain"),
+    # Check if we are already in a domain loop - handled by orchestrator now
+    # But we can respect active domain if passed?
+    if session.get("domain"):
+         return {
+            "domain": session.get("domain"),
             "confidence": 1.0,
             "reason": "active_session"
         }

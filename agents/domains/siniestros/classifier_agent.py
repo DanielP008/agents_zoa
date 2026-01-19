@@ -6,7 +6,6 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 
 from agents.llm import get_llm
-from tools.state_store import get_state, set_state
 from tools.whatsapp_client import send_whatsapp_message
 
 _BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -23,11 +22,34 @@ def whatsapp_send(to: str, text: str) -> dict:
     return send_whatsapp_message(to=to, text=text)
 
 
+def handle(payload: dict) -> dict:
+    # Llama a classify_message y adapta la respuesta al formato action
+    decision = classify_message(payload)
+    
+    if decision.get("needs_more_info"):
+        return {
+            "action": "ask",
+            "message": decision.get("question"),
+            "memory": {"last_route": decision.get("route")} 
+        }
+
+    return {
+        "action": "route",
+        "next_agent": decision.get("route"), # e.g. apertura_siniestro_agent
+        "domain": "siniestros",
+        "message": "Entendido."
+    }
+
 def classify_message(payload: dict) -> dict:
     user_text = payload.get("text", "")
     user_id = payload.get("from", "unknown")
-    session_id = payload.get("session_id", user_id)
-    state = get_state(session_id)
+    session = payload.get("session", {})
+    
+    # Check if we are already in a domain loop
+    # In new architecture, router handles this, but we can peek at memory
+    memory = session.get("agent_memory", {})
+    last_route = memory.get("last_route", "unknown")
+    last_question = memory.get("last_question", "")
 
     system_prompt = (
         "Eres el clasificador de SINIESTROS de ZOA. "
@@ -54,8 +76,8 @@ def classify_message(payload: dict) -> dict:
         {
             "user_id": user_id,
             "user_text": user_text,
-            "last_route": state.get("last_route", "unknown"),
-            "last_question": state.get("last_question", ""),
+            "last_route": last_route,
+            "last_question": last_question,
         }
     )
     output = result.get("output", "")
@@ -66,13 +88,7 @@ def classify_message(payload: dict) -> dict:
             route = _DEFAULT_ROUTE
             decision["route"] = route
 
-        set_state(
-            session_id,
-            {
-                "last_route": route,
-                "last_question": decision.get("question", ""),
-            },
-        )
+        # New Architecture: We return the decision to be handled by handle() wrapper
         return decision
     except json.JSONDecodeError:
         return {

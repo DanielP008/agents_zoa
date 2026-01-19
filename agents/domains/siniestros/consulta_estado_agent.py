@@ -7,7 +7,6 @@ from langchain_core.tools import tool
 from agents.llm import get_llm
 from tools.zoa_client import fetch_policy
 from tools.ocr_client import extract_text
-from tools.state_store import get_state, set_state
 
 
 @tool
@@ -24,11 +23,8 @@ def process_document(doc_type: str) -> dict:
 
 def handle(payload: dict) -> dict:
     user_text = payload.get("text", "")
-    user_id = payload.get("from", "unknown")
-    session_id = payload.get("session_id", user_id)
-    
-    state = get_state(session_id)
-    history = state.get("consulta_history", [])
+    session = payload.get("session", {})
+    history = session.get("agent_memory", {}).get("consulta_history", [])
 
     system_prompt = (
         "Eres el agente de Consulta de Estado de ZOA. "
@@ -56,9 +52,9 @@ def handle(payload: dict) -> dict:
     # Update state
     history.append(("human", user_text))
     history.append(("ai", output_text))
-    set_state(session_id, {**state, "consulta_history": history[-6:]})
 
     return {
-        "agent": "consulta_estado_agent",
+        "action": "ask",
         "message": output_text,
+        "memory": {"consulta_history": history[-6:]}
     }
