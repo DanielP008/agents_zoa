@@ -1,8 +1,27 @@
+import json
+import os
+from typing import Dict, Any
+
 from agents.receptionist_agent import handle as receptionist_handle
 from agents.domains.siniestros.classifier_agent import handle as siniestros_classifier_handle
 from agents.domains.siniestros.apertura_siniestro_agent import handle as apertura_handle
 from agents.domains.siniestros.consulta_estado_agent import handle as consulta_handle
 from agents.domains.siniestros.telefonos_asistencia_agent import handle as asistencia_handle
+
+# Load routes configuration
+_BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_ROUTES_PATH = os.path.join(_BASE_DIR, "contracts", "routes.json")
+
+# Ensure the file exists before reading
+if os.path.exists(_ROUTES_PATH):
+    with open(_ROUTES_PATH, "r") as f:
+        ROUTES_CONFIG = json.load(f)
+else:
+    ROUTES_CONFIG = {}
+
+def get_accessible_agents() -> Dict[str, Any]:
+    """Returns the tree/list of accessible agents."""
+    return ROUTES_CONFIG
 
 def route_request(target_agent: str, payload: dict) -> dict:
     """

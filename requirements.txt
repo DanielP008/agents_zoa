@@ -4,3 +4,9 @@ langchain-core==0.2.40
 langchain-google-genai==1.0.7
 langsmith==0.1.114
 requests==2.32.3
+sqlalchemy==2.0.30
+pg8000==1.31.2
+cloud-sql-python-connector==1.9.0
+sqlalchemy==2.0.29
+pg8000==1.31.1
+cloud-sql-python-connector==1.7.0
