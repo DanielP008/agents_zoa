@@ -72,3 +72,25 @@ docker compose up --build
 1.  Create venv: `python3 -m venv .venv`
 2.  Activate: `source .venv/bin/activate`
 3.  Install deps: `pip install -r requirements.txt`
+
+## Testing & Interaction
+
+You can interact with the agents locally using the provided CLI tool.
+
+1.  Ensure the Docker container is running:
+    ```bash
+    docker compose up
+    ```
+
+2.  Run the CLI chat script (requires `requests` library):
+    ```bash
+    pip install requests
+    python3 cli_chat.py
+    ```
+
+3.  Or use `curl` for single requests:
+    ```bash
+    curl -X POST http://localhost:8080 \
+      -H "Content-Type: application/json" \
+      -d '{"from": "test_user", "text": "Hola", "company_id": "company_123", "conversation_id": "test_conv_1"}'
+    ```
