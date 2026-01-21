@@ -45,8 +45,7 @@ def process_message(payload: dict) -> dict:
         send_whatsapp_response(
             text=agent_message,
             company_id=company_id,
-            conversation_id=conversation_id,
-            to=user_id # Fallback if conversation_id is missing
+            wa_id=user_id
         )
 
     if action == "ask":
