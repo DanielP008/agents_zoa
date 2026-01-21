@@ -8,6 +8,7 @@ from tools.zoa_client import send_whatsapp_response
 session_manager = SessionManager()
 
 def process_message(payload: dict) -> dict:
+    print(f"DEBUG: Processing message payload: {payload}")
     user_id = payload.get("from")
     text = payload.get("text")
     
