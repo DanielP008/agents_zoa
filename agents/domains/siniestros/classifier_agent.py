@@ -3,7 +3,7 @@ import os
 from typing import Optional, List
 
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.pydantic_v1 import BaseModel, Field
+from pydantic import BaseModel, Field
 
 from agents.llm import get_llm
 

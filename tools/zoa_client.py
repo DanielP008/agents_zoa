@@ -73,3 +73,22 @@ def create_claim(data: Dict[str, Any]) -> Dict[str, Any]:
         "claim_id": "CLM-" + str(os.urandom(4).hex()),
         "message": "Siniestro registrado correctamente"
     }
+
+def fetch_policy(policy_number: str) -> Dict[str, Any]:
+    """
+    Fetches policy information from ZOA.
+    """
+    print(f"DEBUG: Fetching policy {policy_number}")
+    
+    # Mock response
+    if policy_number == "not_found":
+        return {"error": "Policy not found"}
+        
+    return {
+        "policy_number": policy_number,
+        "status": "active",
+        "holder": "Usuario de Prueba",
+        "type": "auto",
+        "coverage": "Todo Riesgo",
+        "valid_until": "2026-12-31"
+    }
