@@ -19,7 +19,7 @@ The system follows a hierarchical routing pattern:
 -   **`contracts/routes.json`**: Configuration file defining the tree of accessible agents and domains.
 
 ## Project Structure
-
+.
 ```
 zoa_agents/
 ├── agents/
