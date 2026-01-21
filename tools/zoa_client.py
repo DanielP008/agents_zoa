@@ -22,7 +22,7 @@ def send_whatsapp_response(
     }
     """
     # URL of the ZOA Cloud Function (Main Router)
-    zoa_endpoint = os.environ.get("ZOA_ENDPOINT_URL")
+    zoa_endpoint = os.environ.get("ZOA_ENDPOINT_URL", "https://us-central1-zoasuite-5b94e.cloudfunctions.net/zoa_mcp")
     if not zoa_endpoint:
         print("ERROR: ZOA_ENDPOINT_URL is not set.")
         return {"error": "ZOA_ENDPOINT_URL not configured"}

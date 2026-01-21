@@ -7,8 +7,14 @@ from langchain_core.tools import tool
 
 from agents.llm import get_llm
 
-_BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_ROUTES_PATH = os.path.join(_BASE_DIR, "contracts", "routes.json")
+import pathlib
+
+# Robust path resolution for Docker /app env
+# Assuming structure: /app/agents/receptionist_agent.py
+# contracts is at: /app/contracts/routes.json
+_CURRENT_DIR = pathlib.Path(__file__).parent.resolve() # /app/agents
+_ROOT_DIR = _CURRENT_DIR.parent # /app
+_ROUTES_PATH = _ROOT_DIR / "contracts" / "routes.json"
 
 with open(_ROUTES_PATH, "r") as f:
     _ROUTES_CONFIG = json.load(f)

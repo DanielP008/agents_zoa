@@ -8,8 +8,14 @@ from langchain_core.pydantic_v1 import BaseModel, Field
 from agents.llm import get_llm
 
 # Configuration loading to avoid circular imports with main_router
-_BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-_ROUTES_PATH = os.path.join(_BASE_DIR, "contracts", "routes.json")
+import pathlib
+
+# Robust path resolution
+# Current: /app/agents/domains/siniestros/classifier_agent.py
+# Root: /app
+_CURRENT_DIR = pathlib.Path(__file__).parent.resolve()
+_ROOT_DIR = _CURRENT_DIR.parent.parent.parent # up 3 levels: siniestros -> domains -> agents -> app
+_ROUTES_PATH = _ROOT_DIR / "contracts" / "routes.json"
 
 with open(_ROUTES_PATH, "r") as f:
     _ROUTES_CONFIG = json.load(f)
