@@ -56,3 +56,20 @@ def send_whatsapp_response(
     except Exception as e:
         print(f"ERROR: Failed to call ZOA Endpoint: {e}")
         return {"error": str(e)}
+
+def create_claim(data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Creates a claim in the ZOA system.
+    """
+    # This is a placeholder. In a real scenario, this would POST to an endpoint.
+    # For now, we'll just log it and return a success mock.
+    print(f"DEBUG: Creating claim with data: {data}")
+    
+    # Example logic to call an external API could go here
+    # zoa_endpoint = os.environ.get("ZOA_ENDPOINT_URL") ...
+    
+    return {
+        "status": "success",
+        "claim_id": "CLM-" + str(os.urandom(4).hex()),
+        "message": "Siniestro registrado correctamente"
+    }
