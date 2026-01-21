@@ -1,7 +1,8 @@
 import json
-
+import os
 from core.db import SessionManager
 from routers.main_router import route_request
+from tools.zoa_client import send_whatsapp_response
 
 # Managers
 session_manager = SessionManager()
@@ -10,26 +11,50 @@ def process_message(payload: dict) -> dict:
     user_id = payload.get("from")
     text = payload.get("text")
     
+    # Extract ZOA specific IDs from the incoming payload for reply
+    company_id = payload.get("company_id") or payload.get("phone_number_id")
+    conversation_id = payload.get("conversation_id")
+    
     # 1. Load Session
-    session = session_manager.get_session(user_id)
+    # Use composite key: company_id + user_id (phone)
+    # If company_id is None (shouldn't happen in ZOA), default to "default"
+    safe_company_id = company_id or "default"
+    session = session_manager.get_session(user_id, safe_company_id)
     target_agent = session.get("target_agent", "receptionist_agent")
     
     # 2. Inject context into payload
     payload["session"] = session
     
     # 3. Route to the target agent (State Machine)
-    # El router decide a quién llamar basandose en 'target_agent'
     response = route_request(target_agent, payload)
     
     # 4. Handle Agent Response
     action = response.get("action")
+    agent_message = response.get("message")
     
+    # Decide if we need to send a message back to WhatsApp
+    should_send_message = False
+    if action in ["ask", "finish"] and agent_message:
+        should_send_message = True
+    elif action == "route" and agent_message:
+        # Transition messages ("Te paso con...")
+        should_send_message = True
+        
+    # Send the message if needed
+    if should_send_message and company_id:
+        send_whatsapp_response(
+            text=agent_message,
+            company_id=company_id,
+            conversation_id=conversation_id,
+            to=user_id # Fallback if conversation_id is missing
+        )
+
     if action == "ask":
         # Agent wants to ask user -> Stay on same agent, update memory
-        session_manager.update_agent_memory(user_id, response.get("memory", {}))
+        session_manager.update_agent_memory(user_id, response.get("memory", {}), safe_company_id)
         return {
             "type": "text",
-            "message": response.get("message"),
+            "message": agent_message,
             "agent": target_agent
         }
         
@@ -38,21 +63,21 @@ def process_message(payload: dict) -> dict:
         new_target = response.get("next_agent")
         new_domain = response.get("domain")
         
-        session_manager.set_target_agent(user_id, new_target, new_domain)
-        session_manager.update_agent_memory(user_id, response.get("memory", {})) # Pass context forward
+        session_manager.set_target_agent(user_id, new_target, new_domain, safe_company_id)
+        session_manager.update_agent_memory(user_id, response.get("memory", {}), safe_company_id) # Pass context forward
         
         return {
             "type": "transition", 
-            "message": response.get("message", "Derivando..."),
+            "message": agent_message,
             "next_agent": new_target
         }
         
     if action == "finish":
         # Flow complete
-        session_manager.set_target_agent(user_id, "receptionist_agent", None) # Reset
+        session_manager.set_target_agent(user_id, "receptionist_agent", None, safe_company_id) # Reset
         return {
             "type": "text", 
-            "message": response.get("message"), 
+            "message": agent_message, 
             "status": "completed"
         }
 

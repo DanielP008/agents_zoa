@@ -79,12 +79,15 @@ class MockDB:
         pass
     
     # Custom methods to mimic the SessionManager logic directly on the mock
-    def get_session_data(self, session_id):
-        return self._data.get(session_id)
+    def get_session_data(self, company_id, phone):
+        key = f"{company_id}:{phone}"
+        return self._data.get(key)
 
-    def upsert_session(self, session_id, domain, target_agent, memory):
-        self._data[session_id] = {
-            "session_id": session_id,
+    def upsert_session(self, company_id, phone, domain, target_agent, memory):
+        key = f"{company_id}:{phone}"
+        self._data[key] = {
+            "company_id": company_id,
+            "phone": phone,
             "domain": domain,
             "target_agent": target_agent,
             "agent_memory": memory
@@ -95,9 +98,14 @@ class SessionManager:
     def __init__(self):
         self.pool = get_pool()
 
-    def get_session(self, session_id: str) -> dict:
+    def get_session(self, user_id: str, company_id: str = "default") -> dict:
+        """
+        Retrieves session based on composite key (company_id + user_phone).
+        user_id param here is expected to be the phone number.
+        """
         default_session = {
-            "session_id": session_id,
+            "company_id": company_id,
+            "phone": user_id,
             "domain": None,
             "target_agent": "receptionist_agent",
             "agent_memory": {},
@@ -105,15 +113,20 @@ class SessionManager:
         }
 
         if isinstance(self.pool, MockDB):
-            return self.pool.get_session_data(session_id) or default_session
+            return self.pool.get_session_data(company_id, user_id) or default_session
 
-        query = text("SELECT domain, target_agent, agent_memory FROM sessions WHERE session_id = :sid")
+        query = text("""
+            SELECT domain, target_agent, agent_memory 
+            FROM sessions 
+            WHERE company_id = :cid AND phone = :phone
+        """)
         try:
             with self.pool.connect() as conn:
-                result = conn.execute(query, {"sid": session_id}).fetchone()
+                result = conn.execute(query, {"cid": company_id, "phone": user_id}).fetchone()
                 if result:
                     return {
-                        "session_id": session_id,
+                        "company_id": company_id,
+                        "phone": user_id,
                         "domain": result[0],
                         "target_agent": result[1],
                         "agent_memory": result[2] if result[2] else {},
@@ -124,19 +137,21 @@ class SessionManager:
         
         return default_session
 
-    def save_session(self, session_id: str, data: dict):
+    def save_session(self, data: dict):
+        company_id = data.get("company_id", "default")
+        phone = data.get("phone") # user_id
         domain = data.get("domain")
         target_agent = data.get("target_agent")
         memory = json.dumps(data.get("agent_memory", {}))
 
         if isinstance(self.pool, MockDB):
-            self.pool.upsert_session(session_id, domain, target_agent, data.get("agent_memory", {}))
+            self.pool.upsert_session(company_id, phone, domain, target_agent, data.get("agent_memory", {}))
             return
 
         query = text("""
-            INSERT INTO sessions (session_id, domain, target_agent, agent_memory, updated_at)
-            VALUES (:sid, :dom, :agt, :mem, NOW())
-            ON CONFLICT (session_id) DO UPDATE SET
+            INSERT INTO sessions (company_id, phone, domain, target_agent, agent_memory, updated_at)
+            VALUES (:cid, :phone, :dom, :agt, :mem, NOW())
+            ON CONFLICT (company_id, phone) DO UPDATE SET
                 domain = EXCLUDED.domain,
                 target_agent = EXCLUDED.target_agent,
                 agent_memory = EXCLUDED.agent_memory,
@@ -146,7 +161,8 @@ class SessionManager:
         try:
             with self.pool.connect() as conn:
                 conn.execute(query, {
-                    "sid": session_id,
+                    "cid": company_id,
+                    "phone": phone,
                     "dom": domain,
                     "agt": target_agent,
                     "mem": memory
@@ -155,16 +171,16 @@ class SessionManager:
         except Exception as e:
             logger.error(f"DB Write Error: {e}")
 
-    def update_agent_memory(self, session_id: str, new_memory: dict):
-        session = self.get_session(session_id)
+    def update_agent_memory(self, user_id: str, new_memory: dict, company_id: str = "default"):
+        session = self.get_session(user_id, company_id)
         current_mem = session.get("agent_memory", {})
         current_mem.update(new_memory)
         session["agent_memory"] = current_mem
-        self.save_session(session_id, session)
+        self.save_session(session)
 
-    def set_target_agent(self, session_id: str, agent_name: str, domain: str = None):
-        session = self.get_session(session_id)
+    def set_target_agent(self, user_id: str, agent_name: str, domain: str = None, company_id: str = "default"):
+        session = self.get_session(user_id, company_id)
         session["target_agent"] = agent_name
         if domain:
             session["domain"] = domain
-        self.save_session(session_id, session)
+        self.save_session(session)

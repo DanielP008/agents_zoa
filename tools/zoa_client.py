@@ -1,58 +1,65 @@
 import os
 import requests
+import json
+from typing import Optional, Dict, Any
 
-# Default to a mock URL if not set
-ZOA_MCP_URL = os.environ.get("ZOA_MCP_URL", "http://mock-mcp:8080")
+def send_whatsapp_response(
+    text: str, 
+    company_id: str, 
+    conversation_id: str = None, 
+    to: str = None
+) -> dict:
+    """
+    Sends a WhatsApp message by calling the external ZOA Cloud Function.
+    
+    The ZOA Cloud Function expects:
+    {
+        "action": "conversations",
+        "option": "send",
+        "company_id": "...",
+        "type": "text",
+        "text": "...",
+        "conversation_id": "..." (or "to")
+    }
+    """
+    # URL of the ZOA Cloud Function (Main Router)
+    zoa_endpoint = os.environ.get("ZOA_ENDPOINT_URL")
+    if not zoa_endpoint:
+        print("ERROR: ZOA_ENDPOINT_URL is not set.")
+        return {"error": "ZOA_ENDPOINT_URL not configured"}
 
-
-def _call_zoa_mcp(tool_name: str, args: dict) -> dict:
-    """Helper to call the external ZOA MCP Cloud Function."""
-    # If in dev/mock mode, return fake data directly to avoid network errors
-    if ZOA_MCP_URL == "http://mock-mcp:8080":
-        return _mock_response(tool_name, args)
+    # Construct the payload for the ZOA 'main' function
+    payload = {
+        "action": "conversations",
+        "option": "send",
+        "company_id": company_id,
+        "type": "text",
+        "text": text
+    }
+    
+    if conversation_id:
+        payload["conversation_id"] = conversation_id
+    elif to:
+        payload["to"] = to
+    else:
+        return {"error": "Missing conversation_id or 'to' number"}
 
     try:
-        resp = requests.post(
-            ZOA_MCP_URL,
-            json={"tool": tool_name, "args": args},
-            timeout=10,
-            headers={"Content-Type": "application/json"},
-        )
-        resp.raise_for_status()
-        return resp.json()
+        # We don't need to send auth headers if the receiving Cloud Function 
+        # hardcodes the token or handles it internally as per the snippet.
+        # But we might need standard headers.
+        headers = {
+            "Content-Type": "application/json"
+        }
+
+        print(f"DEBUG: Calling ZOA Endpoint {zoa_endpoint}")
+        response = requests.post(zoa_endpoint, json=payload, headers=headers, timeout=10)
+        
+        try:
+            return response.json()
+        except json.JSONDecodeError:
+            return {"status": response.status_code, "text": response.text}
+
     except Exception as e:
-        return {"error": f"Failed to call ZOA MCP: {str(e)}"}
-
-
-def _mock_response(tool_name: str, args: dict) -> dict:
-    """Fallback mock data for local dev without a real MCP URL."""
-    if tool_name == "create_claim":
-        return {
-            "status": "created",
-            "claim_id": "ZOA-MOCK-999",
-            "payload": args,
-        }
-    if tool_name == "fetch_policy":
-        pol = args.get("policy_number", "UNKNOWN")
-        return {
-            "policy_number": pol,
-            "holder": "Cliente Mock",
-            "status": "active",
-            "coverage": "Full Mock Coverage",
-        }
-    return {"error": "Unknown mock tool"}
-
-
-def create_claim(payload: dict) -> dict:
-    """Registra un siniestro via MCP."""
-    return _call_zoa_mcp("create_claim", payload)
-
-
-def fetch_policy(policy_number: str) -> dict:
-    """Obtiene datos de poliza via MCP."""
-    return _call_zoa_mcp("fetch_policy", {"policy_number": policy_number})
-
-
-def send_message(to: str, text: str) -> dict:
-    """Envia un mensaje de texto al usuario via ZOA MCP."""
-    return _call_zoa_mcp("send_message", {"to": to, "text": text})
+        print(f"ERROR: Failed to call ZOA Endpoint: {e}")
+        return {"error": str(e)}
