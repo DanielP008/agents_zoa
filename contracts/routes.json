@@ -1,15 +1,21 @@
 {
-  "domains": [
-    "siniestros",
-    "gestion",
-    "ventas",
-    "receptionist_agent"
-  ],
-  "siniestros_agents": [
-    "telefonos_asistencia_agent",
-    "apertura_siniestro_agent",
-    "consulta_estado_agent",
-    "classifier_siniestros_agent"
-  ],
-  "default": "receptionist_agent"
+  "default": "receptionist_agent",
+  "domains": {
+    "siniestros": {
+      "classifier": "classifier_siniestros_agent",
+      "specialists": [
+        "telefonos_asistencia_agent",
+        "apertura_siniestro_agent",
+        "consulta_estado_agent"
+      ]
+    },
+    "gestion": {
+      "classifier": "classifier_gestion_agent",
+      "specialists": []
+    },
+    "ventas": {
+      "classifier": "classifier_ventas_agent",
+      "specialists": []
+    }
+  }
 }

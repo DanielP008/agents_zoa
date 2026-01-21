@@ -20,19 +20,22 @@ def handle(payload: dict) -> dict:
     decision = classify_domain(payload)
     domain = decision.get("domain")
     
-    if domain == "siniestros":
-        return {
-            "action": "route",
-            "next_agent": "classifier_siniestros_agent",
-            "domain": "siniestros",
-            "message": "Entendido, te paso con el area de siniestros."
-        }
-    
-    if domain in ["gestion", "ventas"]:
-        return {
-            "action": "ask", # Keep user here
-            "message": f"El area de {domain} no esta disponible. Algo mas?"
-        }
+    if domain in _ROUTES_CONFIG["domains"]:
+        domain_config = _ROUTES_CONFIG["domains"][domain]
+        classifier_agent = domain_config.get("classifier")
+        
+        if classifier_agent:
+            return {
+                "action": "route",
+                "next_agent": classifier_agent,
+                "domain": domain,
+                "message": f"Entendido, te paso con el area de {domain}."
+            }
+        else:
+            return {
+                "action": "ask", # Keep user here
+                "message": f"El area de {domain} no esta disponible aun. Algo mas?"
+            }
 
     return {
         "action": "ask",
@@ -46,7 +49,7 @@ def classify_domain(payload: dict) -> dict:
     # Check if we are already in a domain loop - handled by orchestrator now
     # But we can respect active domain if passed?
     if session.get("domain"):
-         return {
+        return {
             "domain": session.get("domain"),
             "confidence": 1.0,
             "reason": "active_session"
