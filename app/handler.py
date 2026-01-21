@@ -13,6 +13,7 @@ def handle_whatsapp(request):
         payload["from"] = payload["wa_id"]
     
     # New Orchestrator Flow
+    print(f"DEBUG: Processing message payload: {payload}")
     response = process_message(payload)
     
     return (
