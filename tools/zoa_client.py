@@ -5,9 +5,8 @@ from typing import Optional, Dict, Any
 
 def send_whatsapp_response(
     text: str, 
-    company_id: str, 
-    conversation_id: str = None, 
-    to: str = None
+    company_id: str,  # phone_number_id 
+    wa_id: str = None,  # waid
 ) -> dict:
     """
     Sends a WhatsApp message by calling the external ZOA Cloud Function.
@@ -34,15 +33,9 @@ def send_whatsapp_response(
         "option": "send",
         "company_id": company_id,
         "type": "text",
-        "text": text
+        "text": text,
+        "phone":wa_id
     }
-    
-    if conversation_id:
-        payload["conversation_id"] = conversation_id
-    elif to:
-        payload["to"] = to
-    else:
-        return {"error": "Missing conversation_id or 'to' number"}
 
     try:
         # We don't need to send auth headers if the receiving Cloud Function 
