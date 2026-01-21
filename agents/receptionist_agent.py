@@ -7,7 +7,7 @@ from langchain_core.tools import tool
 
 from agents.llm import get_llm
 
-_BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _ROUTES_PATH = os.path.join(_BASE_DIR, "contracts", "routes.json")
 
 with open(_ROUTES_PATH, "r") as f:
@@ -55,7 +55,7 @@ def classify_domain(payload: dict) -> dict:
     system_prompt = (
         "Eres el Recepcionista de ZOA. Tu objetivo es derivar al cliente a una de estas areas: "
         "siniestros, gestion, ventas. "
-        "Analiza el mensaje y responde SOLO un JSON con: {domain, confidence}."
+        "Analiza el mensaje y responde SOLO un JSON con: {{domain, confidence}}."
     )
 
     prompt = ChatPromptTemplate.from_messages(

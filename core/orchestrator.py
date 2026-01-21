@@ -39,12 +39,7 @@ def process_message(payload: dict) -> dict:
         new_domain = response.get("domain")
         
         session_manager.set_target_agent(user_id, new_target, new_domain)
-        session_manager.update_agent_memory(user_id, response.get("memory", {})) # Pass context forward?
-        
-        # Opcional: Ejecutar inmediatamente el nuevo agente con el mismo input?
-        # Por simplicidad, devolvemos un mensaje de transición o nada.
-        # En este caso, asumimos que el nuevo agente iniciará la charla o esperamos nuevo input.
-        # Si queremos chain-of-thought, llamariamos recursivamente a process_message.
+        session_manager.update_agent_memory(user_id, response.get("memory", {})) # Pass context forward
         
         return {
             "type": "transition", 
