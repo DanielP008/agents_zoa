@@ -2,6 +2,7 @@
   "default": "receptionist_agent",
   "domains": {
     "siniestros": {
+      "receptionist_label": "siniestros",
       "classifier": "classifier_siniestros_agent",
       "specialists": [
         "telefonos_asistencia_agent",
@@ -10,10 +11,12 @@
       ]
     },
     "gestion": {
+      "receptionist_label": "gestión de una poliza",
       "classifier": "classifier_gestion_agent",
       "specialists": []
     },
     "ventas": {
+      "receptionist_label": "contratación de una poliza nueva",
       "classifier": "classifier_ventas_agent",
       "specialists": []
     }

@@ -57,10 +57,15 @@ def handle(payload: dict) -> dict:
             }
 
     print("[RECEPTIONIST] 💬 Asking user for clarification")
-    available_domains_str = ", ".join([d.capitalize() for d in _VALID_DOMAINS])
+    available_domains_str = ", ".join(
+        [
+            _ROUTES_CONFIG["domains"][d].get("receptionist_label", d.capitalize())
+            for d in _VALID_DOMAINS
+        ]
+    )
     return {
         "action": "ask",
-        "message": f"Hola, soy ZOA. Puedo ayudarte con {available_domains_str}. Que necesitas?"
+        "message": f"Hola, soy Sofia, tu asistente virtual. Puedo ayudarte con {available_domains_str}. Que necesitas?"
     }
 
 class DomainClassification(BaseModel):
