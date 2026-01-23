@@ -119,3 +119,19 @@ class SessionManager:
         if domain:
             session["domain"] = domain
         self.save_session(session_id, session)
+
+    def delete_session(self, user_id: str, company_id: str) -> bool:
+        """Deletes a session from the database."""
+        session_id = self._get_composite_id(user_id, company_id)
+        
+        query = text("DELETE FROM sessions WHERE session_id = :sid")
+        try:
+            with self.pool.connect() as conn:
+                result = conn.execute(query, {"sid": session_id})
+                conn.commit()
+                deleted = result.rowcount > 0
+                print(f"[DB] Session {session_id} deleted: {deleted}")
+                return deleted
+        except Exception as e:
+            logger.error(f"DB Delete Error: {e}")
+            return False

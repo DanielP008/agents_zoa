@@ -1,5 +1,6 @@
 import json
 from core.orchestrator import process_message
+from core.db import SessionManager
 
 def handle_whatsapp(request):
     """
@@ -16,6 +17,9 @@ def handle_whatsapp(request):
     print(f"[HANDLER] mensaje: {data.get('mensaje', '')[:100]}...")
     print(f"[HANDLER] phone_number_id: {data.get('phone_number_id')}")
     
+    if data.get("mensaje", "").strip() == "BORRAR_POSTGRESS_INFO":
+        return handle_session_reset(data)
+    
     print("[HANDLER] → Forwarding to orchestrator...")
     response = process_message(data)
     
@@ -29,3 +33,24 @@ def handle_whatsapp(request):
         200,
         {"Content-Type": "application/json"},
     )
+
+def handle_session_reset(data):
+    # Check for session reset command
+    mensaje = data.get("mensaje", "").strip()
+    if mensaje == "BORRAR_POSTGRESS_INFO":
+        print("[HANDLER] 🗑️ Session reset command received")
+        wa_id = data.get("wa_id")
+        company_id = data.get("phone_number_id") or "default"
+        
+        session_manager = SessionManager()
+        deleted = session_manager.delete_session(wa_id, company_id)
+        
+        status = "deleted" if deleted else "not_found"
+        print(f"[HANDLER] ✓ Session reset complete: {status}")
+        print("=" * 70)
+        
+        return (
+            json.dumps({"status": "ok", "action": "session_reset", "result": status}, ensure_ascii=False),
+            200,
+            {"Content-Type": "application/json"},
+        )
