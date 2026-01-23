@@ -55,9 +55,10 @@ def handle(payload: dict) -> dict:
             }
 
     print("[RECEPTIONIST] 💬 Asking user for clarification")
+    available_domains_str = ", ".join([d.capitalize() for d in _VALID_DOMAINS])
     return {
         "action": "ask",
-        "message": "Hola, soy ZOA. Puedo ayudarte con Siniestros, Gestion o Ventas. Que necesitas?"
+        "message": f"Hola, soy ZOA. Puedo ayudarte con {available_domains_str}. Que necesitas?"
     }
 
 def classify_domain(payload: dict) -> dict:
@@ -78,11 +79,53 @@ def classify_domain(payload: dict) -> dict:
         }
 
     print("[RECEPTIONIST] 🤖 Calling LLM for domain classification...")
-    system_prompt = (
-        "Eres el Recepcionista de ZOA. Tu objetivo es derivar al cliente a una de estas areas: "
-        "siniestros, gestion, ventas. "
-        "Analiza el mensaje y responde SOLO un JSON con: {{domain, confidence}}."
-    )
+    
+    # Dynamic list of available domains from routes.json
+    available_domains = ", ".join(_VALID_DOMAINS)
+    
+    system_prompt = f"""Eres el Recepcionista de ZOA. Tu objetivo es derivar al cliente a una de las áreas disponibles actualmente.
+
+Áreas disponibles (según routes.json): {available_domains}
+
+Guía de clasificación para entender la intención del usuario:
+
+### 1. SINIESTROS
+- Reportes de accidentes o incidentes
+- Seguimiento de siniestros en proceso
+- Información sobre el proceso de reclamación
+- Documentación requerida para siniestros
+
+### 2. DEVOLUCIONES
+- Solicitudes de reembolso
+- Consultas sobre pagos duplicados
+- Devoluciones por cancelación de póliza
+- Procesos de reintegro de dinero
+
+### 3. MODIFICACIÓN DE PÓLIZA
+- Cambios de datos personales o del vehículo
+- Actualización de coberturas
+- Cambio de beneficiarios
+- Ajustes en la póliza existente
+
+### 4. CONSULTA DE PÓLIZA
+- Información sobre coberturas actuales
+- Fechas de vencimiento
+- Estado de la póliza
+- Detalles de beneficios y exclusiones
+
+### 5. GESTIÓN DE PAGOS
+- Consultas sobre recibos y métodos de pago
+- Problemas con pagos
+- Actualización de medios de pago
+- Domiciliación bancaria (SEPA)
+
+INSTRUCCIONES:
+1. Analiza el mensaje del usuario.
+2. Clasifica el mensaje en una de las Áreas Disponibles ({available_domains}).
+   - NOTA: Las categorías 2, 3, 4 y 5 (Devoluciones, Modificación, Consulta, Pagos) suelen corresponder al área de 'gestion' si está disponible.
+   - Si la intención corresponde a un área que NO está en la lista de disponibles, NO la inventes. Usa 'ask' o la más cercana si tiene sentido.
+3. Si necesitas más información para clasificar con seguridad, responde con domain='ask'.
+4. Responde SOLO un JSON con: {{ "domain": "nombre_del_dominio_o_ask", "confidence": 0.0-1.0 }}."""
 
     prompt = ChatPromptTemplate.from_messages(
         [
