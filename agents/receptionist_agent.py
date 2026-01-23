@@ -24,15 +24,23 @@ with open(_ROUTES_PATH, "r") as f:
 
 
 def handle(payload: dict) -> dict:
+    print("\n[RECEPTIONIST] 👋 Receptionist agent handling request")
+    print(f"[RECEPTIONIST] Message: {payload.get('mensaje', '')[:80]}...")
+    
     # Adapt classify_domain to return action format
+    print("[RECEPTIONIST] 🔍 Classifying domain...")
     decision = classify_domain(payload)
     domain = decision.get("domain")
+    confidence = decision.get("confidence", 0.0)
+    
+    print(f"[RECEPTIONIST] ✓ Classification result: domain={domain}, confidence={confidence}")
     
     if domain in _ROUTES_CONFIG["domains"]:
         domain_config = _ROUTES_CONFIG["domains"][domain]
         classifier_agent = domain_config.get("classifier")
         
         if classifier_agent:
+            print(f"[RECEPTIONIST] 🔀 Routing to {classifier_agent}")
             return {
                 "action": "route",
                 "next_agent": classifier_agent,
@@ -40,11 +48,13 @@ def handle(payload: dict) -> dict:
                 "message": f"Entendido, te paso con el area de {domain}."
             }
         else:
+            print(f"[RECEPTIONIST] ⚠️  Domain {domain} has no classifier configured")
             return {
                 "action": "ask", # Keep user here
                 "message": f"El area de {domain} no esta disponible aun. Algo mas?"
             }
 
+    print("[RECEPTIONIST] 💬 Asking user for clarification")
     return {
         "action": "ask",
         "message": "Hola, soy ZOA. Puedo ayudarte con Siniestros, Gestion o Ventas. Que necesitas?"
@@ -54,15 +64,20 @@ def classify_domain(payload: dict) -> dict:
     user_text = payload.get("mensaje", "")
     session = payload.get("session", {})
     
+    print(f"[RECEPTIONIST] 📝 Classifying domain for: '{user_text[:60]}...'")
+    
     # Check if we are already in a domain loop - handled by orchestrator now
     # But we can respect active domain if passed?
     if session.get("domain"):
+        existing_domain = session.get("domain")
+        print(f"[RECEPTIONIST] ✓ Using existing domain from session: {existing_domain}")
         return {
-            "domain": session.get("domain"),
+            "domain": existing_domain,
             "confidence": 1.0,
             "reason": "active_session"
         }
 
+    print("[RECEPTIONIST] 🤖 Calling LLM for domain classification...")
     system_prompt = (
         "Eres el Recepcionista de ZOA. Tu objetivo es derivar al cliente a una de estas areas: "
         "siniestros, gestion, ventas. "
@@ -79,17 +94,27 @@ def classify_domain(payload: dict) -> dict:
     llm = get_llm()
     chain = prompt | llm
     
-    result = chain.invoke({"user_text": user_text})
-    output = result.content
-    
     try:
+        result = chain.invoke({"user_text": user_text})
+        output = result.content
+        print(f"[RECEPTIONIST] 📥 LLM raw response: {output}")
+        
         decision = json.loads(output)
         domain = decision.get("domain")
+        confidence = decision.get("confidence", 0.5)
+        
         if domain not in _VALID_DOMAINS:
+            print(f"[RECEPTIONIST] ⚠️  Invalid domain '{domain}', falling back to receptionist")
             domain = "receptionist_agent" # fallback
             
-        # If confidence is high, lock session to domain? 
-        # For now we just route.
-        return {"domain": domain, "confidence": decision.get("confidence", 0.5)}
-    except:
+        print(f"[RECEPTIONIST] ✓ Parsed decision: domain={domain}, confidence={confidence}")
+        return {"domain": domain, "confidence": confidence}
+    except json.JSONDecodeError as e:
+        print(f"[RECEPTIONIST] ❌ Failed to parse LLM JSON: {e}")
+        print(f"[RECEPTIONIST]   Raw output: {output if 'output' in locals() else 'N/A'}")
+        return {"domain": "receptionist_agent", "confidence": 0.0}
+    except Exception as e:
+        print(f"[RECEPTIONIST] ❌ Error during classification: {e}")
+        import traceback
+        print(f"[RECEPTIONIST] Traceback: {traceback.format_exc()}")
         return {"domain": "receptionist_agent", "confidence": 0.0}

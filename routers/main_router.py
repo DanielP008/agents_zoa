@@ -28,19 +28,37 @@ def route_request(target_agent: str, payload: dict) -> dict:
     Central dispatcher.
     Calls the specific python function based on agent name.
     """
+    print(f"\n[ROUTER] 🎯 Routing request to agent: {target_agent}")
+    
     if target_agent == "receptionist_agent":
-        return receptionist_handle(payload)
+        print("[ROUTER] → Calling receptionist_agent")
+        result = receptionist_handle(payload)
+        print(f"[ROUTER] ← Receptionist returned action: {result.get('action')}")
+        return result
     
     # Siniestros Domain
     if target_agent == "classifier_siniestros_agent":
-        return siniestros_classifier_handle(payload)
+        print("[ROUTER] → Calling classifier_siniestros_agent")
+        result = siniestros_classifier_handle(payload)
+        print(f"[ROUTER] ← Classifier returned action: {result.get('action')}")
+        return result
     if target_agent == "apertura_siniestro_agent":
-        return apertura_handle(payload)
+        print("[ROUTER] → Calling apertura_siniestro_agent")
+        result = apertura_handle(payload)
+        print(f"[ROUTER] ← Apertura returned action: {result.get('action')}")
+        return result
     if target_agent == "consulta_estado_agent":
-        return consulta_handle(payload)
+        print("[ROUTER] → Calling consulta_estado_agent")
+        result = consulta_handle(payload)
+        print(f"[ROUTER] ← Consulta returned action: {result.get('action')}")
+        return result
     if target_agent == "telefonos_asistencia_agent":
-        return asistencia_handle(payload)
+        print("[ROUTER] → Calling telefonos_asistencia_agent")
+        result = asistencia_handle(payload)
+        print(f"[ROUTER] ← Asistencia returned action: {result.get('action')}")
+        return result
 
+    print(f"[ROUTER] ❌ ERROR: Agent '{target_agent}' not found!")
     return {
         "action": "finish",
         "message": f"Error: Agent {target_agent} not found. Resetting."
