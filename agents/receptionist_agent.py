@@ -125,7 +125,7 @@ INSTRUCCIONES:
    - NOTA: Las categorías 2, 3, 4 y 5 (Devoluciones, Modificación, Consulta, Pagos) suelen corresponder al área de 'gestion' si está disponible.
    - Si la intención corresponde a un área que NO está en la lista de disponibles, NO la inventes. Usa 'ask' o la más cercana si tiene sentido.
 3. Si necesitas más información para clasificar con seguridad, responde con domain='ask'.
-4. Responde SOLO un JSON con: {{ "domain": "nombre_del_dominio_o_ask", "confidence": 0.0-1.0 }}."""
+4. Responde SOLO un JSON con: {{{{ "domain": "nombre_del_dominio_o_ask", "confidence": 0.0-1.0 }}}}."""
 
     prompt = ChatPromptTemplate.from_messages(
         [
