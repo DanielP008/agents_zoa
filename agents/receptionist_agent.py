@@ -5,6 +5,8 @@ from langchain.agents.tool_calling_agent.base import create_tool_calling_agent
 from langchain.agents.agent import AgentExecutor
 
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import PydanticOutputParser
+from pydantic import BaseModel, Field
 from langchain_core.tools import tool
 
 from agents.llm import get_llm
@@ -61,6 +63,16 @@ def handle(payload: dict) -> dict:
         "message": f"Hola, soy ZOA. Puedo ayudarte con {available_domains_str}. Que necesitas?"
     }
 
+class DomainClassification(BaseModel):
+    domain: str = Field(
+        description="Nombre del dominio o 'ask' si falta info."
+    )
+    confidence: float = Field(
+        description="Confianza entre 0.0 y 1.0.",
+        ge=0.0,
+        le=1.0
+    )
+
 def classify_domain(payload: dict) -> dict:
     user_text = payload.get("mensaje", "")
     session = payload.get("session", {})
@@ -83,7 +95,9 @@ def classify_domain(payload: dict) -> dict:
     # Dynamic list of available domains from routes.json
     available_domains = ", ".join(_VALID_DOMAINS)
     
-    system_prompt = f"""Eres el Recepcionista de ZOA. Tu objetivo es derivar al cliente a una de las áreas disponibles actualmente.
+    parser = PydanticOutputParser(pydantic_object=DomainClassification)
+
+    system_prompt = """Eres el Recepcionista de ZOA. Tu objetivo es derivar al cliente a una de las áreas disponibles actualmente.
 
 Áreas disponibles (según routes.json): {available_domains}
 
@@ -125,7 +139,9 @@ INSTRUCCIONES:
    - NOTA: Las categorías 2, 3, 4 y 5 (Devoluciones, Modificación, Consulta, Pagos) suelen corresponder al área de 'gestion' si está disponible.
    - Si la intención corresponde a un área que NO está en la lista de disponibles, NO la inventes. Usa 'ask' o la más cercana si tiene sentido.
 3. Si necesitas más información para clasificar con seguridad, responde con domain='ask'.
-4. Responde SOLO un JSON con: {{{{ "domain": "nombre_del_dominio_o_ask", "confidence": 0.0-1.0 }}}}."""
+4. Responde usando el formato indicado.
+
+{format_instructions}"""
 
     prompt = ChatPromptTemplate.from_messages(
         [
@@ -138,7 +154,13 @@ INSTRUCCIONES:
     chain = prompt | llm
     
     try:
-        result = chain.invoke({"user_text": user_text})
+        result = chain.invoke(
+            {
+                "user_text": user_text,
+                "format_instructions": parser.get_format_instructions(),
+                "available_domains": available_domains,
+            }
+        )
         output = result.content
         print(f"[RECEPTIONIST] 📥 LLM raw response: {output}")
         
@@ -150,9 +172,9 @@ INSTRUCCIONES:
                 cleaned_output = cleaned_output[4:]
             cleaned_output = cleaned_output.strip()
             
-        decision = json.loads(cleaned_output)
-        domain = decision.get("domain")
-        confidence = decision.get("confidence", 0.5)
+        parsed = parser.parse(cleaned_output)
+        domain = parsed.domain
+        confidence = parsed.confidence
         
         if domain not in _VALID_DOMAINS:
             print(f"[RECEPTIONIST] ⚠️  Invalid domain '{domain}', falling back to receptionist")
