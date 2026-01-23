@@ -1,5 +1,11 @@
 import os
 from core.db import SessionManager
+from core.memory_schema import (
+    append_turn,
+    apply_memory_patch,
+    ensure_memory_shape,
+    update_global,
+)
 from routers.main_router import route_request
 from tools.zoa_client import send_whatsapp_response
 from core.agent_allowlist import build_agent_allowlist, load_routes_config
@@ -30,12 +36,17 @@ def process_message(payload: dict) -> dict:
     print(f"[ORCHESTRATOR] ✓ Session loaded | Current agent: {target_agent}")
     print(f"[ORCHESTRATOR]   Domain: {session.get('domain')} | Memory keys: {list(session.get('agent_memory', {}).keys())}")
     
+    memory = ensure_memory_shape(session.get("agent_memory", {}))
+    memory = append_turn(
+        memory,
+        role="user",
+        text=mensaje,
+        agent=target_agent,
+        domain=session.get("domain"),
+        action="input",
+    )
+    session["agent_memory"] = memory
     payload["session"] = session
-    # Store a minimal conversation history for cross-agent context
-    conversation_history = session.get("agent_memory", {}).get("conversation_history", [])
-    conversation_history.append(("human", mensaje))
-    conversation_history = conversation_history[-20:]
-    base_memory_patch = {"conversation_history": conversation_history}
 
     payload["allowed_next_agents"] = _AGENT_ALLOWLIST.get(target_agent, [])
     # 2. Route to the target agent (State Machine)
@@ -77,8 +88,23 @@ def process_message(payload: dict) -> dict:
     if action == "ask":
         # Agent wants to ask user -> Stay on same agent, update memory
         print(f"[ORCHESTRATOR] 💾 Updating agent memory (staying on {target_agent})")
-        merged_memory = {**base_memory_patch, **response.get("memory", {})}
-        session_manager.update_agent_memory(wa_id, merged_memory, safe_company_id)
+        if agent_message:
+            memory = append_turn(
+                memory,
+                role="assistant",
+                text=agent_message,
+                agent=target_agent,
+                domain=session.get("domain"),
+                action=action,
+            )
+        memory = apply_memory_patch(memory, response.get("memory", {}))
+        memory = update_global(
+            memory,
+            last_agent=target_agent,
+            last_action=action,
+            last_domain=session.get("domain"),
+        )
+        session_manager.update_agent_memory(wa_id, memory, safe_company_id)
         print("[ORCHESTRATOR] ✓ Memory updated")
         result = {
             "type": "text",
@@ -109,8 +135,23 @@ def process_message(payload: dict) -> dict:
         
         print(f"[ORCHESTRATOR] 🔀 Routing to new agent: {new_target} (domain: {new_domain})")
         session_manager.set_target_agent(wa_id, new_target, new_domain, safe_company_id)
-        merged_memory = {**base_memory_patch, **response.get("memory", {})}
-        session_manager.update_agent_memory(wa_id, merged_memory, safe_company_id) # Pass context forward
+        if agent_message:
+            memory = append_turn(
+                memory,
+                role="assistant",
+                text=agent_message,
+                agent=target_agent,
+                domain=new_domain,
+                action=action,
+            )
+        memory = apply_memory_patch(memory, response.get("memory", {}))
+        memory = update_global(
+            memory,
+            last_agent=target_agent,
+            last_action=action,
+            last_domain=new_domain,
+        )
+        session_manager.update_agent_memory(wa_id, memory, safe_company_id) # Pass context forward
         print("[ORCHESTRATOR] ✓ Agent changed and memory updated")
         
         result = {
@@ -125,6 +166,22 @@ def process_message(payload: dict) -> dict:
         # Flow complete
         print("[ORCHESTRATOR] 🏁 Flow completed, resetting to receptionist")
         session_manager.set_target_agent(wa_id, "receptionist_agent", None, safe_company_id) # Reset
+        if agent_message:
+            memory = append_turn(
+                memory,
+                role="assistant",
+                text=agent_message,
+                agent=target_agent,
+                domain=session.get("domain"),
+                action=action,
+            )
+        memory = update_global(
+            memory,
+            last_agent=target_agent,
+            last_action=action,
+            last_domain=session.get("domain"),
+        )
+        session_manager.update_agent_memory(wa_id, memory, safe_company_id)
         print("[ORCHESTRATOR] ✓ Session reset")
         result = {
             "type": "text", 

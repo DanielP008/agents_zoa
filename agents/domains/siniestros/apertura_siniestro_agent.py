@@ -22,7 +22,12 @@ def create_claim_tool(data: str) -> dict:
 def handle(payload: dict) -> dict:
     user_text = payload.get("mensaje", "")
     session = payload.get("session", {})
-    history = session.get("agent_memory", {}).get("apertura_history", [])
+    history = (
+        session.get("agent_memory", {})
+        .get("agents", {})
+        .get("apertura_siniestro_agent", {})
+        .get("history", [])
+    )
 
     system_prompt = (
         "Eres el agente de Apertura de Siniestros de ZOA. "
@@ -63,5 +68,11 @@ def handle(payload: dict) -> dict:
     return {
         "action": action,
         "message": output_text,
-        "memory": {"apertura_history": history[-10:]}
+        "memory": {
+            "agents": {
+                "apertura_siniestro_agent": {
+                    "history": history[-10:]
+                }
+            }
+        }
     }

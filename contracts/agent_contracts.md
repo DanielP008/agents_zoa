@@ -32,6 +32,77 @@ Los agentes devuelven un dict con:
 ```
 El `Orchestrator` procesa la acción y actualiza la sesión en Postgres.
 
+## 1.1 Agent Memory Schema (Obligatorio)
+La memoria vive en `sessions.agent_memory` y **debe respetar esta estructura**.  
+El `Orchestrator` es quien consolida y persiste la memoria, los agentes solo deben
+escribir dentro de sus namespaces.
+
+```json
+{
+  "global": {
+    "language": "string",
+    "summary": "string",
+    "last_agent": "string | null",
+    "last_action": "string | null",
+    "last_domain": "string | null",
+    "preferences": "object"
+  },
+  "conversation_history": [
+    {
+      "role": "user | assistant",
+      "text": "string",
+      "timestamp": "ISO-8601",
+      "agent": "string | null",
+      "domain": "string | null",
+      "action": "string | null"
+    }
+  ],
+  "domains": {
+    "<domain>": {
+      "state": "string",
+      "fields": "object"
+    }
+  },
+  "agents": {
+    "<agent_name>": {
+      "history": [
+        {
+          "role": "user | assistant",
+          "text": "string",
+          "timestamp": "ISO-8601"
+        }
+      ],
+      "data": "object"
+    }
+  },
+  "metadata": {
+    "version": 1,
+    "updated_at": "ISO-8601"
+  }
+}
+```
+
+### Reglas obligatorias
+- Los agentes **NO** escriben en `global` ni en `conversation_history`.
+- Los agentes solo escriben bajo `agents.<agent_name>` y/o `domains.<domain>`.
+- `Orchestrator` agrega historial y actualiza `global.last_*`.
+
+### Ejemplo de memoria devuelta por un agente
+```json
+{
+  "memory": {
+    "agents": {
+      "classifier_siniestros_agent": {
+        "data": {
+          "last_route": "apertura_siniestro_agent",
+          "confidence": 0.82
+        }
+      }
+    }
+  }
+}
+```
+
 ## 2. Router
 **Responsibility**: Deterministic dispatch based on classifier output or session state.  
 **Logic**:

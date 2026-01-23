@@ -54,7 +54,12 @@ def create_internal_task(task: dict) -> dict:
 def handle(payload: dict) -> dict:
     user_text = payload.get("mensaje", "")
     session = payload.get("session", {})
-    history = session.get("agent_memory", {}).get("asistencia_history", [])
+    history = (
+        session.get("agent_memory", {})
+        .get("agents", {})
+        .get("telefonos_asistencia_agent", {})
+        .get("history", [])
+    )
 
     system_prompt = """Eres parte del equipo de atención de ZOA Seguros. Tu función es proporcionar los números de teléfono de asistencia a los clientes que los necesiten.
 
@@ -147,5 +152,11 @@ Si necesitas algo más, me dices."
     return {
         "action": "ask", # or finish if phones provided?
         "message": output_text,
-        "memory": {"asistencia_history": history[-6:]}
+        "memory": {
+            "agents": {
+                "telefonos_asistencia_agent": {
+                    "history": history[-6:]
+                }
+            }
+        }
     }

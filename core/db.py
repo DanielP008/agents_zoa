@@ -3,6 +3,8 @@ import json
 import logging
 from sqlalchemy import create_engine, text
 
+from core.memory_schema import ensure_memory_shape
+
 logger = logging.getLogger(__name__)
 
 # Hardcoded Credentials (Quick fix requested by user)
@@ -64,7 +66,7 @@ class SessionManager:
             "session_id": session_id,
             "domain": None,
             "target_agent": "receptionist_agent",
-            "agent_memory": {},
+            "agent_memory": ensure_memory_shape({}),
             "history": []
         }
 
@@ -78,7 +80,7 @@ class SessionManager:
                         "session_id": session_id,
                         "domain": result[0],
                         "target_agent": result[1],
-                        "agent_memory": normalized_memory,
+                        "agent_memory": ensure_memory_shape(normalized_memory),
                         "history": [] 
                     }
         except Exception as e:
@@ -92,7 +94,7 @@ class SessionManager:
     def save_session(self, session_id: str, data: dict):
         domain = data.get("domain")
         target_agent = data.get("target_agent")
-        memory_data = self._normalize_memory(data.get("agent_memory", {}))
+        memory_data = ensure_memory_shape(self._normalize_memory(data.get("agent_memory", {})))
         memory = json.dumps(memory_data)
 
         query = text("""
@@ -121,9 +123,10 @@ class SessionManager:
         session = self.get_session(user_id, company_id)
         session_id = session["session_id"]
         
-        current_mem = self._normalize_memory(session.get("agent_memory", {}))
+        current_mem = ensure_memory_shape(self._normalize_memory(session.get("agent_memory", {})))
         if not isinstance(new_memory, dict):
             new_memory = {}
+        new_memory = ensure_memory_shape(new_memory)
         current_mem.update(new_memory)
         session["agent_memory"] = current_mem
         self.save_session(session_id, session)

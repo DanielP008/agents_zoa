@@ -55,8 +55,12 @@ def handle(payload: dict) -> dict:
             "action": "ask",
             "message": decision.question,
             "memory": {
-                "last_route": decision.route,
-                "confidence": decision.confidence
+                "agents": {
+                    "classifier_siniestros_agent": {
+                        "last_route": decision.route,
+                        "confidence": decision.confidence,
+                    }
+                }
             } 
         }
 
@@ -73,7 +77,8 @@ def classify_message(payload: dict) -> ClassificationDecision:
     session = payload.get("session", {})
     
     memory = session.get("agent_memory", {})
-    last_route = memory.get("last_route", "unknown")
+    agent_mem = memory.get("agents", {}).get("classifier_siniestros_agent", {})
+    last_route = agent_mem.get("last_route", "unknown")
     
     # Construct the prompt
     system_prompt = (

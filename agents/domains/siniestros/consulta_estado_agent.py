@@ -25,7 +25,12 @@ def process_document(doc_type: str) -> dict:
 def handle(payload: dict) -> dict:
     user_text = payload.get("mensaje", "")
     session = payload.get("session", {})
-    history = session.get("agent_memory", {}).get("consulta_history", [])
+    history = (
+        session.get("agent_memory", {})
+        .get("agents", {})
+        .get("consulta_estado_agent", {})
+        .get("history", [])
+    )
 
     system_prompt = (
         "Eres el agente de Consulta de Estado de ZOA. "
@@ -57,5 +62,11 @@ def handle(payload: dict) -> dict:
     return {
         "action": "ask",
         "message": output_text,
-        "memory": {"consulta_history": history[-6:]}
+        "memory": {
+            "agents": {
+                "consulta_estado_agent": {
+                    "history": history[-6:]
+                }
+            }
+        }
     }
