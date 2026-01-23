@@ -40,6 +40,19 @@ class SessionManager:
     def __init__(self):
         self.pool = get_pool()
 
+    def _normalize_memory(self, raw_memory) -> dict:
+        if not raw_memory:
+            return {}
+        if isinstance(raw_memory, dict):
+            return raw_memory
+        if isinstance(raw_memory, str):
+            try:
+                parsed = json.loads(raw_memory)
+                return parsed if isinstance(parsed, dict) else {}
+            except json.JSONDecodeError:
+                return {}
+        return {}
+
     def _get_composite_id(self, user_id: str, company_id: str) -> str:
         """Constructs the composite session ID."""
         return f"{company_id}_{user_id}"
@@ -60,11 +73,12 @@ class SessionManager:
             with self.pool.connect() as conn:
                 result = conn.execute(query, {"sid": session_id}).fetchone()
                 if result:
+                    normalized_memory = self._normalize_memory(result[2])
                     return {
                         "session_id": session_id,
                         "domain": result[0],
                         "target_agent": result[1],
-                        "agent_memory": result[2] if result[2] else {},
+                        "agent_memory": normalized_memory,
                         "history": [] 
                     }
         except Exception as e:
@@ -78,7 +92,8 @@ class SessionManager:
     def save_session(self, session_id: str, data: dict):
         domain = data.get("domain")
         target_agent = data.get("target_agent")
-        memory = json.dumps(data.get("agent_memory", {}))
+        memory_data = self._normalize_memory(data.get("agent_memory", {}))
+        memory = json.dumps(memory_data)
 
         query = text("""
             INSERT INTO sessions (session_id, domain, target_agent, agent_memory, updated_at)
@@ -106,7 +121,9 @@ class SessionManager:
         session = self.get_session(user_id, company_id)
         session_id = session["session_id"]
         
-        current_mem = session.get("agent_memory", {})
+        current_mem = self._normalize_memory(session.get("agent_memory", {}))
+        if not isinstance(new_memory, dict):
+            new_memory = {}
         current_mem.update(new_memory)
         session["agent_memory"] = current_mem
         self.save_session(session_id, session)
@@ -116,8 +133,7 @@ class SessionManager:
         session_id = session["session_id"]
         
         session["target_agent"] = agent_name
-        if domain:
-            session["domain"] = domain
+        session["domain"] = domain
         self.save_session(session_id, session)
 
     def delete_session(self, user_id: str, company_id: str) -> bool:

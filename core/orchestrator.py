@@ -31,6 +31,11 @@ def process_message(payload: dict) -> dict:
     print(f"[ORCHESTRATOR]   Domain: {session.get('domain')} | Memory keys: {list(session.get('agent_memory', {}).keys())}")
     
     payload["session"] = session
+    # Store a minimal conversation history for cross-agent context
+    conversation_history = session.get("agent_memory", {}).get("conversation_history", [])
+    conversation_history.append(("human", mensaje))
+    conversation_history = conversation_history[-20:]
+    base_memory_patch = {"conversation_history": conversation_history}
 
     payload["allowed_next_agents"] = _AGENT_ALLOWLIST.get(target_agent, [])
     # 2. Route to the target agent (State Machine)
@@ -72,7 +77,8 @@ def process_message(payload: dict) -> dict:
     if action == "ask":
         # Agent wants to ask user -> Stay on same agent, update memory
         print(f"[ORCHESTRATOR] 💾 Updating agent memory (staying on {target_agent})")
-        session_manager.update_agent_memory(wa_id, response.get("memory", {}), safe_company_id)
+        merged_memory = {**base_memory_patch, **response.get("memory", {})}
+        session_manager.update_agent_memory(wa_id, merged_memory, safe_company_id)
         print("[ORCHESTRATOR] ✓ Memory updated")
         result = {
             "type": "text",
@@ -86,6 +92,8 @@ def process_message(payload: dict) -> dict:
         # Agent finished, route to next (next turn)
         new_target = response.get("next_agent")
         new_domain = response.get("domain")
+        if new_domain is None:
+            new_domain = session.get("domain")
         
         if not new_target:
             print("[ORCHESTRATOR] ❌ Route action missing next_agent")
@@ -101,7 +109,8 @@ def process_message(payload: dict) -> dict:
         
         print(f"[ORCHESTRATOR] 🔀 Routing to new agent: {new_target} (domain: {new_domain})")
         session_manager.set_target_agent(wa_id, new_target, new_domain, safe_company_id)
-        session_manager.update_agent_memory(wa_id, response.get("memory", {}), safe_company_id) # Pass context forward
+        merged_memory = {**base_memory_patch, **response.get("memory", {})}
+        session_manager.update_agent_memory(wa_id, merged_memory, safe_company_id) # Pass context forward
         print("[ORCHESTRATOR] ✓ Agent changed and memory updated")
         
         result = {
