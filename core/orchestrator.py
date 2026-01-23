@@ -1,11 +1,15 @@
-import json
 import os
 from core.db import SessionManager
 from routers.main_router import route_request
 from tools.zoa_client import send_whatsapp_response
+from core.agent_allowlist import build_agent_allowlist, load_routes_config
 
 # Managers
 session_manager = SessionManager()
+
+# Routes config for allowlist validation
+_ROUTES_CONFIG = load_routes_config()
+_AGENT_ALLOWLIST = build_agent_allowlist(_ROUTES_CONFIG)
 
 def process_message(payload: dict) -> dict:
     print("\n[ORCHESTRATOR] 🎯 Starting message processing")
@@ -27,7 +31,8 @@ def process_message(payload: dict) -> dict:
     print(f"[ORCHESTRATOR]   Domain: {session.get('domain')} | Memory keys: {list(session.get('agent_memory', {}).keys())}")
     
     payload["session"] = session
-    
+
+    payload["allowed_next_agents"] = _AGENT_ALLOWLIST.get(target_agent, [])
     # 2. Route to the target agent (State Machine)
     print(f"[ORCHESTRATOR] 🤖 Routing to agent: {target_agent}")
     response = route_request(target_agent, payload)
@@ -42,10 +47,7 @@ def process_message(payload: dict) -> dict:
     
     # Decide if we need to send a message back to WhatsApp
     should_send_message = False
-    if action in ["ask", "finish"] and agent_message:
-        should_send_message = True
-    elif action == "route" and agent_message:
-        # Transition messages ("Te paso con...")
+    if action in ["ask", "finish", "route"] and agent_message:
         should_send_message = True
     
     print(f"[ORCHESTRATOR] 📤 Should send WhatsApp message: {should_send_message}")
@@ -81,9 +83,21 @@ def process_message(payload: dict) -> dict:
         return result
         
     if action == "route":
-        # Agent finished, route to next -> Update target, clear memory?
+        # Agent finished, route to next (next turn)
         new_target = response.get("next_agent")
         new_domain = response.get("domain")
+        
+        if not new_target:
+            print("[ORCHESTRATOR] ❌ Route action missing next_agent")
+            return {"error": "Route action missing next_agent"}
+        allowed_next = _AGENT_ALLOWLIST.get(target_agent, [])
+        if new_target not in allowed_next:
+            print(f"[ORCHESTRATOR] ❌ Invalid route: {target_agent} -> {new_target}")
+            return {
+                "type": "text",
+                "message": "No pude derivarte en este momento. ¿Podés intentar de nuevo?",
+                "agent": target_agent
+            }
         
         print(f"[ORCHESTRATOR] 🔀 Routing to new agent: {new_target} (domain: {new_domain})")
         session_manager.set_target_agent(wa_id, new_target, new_domain, safe_company_id)
@@ -97,7 +111,7 @@ def process_message(payload: dict) -> dict:
         }
         print(f"[ORCHESTRATOR] ✅ Returning ROUTE response")
         return result
-        
+            
     if action == "finish":
         # Flow complete
         print("[ORCHESTRATOR] 🏁 Flow completed, resetting to receptionist")
