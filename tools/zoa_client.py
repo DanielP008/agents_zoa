@@ -11,14 +11,20 @@ def send_whatsapp_response(
     """
     Sends a WhatsApp message by calling the external ZOA Cloud Function.
     
-    The ZOA Cloud Function expects:
+    The ZOA Cloud Function main() expects:
     {
         "action": "conversations",
         "option": "send",
-        "company_id": "...",
+        "company_id": "...",  # Required by Cloud Function validation
+        ...
+    }
+    
+    ZoaConversation.send() expects (for text messages):
+    {
+        "phone_number_id": "...",  # Preferred, or company_id as fallback
         "type": "text",
         "text": "...",
-        "conversation_id": "..." (or "to")
+        "phone": "..."  # Used when conversation_id is not present
     }
     """
     print("\n[ZOA_CLIENT] 📤 PREPARING TO SEND WHATSAPP MESSAGE")
@@ -33,14 +39,16 @@ def send_whatsapp_response(
         print("[ZOA_CLIENT] ❌ ERROR: ZOA_ENDPOINT_URL is not set.")
         return {"error": "ZOA_ENDPOINT_URL not configured"}
 
-    # Construct the payload for the ZOA 'main' function
+    # Construct the payload for the ZOA Cloud Function
+    # The Cloud Function expects: action, option, company_id (required)
+    # ZoaConversation.send() expects: phone_number_id (preferred) or company_id, type, text, phone/to
     payload = {
         "action": "conversations",
         "option": "send",
-        "company_id": company_id,
+        "company_id": company_id,  # Required by Cloud Function main()
         "type": "text",
         "text": text,
-        "phone": wa_id
+        "phone": wa_id  # Used when conversation_id is not present
     }
 
     print(f"[ZOA_CLIENT] 🌐 Calling ZOA endpoint: {zoa_endpoint}")
