@@ -40,7 +40,13 @@ class SessionManager:
     def __init__(self):
         self.pool = get_pool()
 
-    def get_session(self, session_id: str) -> dict:
+    def _get_composite_id(self, user_id: str, company_id: str) -> str:
+        """Constructs the composite session ID."""
+        return f"{company_id}_{user_id}"
+
+    def get_session(self, user_id: str, company_id: str) -> dict:
+        session_id = self._get_composite_id(user_id, company_id)
+        
         default_session = {
             "session_id": session_id,
             "domain": None,
@@ -96,15 +102,19 @@ class SessionManager:
         except Exception as e:
             logger.error(f"DB Write Error: {e}")
 
-    def update_agent_memory(self, session_id: str, new_memory: dict):
-        session = self.get_session(session_id)
+    def update_agent_memory(self, user_id: str, new_memory: dict, company_id: str):
+        session = self.get_session(user_id, company_id)
+        session_id = session["session_id"]
+        
         current_mem = session.get("agent_memory", {})
         current_mem.update(new_memory)
         session["agent_memory"] = current_mem
         self.save_session(session_id, session)
 
-    def set_target_agent(self, session_id: str, agent_name: str, domain: str = None):
-        session = self.get_session(session_id)
+    def set_target_agent(self, user_id: str, agent_name: str, domain: str = None, company_id: str = "default"):
+        session = self.get_session(user_id, company_id)
+        session_id = session["session_id"]
+        
         session["target_agent"] = agent_name
         if domain:
             session["domain"] = domain
