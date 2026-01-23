@@ -24,13 +24,43 @@ Los agentes devuelven un dict con:
 ```json
 {
   "action": "ask | route | finish",
-  "message": "string",
+  "message": "string | null",
   "next_agent": "string (solo si action=route)",
   "domain": "string | null (solo si action=route)",
   "memory": "object (opcional)"
 }
 ```
 El `Orchestrator` procesa la acción y actualiza la sesión en Postgres.
+
+## 1.0.1 Passthrough Routing (Route sin mensaje)
+Cuando un agente devuelve `action: "route"` con `message: null`, el Orchestrator
+**no envía mensaje al usuario** y en cambio llama inmediatamente al siguiente agente
+en el mismo turno. Esto permite cadenas de routing silenciosas.
+
+### Ejemplo: Receptionist -> Classifier (passthrough)
+```json
+{
+  "action": "route",
+  "next_agent": "classifier_siniestros_agent",
+  "domain": "siniestros",
+  "message": null
+}
+```
+El usuario no recibe "te paso con siniestros", sino que el classifier responde directamente.
+
+### Ejemplo: Route con mensaje (comportamiento tradicional)
+```json
+{
+  "action": "route",
+  "next_agent": "apertura_siniestro_agent",
+  "domain": "siniestros",
+  "message": "Te derivo con el agente especializado."
+}
+```
+El usuario recibe el mensaje y en el siguiente turno habla con el nuevo agente.
+
+### Límite de cadena
+El Orchestrator limita a **5 passthroughs encadenados** para prevenir loops infinitos.
 
 ## 1.1 Agent Memory Schema (Obligatorio)
 La memoria vive en `sessions.agent_memory` y **debe respetar esta estructura**.  

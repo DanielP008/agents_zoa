@@ -48,18 +48,78 @@ def process_message(payload: dict) -> dict:
     session["agent_memory"] = memory
     payload["session"] = session
 
-    payload["allowed_next_agents"] = _AGENT_ALLOWLIST.get(target_agent, [])
-    # 2. Route to the target agent (State Machine)
-    print(f"[ORCHESTRATOR] 🤖 Routing to agent: {target_agent}")
-    response = route_request(target_agent, payload)
+    # Agent processing loop (supports passthrough routing)
+    MAX_CHAIN_DEPTH = 5  # Prevent infinite loops
+    chain_depth = 0
     
-    # 3. Handle Agent Response
-    action = response.get("action")
-    agent_message = response.get("message")
+    while chain_depth < MAX_CHAIN_DEPTH:
+        chain_depth += 1
+        
+        payload["allowed_next_agents"] = _AGENT_ALLOWLIST.get(target_agent, [])
+        # 2. Route to the target agent (State Machine)
+        print(f"[ORCHESTRATOR] 🤖 Routing to agent: {target_agent} (chain depth: {chain_depth})")
+        response = route_request(target_agent, payload)
+        
+        # 3. Handle Agent Response
+        action = response.get("action")
+        agent_message = response.get("message")
+        
+        print(f"[ORCHESTRATOR] ← Agent response received")
+        print(f"[ORCHESTRATOR]   Action: {action}")
+        print(f"[ORCHESTRATOR]   Message: {agent_message[:100] if agent_message else 'None'}...")
+        
+        # Check for passthrough route (route without message)
+        if action == "route" and not agent_message:
+            new_target = response.get("next_agent")
+            new_domain = response.get("domain")
+            if new_domain is None:
+                new_domain = session.get("domain")
+            
+            if not new_target:
+                print("[ORCHESTRATOR] ❌ Passthrough route missing next_agent")
+                return {"error": "Route action missing next_agent"}
+            
+            allowed_next = _AGENT_ALLOWLIST.get(target_agent, [])
+            if new_target not in allowed_next:
+                print(f"[ORCHESTRATOR] ❌ Invalid passthrough route: {target_agent} -> {new_target}")
+                return {
+                    "type": "text",
+                    "message": "No pude derivarte en este momento. ¿Podés intentar de nuevo?",
+                    "agent": target_agent
+                }
+            
+            print(f"[ORCHESTRATOR] ⏩ Passthrough to: {new_target} (domain: {new_domain})")
+            
+            # Update session for next agent in chain
+            session["target_agent"] = new_target
+            if new_domain:
+                session["domain"] = new_domain
+            payload["session"] = session
+            
+            # Update memory with route info (no message to log)
+            memory = apply_memory_patch(memory, response.get("memory", {}))
+            memory = update_global(
+                memory,
+                last_agent=target_agent,
+                last_action="passthrough",
+                last_domain=new_domain,
+            )
+            session["agent_memory"] = memory
+            
+            # Persist the routing change
+            session_manager.set_target_agent(wa_id, new_target, new_domain, safe_company_id)
+            session_manager.update_agent_memory(wa_id, memory, safe_company_id)
+            
+            # Continue loop with new target
+            target_agent = new_target
+            continue
+        
+        # Not a passthrough, break loop and process normally
+        break
     
-    print(f"[ORCHESTRATOR] ← Agent response received")
-    print(f"[ORCHESTRATOR]   Action: {action}")
-    print(f"[ORCHESTRATOR]   Message: {agent_message[:100] if agent_message else 'None'}...")
+    if chain_depth >= MAX_CHAIN_DEPTH:
+        print(f"[ORCHESTRATOR] ❌ Max chain depth reached ({MAX_CHAIN_DEPTH})")
+        return {"error": "Max routing chain depth exceeded"}
     
     # Decide if we need to send a message back to WhatsApp
     should_send_message = False

@@ -42,12 +42,12 @@ def handle(payload: dict) -> dict:
         classifier_agent = domain_config.get("classifier")
         
         if classifier_agent:
-            print(f"[RECEPTIONIST] 🔀 Routing to {classifier_agent}")
+            print(f"[RECEPTIONIST] 🔀 Routing to {classifier_agent} (passthrough)")
             return {
                 "action": "route",
                 "next_agent": classifier_agent,
                 "domain": domain,
-                "message": f"Entendido, te paso con el area de {domain}."
+                "message": None  # No message = passthrough, next agent responds immediately
             }
         else:
             print(f"[RECEPTIONIST] ⚠️  Domain {domain} has no classifier configured")
