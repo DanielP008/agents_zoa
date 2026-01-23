@@ -12,10 +12,7 @@ def handle_whatsapp(request):
     print("=" * 70)
     
     data = request.get_json(silent=True) or {}
-    print(f"[HANDLER] Raw payload keys: {list(data.keys())}")
-    print(f"[HANDLER] wa_id: {data.get('wa_id')}")
-    print(f"[HANDLER] mensaje: {data.get('mensaje', '')[:100]}...")
-    print(f"[HANDLER] phone_number_id: {data.get('phone_number_id')}")
+    print(f"[HANDLER] Data: {data}")
     
     if data.get("mensaje", "").strip() == "BORRAR_POSTGRESS_INFO":
         return handle_session_reset(data)
