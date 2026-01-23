@@ -27,16 +27,10 @@ def send_whatsapp_response(
         "phone": "..."  # Used when conversation_id is not present
     }
     """
-    print("\n[ZOA_CLIENT] 📤 PREPARING TO SEND WHATSAPP MESSAGE")
-    print(f"[ZOA_CLIENT]   To: {wa_id}")
-    print(f"[ZOA_CLIENT]   Company ID: {company_id}")
-    print(f"[ZOA_CLIENT]   Message length: {len(text)} chars")
-    print(f"[ZOA_CLIENT]   Message preview: {text[:80]}...")
     
     # URL of the ZOA Cloud Function (Main Router)
     zoa_endpoint = os.environ.get("ZOA_ENDPOINT_URL", "https://flow-zoa-673887944015.europe-southwest1.run.app")
     if not zoa_endpoint:
-        print("[ZOA_CLIENT] ❌ ERROR: ZOA_ENDPOINT_URL is not set.")
         return {"error": "ZOA_ENDPOINT_URL not configured"}
 
     # Construct the payload for the ZOA Cloud Function
@@ -52,44 +46,30 @@ def send_whatsapp_response(
         "conversation_id": conversation_id
     }
     
-    print(f"[ZOA_CLIENT]   Conversation ID: {conversation_id}")
-    print(f"[ZOA_CLIENT] 🌐 Calling ZOA endpoint: {zoa_endpoint}")
-    print(f"[ZOA_CLIENT] 📦 Payload: {json.dumps(payload, indent=2)}")
 
     try:
         headers = {
             "Content-Type": "application/json"
         }
         
-        print("[ZOA_CLIENT] ⏳ Sending POST request...")
         response = requests.post(zoa_endpoint, json=payload, headers=headers, timeout=10)
-        print(f"[ZOA_CLIENT] ✓ Response received | Status: {response.status_code}")
         
         try:
             response_json = response.json()
-            print(f"[ZOA_CLIENT] 📥 Response body: {json.dumps(response_json, indent=2)}")
-            print("[ZOA_CLIENT] ✅ WhatsApp message sent successfully")
             return response_json
         except json.JSONDecodeError:
-            print(f"[ZOA_CLIENT] ⚠️  Non-JSON response: {response.text[:200]}")
             return {"status": response.status_code, "text": response.text}
     except requests.exceptions.Timeout:
-        print("[ZOA_CLIENT] ❌ ERROR: Request timeout (10s)")
         return {"error": "Request timeout"}
     except requests.exceptions.ConnectionError as e:
-        print(f"[ZOA_CLIENT] ❌ ERROR: Connection failed: {e}")
         return {"error": f"Connection failed: {str(e)}"}
     except Exception as e:
-        print(f"[ZOA_CLIENT] ❌ ERROR: Unexpected error: {e}")
-        import traceback
-        print(f"[ZOA_CLIENT] Traceback: {traceback.format_exc()}")
         return {"error": str(e)}
 
 def create_claim(data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Creates a claim in the ZOA system.
     """
-    print(f"DEBUG: Creating claim with data: {data}")
     return {
         "status": "success",
         "claim_id": "CLM-" + str(os.urandom(4).hex()),
@@ -100,7 +80,6 @@ def fetch_policy(policy_number: str) -> Dict[str, Any]:
     """
     Fetches policy information from ZOA.
     """
-    print(f"DEBUG: Fetching policy {policy_number}")
     
     # Mock response
     if policy_number == "not_found":

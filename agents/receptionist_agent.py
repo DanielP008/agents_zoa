@@ -26,8 +26,6 @@ with open(_ROUTES_PATH, "r") as f:
 
 
 def handle(payload: dict) -> dict:
-    print("\n[RECEPTIONIST] 👋 Receptionist agent handling request")
-    print(f"[RECEPTIONIST] Message: {payload.get('mensaje', '')[:80]}...")
     
     session = payload.get("session", {})
     memory = session.get("agent_memory", {})
@@ -35,19 +33,16 @@ def handle(payload: dict) -> dict:
     is_first_message = len(conversation_history) == 0
     
     # Classify the domain
-    print("[RECEPTIONIST] 🔍 Classifying domain...")
     decision = classify_domain(payload)
     domain = decision.get("domain")
     confidence = decision.get("confidence", 0.0)
     
-    print(f"[RECEPTIONIST] ✓ Classification result: domain={domain}, confidence={confidence}")
     
     if domain in _ROUTES_CONFIG["domains"]:
         domain_config = _ROUTES_CONFIG["domains"][domain]
         classifier_agent = domain_config.get("classifier")
         
         if classifier_agent:
-            print(f"[RECEPTIONIST] 🔀 Routing to {classifier_agent} (passthrough)")
             return {
                 "action": "route",
                 "next_agent": classifier_agent,
@@ -55,14 +50,12 @@ def handle(payload: dict) -> dict:
                 "message": None  # No message = passthrough, next agent responds immediately
             }
         else:
-            print(f"[RECEPTIONIST] ⚠️  Domain {domain} has no classifier configured")
             return {
                 "action": "ask",
                 "message": f"El area de {domain} no esta disponible aun. ¿En que mas puedo ayudarte?"
             }
 
     # Could not classify - ask for clarification
-    print("[RECEPTIONIST] 💬 Asking user for clarification")
     available_domains_str = ", ".join(
         [
             _ROUTES_CONFIG["domains"][d].get("receptionist_label", d.capitalize())
@@ -95,20 +88,17 @@ def classify_domain(payload: dict) -> dict:
     user_text = payload.get("mensaje", "")
     session = payload.get("session", {})
     
-    print(f"[RECEPTIONIST] 📝 Classifying domain for: '{user_text[:60]}...'")
     
     # Check if we are already in a domain loop - handled by orchestrator now
     # But we can respect active domain if passed?
     if session.get("domain"):
         existing_domain = session.get("domain")
-        print(f"[RECEPTIONIST] ✓ Using existing domain from session: {existing_domain}")
         return {
             "domain": existing_domain,
             "confidence": 1.0,
             "reason": "active_session"
         }
 
-    print("[RECEPTIONIST] 🤖 Calling LLM for domain classification...")
     
     # Dynamic list of available domains from routes.json
     available_domains = ", ".join(_VALID_DOMAINS)
@@ -197,7 +187,6 @@ Mensaje actual del cliente: {user_text}"""
             }
         )
         output = result.content
-        print(f"[RECEPTIONIST] 📥 LLM raw response: {output}")
         
         # Clean markdown if present
         cleaned_output = output.strip()
@@ -212,17 +201,10 @@ Mensaje actual del cliente: {user_text}"""
         confidence = parsed.confidence
         
         if domain not in _VALID_DOMAINS:
-            print(f"[RECEPTIONIST] ⚠️  Invalid domain '{domain}', falling back to receptionist")
             domain = "receptionist_agent" # fallback
             
-        print(f"[RECEPTIONIST] ✓ Parsed decision: domain={domain}, confidence={confidence}")
         return {"domain": domain, "confidence": confidence}
     except json.JSONDecodeError as e:
-        print(f"[RECEPTIONIST] ❌ Failed to parse LLM JSON: {e}")
-        print(f"[RECEPTIONIST]   Raw output: {output if 'output' in locals() else 'N/A'}")
         return {"domain": "receptionist_agent", "confidence": 0.0}
     except Exception as e:
-        print(f"[RECEPTIONIST] ❌ Error during classification: {e}")
-        import traceback
-        print(f"[RECEPTIONIST] Traceback: {traceback.format_exc()}")
         return {"domain": "receptionist_agent", "confidence": 0.0}

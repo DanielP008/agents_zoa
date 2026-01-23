@@ -85,9 +85,6 @@ class SessionManager:
                     }
         except Exception as e:
             logger.error(f"DB Read Error: {e}")
-            # Optional: print stack trace for debug
-            # import traceback
-            # traceback.print_exc()
         
         return default_session
 
@@ -149,7 +146,6 @@ class SessionManager:
                 result = conn.execute(query, {"sid": session_id})
                 conn.commit()
                 deleted = result.rowcount > 0
-                print(f"[DB] Session {session_id} deleted: {deleted}")
                 return deleted
         except Exception as e:
             logger.error(f"DB Delete Error: {e}")

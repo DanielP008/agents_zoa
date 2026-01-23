@@ -42,12 +42,6 @@ class ClassificationDecision(BaseModel):
     )
 
 def handle(payload: dict) -> dict:
-    """
-    Handles the classification request.
-    Returns an action dict:
-    - action: "ask" -> stay on classifier, ask user.
-    - action: "route" -> move to next agent.
-    """
     decision = classify_message(payload)
     
     if decision.needs_more_info:
@@ -118,7 +112,6 @@ def classify_message(payload: dict) -> ClassificationDecision:
         return result
     except Exception as e:
         # Fallback in case of LLM failure
-        print(f"Error in classification: {e}")
         return ClassificationDecision(
             route="classifier_siniestros_agent", # provisional
             confidence=0.0,
