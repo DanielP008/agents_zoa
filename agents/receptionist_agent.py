@@ -99,7 +99,15 @@ def classify_domain(payload: dict) -> dict:
         output = result.content
         print(f"[RECEPTIONIST] 📥 LLM raw response: {output}")
         
-        decision = json.loads(output)
+        # Clean markdown if present
+        cleaned_output = output.strip()
+        if cleaned_output.startswith("```"):
+            cleaned_output = cleaned_output.split("```")[1]
+            if cleaned_output.startswith("json"):
+                cleaned_output = cleaned_output[4:]
+            cleaned_output = cleaned_output.strip()
+            
+        decision = json.loads(cleaned_output)
         domain = decision.get("domain")
         confidence = decision.get("confidence", 0.5)
         
