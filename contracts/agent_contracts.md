@@ -1,31 +1,36 @@
 # Agent Contracts
 
 ## Message Flow
-User -> Handler -> Router -> Classifier (if no active session) -> Specific Agent -> Router -> Handler -> User
+User -> Handler -> Orchestrator -> Router -> Agent -> Orchestrator -> Handler -> User
 
-## 1. Classifier
-**Responsibility**: Determine user intent and collect initial information.  
-**Input**:
+## Session Flag (Postgres)
+La transición de agentes se persiste en la tabla `sessions` usando los campos `target_agent` y `domain`.
+El agente **no escribe directamente en Postgres**; en cambio retorna una acción `route` con `next_agent` y `domain`,
+y el `Orchestrator` actualiza la sesión.
+
+Ejemplo:
 ```json
 {
-  "user_id": "string (phone number)",
-  "user_text": "string",
-  "session_id": "string (optional)",
-  "last_route": "string (from state)",
-  "last_question": "string (from state)"
+  "action": "route",
+  "next_agent": "classifier_agent",
+  "domain": "siniestros",
+  "message": "Te paso con el área de siniestros.",
+  "memory": {}
 }
 ```
-**Output (JSON)**:
+
+## 1. Response Contract (All Agents)
+Los agentes devuelven un dict con:
 ```json
 {
-  "route": "telefonos_asistencia | apertura_siniestro | consulta_estado | classifier",
-  "confidence": 0.0-1.0,
-  "needs_more_info": boolean,
-  "question": "string (optional, if needs_more_info=true)"
+  "action": "ask | route | finish",
+  "message": "string",
+  "next_agent": "string (solo si action=route)",
+  "domain": "string | null (solo si action=route)",
+  "memory": "object (opcional)"
 }
 ```
-**Tools**:
-- `whatsapp_send`: to ask clarification questions directly.
+El `Orchestrator` procesa la acción y actualiza la sesión en Postgres.
 
 ## 2. Router
 **Responsibility**: Deterministic dispatch based on classifier output or session state.  
