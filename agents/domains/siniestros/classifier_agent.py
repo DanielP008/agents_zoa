@@ -68,8 +68,8 @@ def handle(payload: dict) -> dict:
     }
 
 def classify_message(payload: dict) -> ClassificationDecision:
-    user_text = payload.get("text", "")
-    user_id = payload.get("from", "unknown")
+    user_text = payload.get("mensaje", "")
+    user_id = payload.get("wa_id", "unknown")
     session = payload.get("session", {})
     
     memory = session.get("agent_memory", {})

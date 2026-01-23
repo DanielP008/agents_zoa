@@ -52,7 +52,7 @@ def create_internal_task(task: dict) -> dict:
     }
 
 def handle(payload: dict) -> dict:
-    user_text = payload.get("text", "")
+    user_text = payload.get("mensaje", "")
     session = payload.get("session", {})
     history = session.get("agent_memory", {}).get("asistencia_history", [])
 

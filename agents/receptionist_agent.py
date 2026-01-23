@@ -51,7 +51,7 @@ def handle(payload: dict) -> dict:
     }
 
 def classify_domain(payload: dict) -> dict:
-    user_text = payload.get("text", "")
+    user_text = payload.get("mensaje", "")
     session = payload.get("session", {})
     
     # Check if we are already in a domain loop - handled by orchestrator now

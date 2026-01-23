@@ -12,11 +12,11 @@ def main():
     # Configuration
     url = "http://localhost:8080"
     user_id = "local_tester_001"
-    company_id = "company_123" # Default from simulation script
+    company_id = "company_123" # Simulating the phone_number_id
     conversation_id = str(uuid.uuid4())
 
     print(f"Session ID: {conversation_id}")
-    print(f"User ID: {user_id}\n")
+    print(f"User ID (wa_id): {user_id}\n")
 
     while True:
         try:
@@ -31,11 +31,14 @@ def main():
         if not user_input:
             continue
 
+        # Updated to match the "Source of Truth" Buffer payload
         payload = {
-            "from": user_id,
-            "text": user_input,
-            "company_id": company_id,
-            "conversation_id": conversation_id
+            "wa_id": user_id,
+            "mensaje": user_input,
+            "phone_number_id": company_id,
+            # conversation_id is internal to ZOA, not from Buffer, but we can send it if needed.
+            # However, the Buffer contract doesn't send it, so testing without it is better
+            # to mimic production.
         }
 
         try:
@@ -43,13 +46,8 @@ def main():
             response.raise_for_status()
             
             data = response.json()
-            # The handler returns {"status": "ok", "response": ...}
-            # The orchestrator response structure depends on implementation, 
-            # usually it has 'message' or similar.
-            
             agent_response = data.get("response", {})
             
-            # Handle different response types if necessary
             if isinstance(agent_response, dict):
                 message = agent_response.get("message", str(agent_response))
             else:

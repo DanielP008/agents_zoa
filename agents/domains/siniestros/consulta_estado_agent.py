@@ -23,7 +23,7 @@ def process_document(doc_type: str) -> dict:
 
 
 def handle(payload: dict) -> dict:
-    user_text = payload.get("text", "")
+    user_text = payload.get("mensaje", "")
     session = payload.get("session", {})
     history = session.get("agent_memory", {}).get("consulta_history", [])
 

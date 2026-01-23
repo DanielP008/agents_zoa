@@ -1,21 +1,13 @@
 import json
-
 from core.orchestrator import process_message
 
-
 def handle_whatsapp(request):
-    payload = request.get_json(silent=True) or {}
-    
-    # Adapter for Buffer Script
-    if "mensaje" in payload and "text" not in payload:
-        payload["text"] = payload["mensaje"]
-    if "wa_id" in payload and "from" not in payload:
-        payload["from"] = payload["wa_id"]
-    
-    # New Orchestrator Flow
-    print(f"DEBUG: Processing message payload: {payload}")
-    response = process_message(payload)
-    
+    """
+    Handler dedicated to the ZOA Buffer System (Source of Truth).
+    Receives 'mensaje', 'wa_id', 'phone_number_id'.
+    """
+    data = request.get_json(silent=True) or {}
+    response = process_message(data)
     return (
         json.dumps({"status": "ok", "response": response}, ensure_ascii=False),
         200,
