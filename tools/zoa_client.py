@@ -40,17 +40,19 @@ def send_whatsapp_response(
         return {"error": "ZOA_ENDPOINT_URL not configured"}
 
     # Construct the payload for the ZOA Cloud Function
-    # The Cloud Function expects: action, option, company_id (required)
-    # ZoaConversation.send() expects: phone_number_id (preferred) or company_id, type, text, phone/to
+
+    conversation_id = f"{company_id}_{wa_id}"
+    
     payload = {
         "action": "conversations",
         "option": "send",
         "company_id": company_id,  # Required by Cloud Function main()
         "type": "text",
         "text": text,
-        "phone": wa_id  # Used when conversation_id is not present
+        "conversation_id": conversation_id
     }
-
+    
+    print(f"[ZOA_CLIENT]   Conversation ID: {conversation_id}")
     print(f"[ZOA_CLIENT] 🌐 Calling ZOA endpoint: {zoa_endpoint}")
     print(f"[ZOA_CLIENT] 📦 Payload: {json.dumps(payload, indent=2)}")
 
