@@ -6,16 +6,12 @@ from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 
 from agents.llm import get_llm
+from core.memory_schema import get_agent_memory, get_agent_history
 
 # Configuration loading to avoid circular imports with main_router
-import pathlib
+from core.hooks import get_contracts_path
 
-# Robust path resolution
-# Current: /app/agents/domains/siniestros/classifier_agent.py
-# Root: /app
-_CURRENT_DIR = pathlib.Path(__file__).parent.resolve()
-_ROOT_DIR = _CURRENT_DIR.parent.parent.parent # up 3 levels: siniestros -> domains -> agents -> app
-_ROUTES_PATH = _ROOT_DIR / "contracts" / "routes.json"
+_ROUTES_PATH = get_contracts_path("routes.json")
 
 with open(_ROUTES_PATH, "r") as f:
     _ROUTES_CONFIG = json.load(f)
@@ -41,7 +37,7 @@ class ClassificationDecision(BaseModel):
         default=""
     )
 
-def handle(payload: dict) -> dict:
+def classifier_siniestros_agent(payload: dict) -> dict:
     decision = classify_message(payload)
     
     if decision.needs_more_info:
@@ -71,8 +67,9 @@ def classify_message(payload: dict) -> ClassificationDecision:
     session = payload.get("session", {})
     
     memory = session.get("agent_memory", {})
-    agent_mem = memory.get("agents", {}).get("classifier_siniestros_agent", {})
+    agent_mem = get_agent_memory(memory, "classifier_siniestros_agent")
     last_route = agent_mem.get("last_route", "unknown")
+    history = get_agent_history(memory, "classifier_siniestros_agent")
     
     # Construct the prompt
     system_prompt = (
@@ -83,18 +80,19 @@ def classify_message(payload: dict) -> ClassificationDecision:
         f"- apertura_siniestro_agent: Para denunciar un choque, robo, o accidente nuevo.\n"
         f"- consulta_estado_agent: Para consultar el estado de un siniestro YA iniciado o existente.\n\n"
         "Instrucciones:\n"
-        "1. Analiza el mensaje del usuario y el historial.\n"
+        "1. Analiza el mensaje del usuario y el historial de conversación.\n"
         "2. Si la intención no es clara o faltan detalles clave para decidir entre los agentes, DEBES preguntar (needs_more_info=True).\n"
         "3. NO asumas. Si el usuario dice 'siniestro', no sabes si quiere abrir uno o consultar uno existente. PREGUNTA.\n"
         "4. Sé amable y directo en tus preguntas.\n"
         "5. Si estás seguro, establece needs_more_info=False y route al agente correcto.\n"
-        "6. Contexto previo: El usuario puede estar respondiendo a una pregunta anterior.\n"
+        "6. Contexto previo: El usuario puede estar respondiendo a una pregunta anterior. Usa el historial para entender el contexto completo.\n"
     )
 
     prompt = ChatPromptTemplate.from_messages(
         [
             ("system", system_prompt),
-            ("human", "Historial/Contexto: ultimo_route_provisional={last_route}\n\nMensaje del Usuario: {user_text}"),
+            *history,
+            ("human", "Contexto adicional: ultimo_route_provisional={last_route}\n\nMensaje del Usuario: {user_text}"),
         ]
     )
 

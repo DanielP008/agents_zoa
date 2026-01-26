@@ -1,9 +1,8 @@
 import json
-import pathlib
 
+from core.hooks import get_contracts_path
 
-_ROOT_DIR = pathlib.Path(__file__).parent.parent
-_ROUTES_PATH = _ROOT_DIR / "contracts" / "routes.json"
+_ROUTES_PATH = get_contracts_path("routes.json")
 
 
 def load_routes_config() -> dict:

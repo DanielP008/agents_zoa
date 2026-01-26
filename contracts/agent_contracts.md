@@ -142,6 +142,7 @@ write within their namespaces.
 
 ## 3. Specific Agents
 **Common Contract**:
+- **Function Signature**: `{agent_name}_agent(payload: dict) -> dict`
 - **Input**: Inbound message payload (`text`, `from`, `metadata`).
 - **Output**: JSON dict with agent-specific keys (e.g. `claim_id`, `policy_data`, `message`).
 

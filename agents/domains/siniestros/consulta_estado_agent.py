@@ -1,7 +1,7 @@
 import json
 
-from langchain.agents.tool_calling_agent.base import create_tool_calling_agent
-from langchain.agents.agent import AgentExecutor
+from core.agent_factory import create_langchain_agent, run_langchain_agent
+from core.memory_schema import get_agent_history
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 
@@ -22,15 +22,11 @@ def process_document(doc_type: str) -> dict:
     return extract_text({"type": doc_type})
 
 
-def handle(payload: dict) -> dict:
+def consulta_estado_agent(payload: dict) -> dict:
     user_text = payload.get("mensaje", "")
     session = payload.get("session", {})
-    history = (
-        session.get("agent_memory", {})
-        .get("agents", {})
-        .get("consulta_estado_agent", {})
-        .get("history", [])
-    )
+    memory = session.get("agent_memory", {})
+    history = get_agent_history(memory, "consulta_estado_agent")
 
     system_prompt = (
         "Eres el agente de Consulta de Estado de ZOA. "
@@ -49,10 +45,9 @@ def handle(payload: dict) -> dict:
 
     llm = get_llm()
     tools = [lookup_policy, process_document]
-    agent = create_tool_calling_agent(llm, tools, prompt)
-    executor = AgentExecutor(agent=agent, tools=tools, verbose=False)
+    executor = create_langchain_agent(llm, tools, prompt)
 
-    result = executor.invoke({"user_text": user_text})
+    result = run_langchain_agent(executor, user_text)
     output_text = result.get("output", "")
 
     # Update state

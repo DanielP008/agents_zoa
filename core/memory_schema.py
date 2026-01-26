@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 
 _DEFAULT_MEMORY: Dict[str, Any] = {
@@ -85,5 +85,126 @@ def apply_memory_patch(memory: Dict[str, Any], patch: Optional[Dict[str, Any]]) 
             memory[key].update(patch[key])
     if isinstance(patch.get("conversation_history"), list):
         memory["conversation_history"].extend(patch["conversation_history"])
+    memory["metadata"]["updated_at"] = _utc_now()
+    return memory
+
+
+def get_agent_memory(memory: Dict[str, Any], agent_name: str, default: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """
+    Get agent-specific memory namespace.
+
+    Args:
+        memory: The full memory dict
+        agent_name: Name of the agent (e.g., "classifier_siniestros_agent")
+        default: Default value if agent memory doesn't exist
+
+    Returns:
+        Agent-specific memory dict
+    """
+    memory = ensure_memory_shape(memory)
+    return memory.get("agents", {}).get(agent_name, default or {})
+
+
+def get_agent_history(memory: Dict[str, Any], agent_name: str) -> List[tuple]:
+    """
+    Get agent history as LangChain-compatible tuples.
+    Automatically converts lists to tuples (JSON deserializes tuples as lists).
+
+    Args:
+        memory: The full memory dict
+        agent_name: Name of the agent
+
+    Returns:
+        List of (role, content) tuples ready for ChatPromptTemplate
+    """
+    agent_mem = get_agent_memory(memory, agent_name)
+    raw_history = agent_mem.get("history", [])
+    # Convert lists to tuples (JSON deserializes tuples as lists)
+    return [tuple(msg) if isinstance(msg, list) else msg for msg in raw_history]
+
+
+def set_agent_memory(memory: Dict[str, Any], agent_name: str, agent_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Set agent-specific memory namespace.
+
+    Args:
+        memory: The full memory dict
+        agent_name: Name of the agent
+        agent_data: Data to store for this agent
+
+    Returns:
+        Updated memory dict
+    """
+    memory = ensure_memory_shape(memory)
+    if "agents" not in memory:
+        memory["agents"] = {}
+    memory["agents"][agent_name] = agent_data
+    memory["metadata"]["updated_at"] = _utc_now()
+    return memory
+
+
+def get_domain_memory(memory: Dict[str, Any], domain_name: str, default: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """
+    Get domain-specific memory namespace.
+
+    Args:
+        memory: The full memory dict
+        domain_name: Name of the domain (e.g., "siniestros")
+        default: Default value if domain memory doesn't exist
+
+    Returns:
+        Domain-specific memory dict
+    """
+    memory = ensure_memory_shape(memory)
+    return memory.get("domains", {}).get(domain_name, default or {})
+
+
+def set_domain_memory(memory: Dict[str, Any], domain_name: str, domain_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Set domain-specific memory namespace.
+
+    Args:
+        memory: The full memory dict
+        domain_name: Name of the domain
+        domain_data: Data to store for this domain
+
+    Returns:
+        Updated memory dict
+    """
+    memory = ensure_memory_shape(memory)
+    if "domains" not in memory:
+        memory["domains"] = {}
+    memory["domains"][domain_name] = domain_data
+    memory["metadata"]["updated_at"] = _utc_now()
+    return memory
+
+
+def get_global_memory(memory: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Get global memory namespace.
+
+    Args:
+        memory: The full memory dict
+
+    Returns:
+        Global memory dict
+    """
+    memory = ensure_memory_shape(memory)
+    return memory["global"]
+
+
+def update_global_memory(memory: Dict[str, Any], **updates) -> Dict[str, Any]:
+    """
+    Update global memory namespace.
+
+    Args:
+        memory: The full memory dict
+        **updates: Key-value pairs to update in global memory
+
+    Returns:
+        Updated memory dict
+    """
+    memory = ensure_memory_shape(memory)
+    memory["global"].update(updates)
     memory["metadata"]["updated_at"] = _utc_now()
     return memory

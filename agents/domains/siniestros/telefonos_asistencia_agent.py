@@ -1,7 +1,7 @@
 import json
 
-from langchain.agents.tool_calling_agent.base import create_tool_calling_agent
-from langchain.agents.agent import AgentExecutor
+from core.agent_factory import create_langchain_agent, run_langchain_agent
+from core.memory_schema import get_agent_history
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 
@@ -51,15 +51,11 @@ def create_internal_task(task: dict) -> dict:
         }
     }
 
-def handle(payload: dict) -> dict:
+def telefonos_asistencia_agent(payload: dict) -> dict:
     user_text = payload.get("mensaje", "")
     session = payload.get("session", {})
-    history = (
-        session.get("agent_memory", {})
-        .get("agents", {})
-        .get("telefonos_asistencia_agent", {})
-        .get("history", [])
-    )
+    memory = session.get("agent_memory", {})
+    history = get_agent_history(memory, "telefonos_asistencia_agent")
 
     system_prompt = """Eres parte del equipo de atención de ZOA Seguros. Tu función es proporcionar los números de teléfono de asistencia a los clientes que los necesiten.
 
@@ -138,11 +134,10 @@ Si necesitas algo más, me dices."
     )
 
     llm = get_llm()
-    tools = [get_assistance_phones, lookup_erp, create_internal_task] 
-    agent = create_tool_calling_agent(llm, tools, prompt)
-    executor = AgentExecutor(agent=agent, tools=tools, verbose=False)
+    tools = [get_assistance_phones, lookup_erp, create_internal_task]
+    executor = create_langchain_agent(llm, tools, prompt)
 
-    result = executor.invoke({"user_text": user_text})
+    result = run_langchain_agent(executor, user_text)
     output_text = result.get("output", "")
 
     # Update state

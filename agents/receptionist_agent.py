@@ -10,22 +10,19 @@ from pydantic import BaseModel, Field
 from langchain_core.tools import tool
 
 from agents.llm import get_llm
+from core.llm_utils import safe_llm_invoke, parse_llm_json_response
+from core.memory_schema import get_agent_history
 
-import pathlib
+from core.hooks import get_contracts_path
 
-# Robust path resolution for Docker /app env
-# Assuming structure: /app/agents/receptionist_agent.py
-# contracts is at: /app/contracts/routes.json
-_CURRENT_DIR = pathlib.Path(__file__).parent.resolve() # /app/agents
-_ROOT_DIR = _CURRENT_DIR.parent # /app
-_ROUTES_PATH = _ROOT_DIR / "contracts" / "routes.json"
+_ROUTES_PATH = get_contracts_path("routes.json")
 
 with open(_ROUTES_PATH, "r") as f:
     _ROUTES_CONFIG = json.load(f)
     _VALID_DOMAINS = set(_ROUTES_CONFIG["domains"])
 
 
-def handle(payload: dict) -> dict:
+def receptionist_agent(payload: dict) -> dict:
     
     session = payload.get("session", {})
     memory = session.get("agent_memory", {})
@@ -105,17 +102,7 @@ def classify_domain(payload: dict) -> dict:
     
     # Get conversation history for context
     memory = session.get("agent_memory", {})
-    conversation_history = memory.get("conversation_history", [])
-    
-    # Build context from last few turns
-    history_context = ""
-    if conversation_history:
-        recent_turns = conversation_history[-6:]  # Last 3 exchanges
-        history_lines = []
-        for turn in recent_turns:
-            role = "Usuario" if turn.get("role") == "user" else "Asistente"
-            history_lines.append(f"{role}: {turn.get('text', '')}")
-        history_context = "\n".join(history_lines)
+    history = get_agent_history(memory, "receptionist_agent")
     
     parser = PydanticOutputParser(pydantic_object=DomainClassification)
 
@@ -150,7 +137,7 @@ Deriva a ventas cuando el usuario mencione:
 - Información sobre productos o coberturas disponibles
 
 ## INSTRUCCIONES
-1. Analiza el mensaje del usuario.
+1. Analiza el mensaje del usuario y el historial de conversación.
 2. Clasifica en una de las áreas disponibles ({available_domains}).
 3. Si el área no está disponible, usa la más cercana.
 4. Si el mensaje es ambiguo o muy corto (ej: "hola", "info"), usa domain='ask'.
@@ -158,53 +145,39 @@ Deriva a ventas cuando el usuario mencione:
 
 {format_instructions}"""
 
-    # Build the human message with context
-    if history_context:
-        human_message = """Historial de conversación:
-{history_context}
-
-Mensaje actual del cliente: {user_text}"""
-    else:
-        human_message = "Mensaje del cliente: {user_text}"
-
     prompt = ChatPromptTemplate.from_messages(
         [
             ("system", system_prompt),
-            ("human", human_message),
+            *history,
+            ("human", "Mensaje del cliente: {user_text}"),
         ]
     )
 
     llm = get_llm()
     chain = prompt | llm
-    
-    try:
-        result = chain.invoke(
-            {
-                "user_text": user_text,
-                "history_context": history_context,
-                "format_instructions": parser.get_format_instructions(),
-                "available_domains": available_domains,
-            }
-        )
-        output = result.content
-        
-        # Clean markdown if present
-        cleaned_output = output.strip()
-        if cleaned_output.startswith("```"):
-            cleaned_output = cleaned_output.split("```")[1]
-            if cleaned_output.startswith("json"):
-                cleaned_output = cleaned_output[4:]
-            cleaned_output = cleaned_output.strip()
-            
-        parsed = parser.parse(cleaned_output)
-        domain = parsed.domain
-        confidence = parsed.confidence
-        
-        if domain not in _VALID_DOMAINS:
-            domain = "receptionist_agent" # fallback
-            
-        return {"domain": domain, "confidence": confidence}
-    except json.JSONDecodeError as e:
+
+    result = safe_llm_invoke(
+        chain.invoke,
+        {
+            "user_text": user_text,
+            "format_instructions": parser.get_format_instructions(),
+            "available_domains": available_domains,
+        },
+        error_context="receptionist_domain_classification"
+    )
+
+    if not result or isinstance(result, dict) and result.get("error"):
         return {"domain": "receptionist_agent", "confidence": 0.0}
-    except Exception as e:
+
+    # Parse the response
+    parsed_data = parse_llm_json_response(result, ["domain", "confidence"])
+    if not parsed_data or "domain" not in parsed_data:
         return {"domain": "receptionist_agent", "confidence": 0.0}
+
+    domain = parsed_data.get("domain", "receptionist_agent")
+    confidence = parsed_data.get("confidence", 0.0)
+
+    if domain not in _VALID_DOMAINS:
+        domain = "receptionist_agent" # fallback
+
+    return {"domain": domain, "confidence": confidence}

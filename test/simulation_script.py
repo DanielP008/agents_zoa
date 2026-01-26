@@ -11,6 +11,11 @@ os.environ["USE_CLOUD_SQL"] = "false"
 os.environ["ZOA_ENDPOINT_URL"] = "http://mock-endpoint" # Dummy URL to avoid error in client import/usage if verified
 
 from core.orchestrator import process_message
+from core.tracing import setup_tracing
+
+# Initialize tracing
+setup_tracing()
+
 
 # Mock the ZOA client tool to avoid network calls
 @patch("core.orchestrator.send_whatsapp_response")

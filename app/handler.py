@@ -1,6 +1,10 @@
 import json
 from core.orchestrator import process_message
 from core.db import SessionManager
+from core.tracing import setup_tracing
+
+# Initialize tracing on cold start
+setup_tracing()
 
 def handle_whatsapp(request):
     """

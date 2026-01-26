@@ -74,6 +74,23 @@ Processes WhatsApp messages through a hierarchy of specialized agents with persi
            └─────────────────┘     └─────────────────┘      └─────────────────┘
 ```
 
+### Architectural Principles Applied
+
+**SOLID Principles:**
+- **Single Responsibility:** Each module has one clear purpose (agent_factory for LangChain, llm_utils for LLM handling)
+- **Open/Closed:** Core abstractions can be extended without modification
+- **Dependency Inversion:** Agents depend on abstractions, not concretions
+
+**DRY (Don't Repeat Yourself):**
+- Centralized LangChain agent creation eliminates 80+ lines of duplicate code
+- Path resolution utilities prevent scattered filesystem logic
+- LLM error handling provides consistent behavior across all agents
+
+**Type Safety & Error Handling:**
+- Structured memory schema prevents runtime errors from missing keys
+- Safe LLM invocation with automatic logging and fallbacks
+- Centralized error handling improves debugging and user experience
+
 ### Agent Hierarchy
 
 ```
@@ -169,21 +186,37 @@ return {
 - **Function**: Classifies the message domain (claims, management, sales)
 - **First interaction**: Shows welcome message if it cannot classify
 - **Subsequent interactions**: Asks for clarification if it cannot classify
+- **Architecture**: Uses `llm_utils.safe_llm_invoke()` for robust LLM calls
 - **Output**: Always `route` with passthrough or `ask` to clarify
 
 ### Classifier Siniestros (`classifier_agent.py`)
 
 - **Function**: Determines the specific intent within claims
 - **Options**: Assistance, claim opening, status inquiry
+- **Architecture**: Uses `memory_schema.get_agent_memory()` for type-safe memory access
 - **Output**: `ask` to clarify or `route` to the specialist
 
 ### Specialists
 
-| Agent                         | Function                                   |
-|-------------------------------|--------------------------------------------|
-| `telefonos_asistencia_agent`  | Provides tow truck and assistance numbers  |
-| `apertura_siniestro_agent`    | Collects data and registers new claim      |
-| `consulta_estado_agent`       | Checks status of existing claims           |
+| Agent                         | Function                                   | Architecture |
+|-------------------------------|--------------------------------------------|-------------|
+| `telefonos_asistencia_agent`  | Provides tow truck and assistance numbers  | `agent_factory` + `get_agent_memory()` |
+| `apertura_siniestro_agent`    | Collects data and registers new claim      | `agent_factory` + `get_agent_memory()` |
+| `consulta_estado_agent`       | Checks status of existing claims           | `agent_factory` + `get_agent_memory()` |
+
+### Implementation Patterns
+
+**All agents follow these established patterns:**
+
+- **LangChain Setup**: Use `agent_factory.create_langchain_agent()` and `run_langchain_agent()` instead of manual boilerplate (eliminates 15+ lines per agent)
+
+- **Memory Access**: Use `memory_schema.get_agent_memory(agent_name)` for type-safe namespace access instead of manual dict traversal
+
+- **Error Handling**: LLM calls use `llm_utils.safe_llm_invoke()` with automatic logging, retry logic, and fallbacks
+
+- **Path Resolution**: Use `hooks.get_contracts_path()` and `get_config_path()` for consistent file access across the project
+
+- **Response Building**: Return standardized dicts with consistent `action`, `message`, `memory` structure
 
 ---
 
@@ -287,7 +320,7 @@ CREATE TABLE sessions (
 
 ### Routing (`contracts/routes.json`)
 
-Defines the agent hierarchy and their labels:
+Defines the agent hierarchy and their labels. Access via `core.hooks.get_contracts_path("routes.json")`:
 
 ```json
 {
@@ -393,8 +426,11 @@ zoa_agents/
 │
 ├── core/
 │   ├── agent_allowlist.py                  # Validation of allowed routes
+│   ├── agent_factory.py                    # Centralized LangChain agent creation (DRY principle)
 │   ├── db.py                               # PostgreSQL session manager
-│   ├── memory_schema.py                    # Helpers for agent_memory
+│   ├── hooks.py                            # Path resolution utilities (DRY principle)
+│   ├── llm_utils.py                        # LLM error handling & response parsing (robustness)
+│   ├── memory_schema.py                    # Structured memory helpers (type safety)
 │   └── orchestrator.py                     # Flow orchestration
 │
 ├── routers/
@@ -427,7 +463,26 @@ zoa_agents/
 | Runtime        | Python 3.11                     |
 | Container      | Docker                          |
 
+## Architecture Highlights
+
+- **Modular Design**: Separation of concerns with dedicated modules for each responsibility
+- **DRY Principle**: Centralized utilities eliminate ~80 lines of duplicate code
+- **Error Resilience**: Comprehensive error handling with automatic logging and fallbacks
+- **Type Safety**: Structured memory access prevents runtime errors
+- **Testability**: Abstracted dependencies enable easy mocking and testing
+- **Maintainability**: Changes to core functionality affect single modules, not multiple agents
+
 ---
+
+## Roadmap
+
+- [x] **Architecture Refactoring**: Centralized LangChain agents, error handling, and memory management
+- [ ] Implementar `classifier_gestion_agent`
+- [ ] Implementar `classifier_ventas_agent`
+- [ ] Agregar summary automático de conversación
+- [ ] Migrar credenciales DB a variables de entorno
+- [ ] Agregar tests unitarios para nuevos módulos core
+- [ ] Add monitoring/metrics for LLM calls and agent performance
 
 ## Additional Documentation
 

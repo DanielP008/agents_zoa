@@ -35,7 +35,7 @@ All agents must return a dict with:
 ## Naming Conventions
 - All agents must end in `_agent.py`
 - Files: `receptionist_agent.py`, `classifier_siniestros_agent.py`, `apertura_siniestro_agent.py`
-- Functions: `handle(payload: dict) -> dict`
+- Functions: `{agent_name}_agent(payload: dict) -> dict`
 
 ## Statelessness
 - Agents DO NOT write directly to PostgreSQL
@@ -55,4 +55,8 @@ All agents must return a dict with:
 ## Code Style
 - DO NOT use `print()` in production code (only in `test/`)
 - Use `logger.error()` for errors in `core/db.py`
-- Imports: `from core.memory_schema import ensure_memory_shape, append_turn, apply_memory_patch`
+- Path resolution: Use `core.hooks` functions instead of manual pathlib logic
+- LangChain agents: Use `core.agent_factory.create_langchain_agent()` instead of manual setup (✅ All agents updated)
+- LLM error handling: Use `core.llm_utils.safe_llm_invoke()` for LLM calls (✅ receptionist_agent updated)
+- Memory access: Use `core.memory_schema.get_agent_memory()` for agent data, `get_agent_history()` for LangChain-compatible history (✅ All agents updated)
+- Imports: `from core.memory_schema import ensure_memory_shape, append_turn, apply_memory_patch, get_agent_memory`

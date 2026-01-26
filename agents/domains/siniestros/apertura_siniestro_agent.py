@@ -1,7 +1,7 @@
 import json
 
-from langchain.agents.agent import AgentExecutor
-from langchain.agents.tool_calling_agent.base import create_tool_calling_agent
+from core.agent_factory import create_langchain_agent, run_langchain_agent
+from core.memory_schema import get_agent_history
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 
@@ -19,15 +19,11 @@ def create_claim_tool(data: str) -> dict:
         return {"error": "Invalid JSON format"}
 
 
-def handle(payload: dict) -> dict:
+def apertura_siniestro_agent(payload: dict) -> dict:
     user_text = payload.get("mensaje", "")
     session = payload.get("session", {})
-    history = (
-        session.get("agent_memory", {})
-        .get("agents", {})
-        .get("apertura_siniestro_agent", {})
-        .get("history", [])
-    )
+    memory = session.get("agent_memory", {})
+    history = get_agent_history(memory, "apertura_siniestro_agent")
 
     system_prompt = (
         "Eres el agente de Apertura de Siniestros de ZOA. "
@@ -47,22 +43,18 @@ def handle(payload: dict) -> dict:
 
     llm = get_llm()
     tools = [create_claim_tool]
-    agent = create_tool_calling_agent(llm, tools, prompt)
-    executor = AgentExecutor(agent=agent, tools=tools, verbose=False)
+    executor = create_langchain_agent(llm, tools, prompt)
 
-    result = executor.invoke({"user_text": user_text})
+    result = run_langchain_agent(executor, user_text)
     output_text = result.get("output", "")
 
     # Update state
     history.append(("human", user_text))
     history.append(("ai", output_text))
     
-    # Check if we are done (tool called?) -> How to detect?
-    # For now simple: always return ask until explicitly finished?
-    # Or parsing the output_text for "registrado".
-    
+    # Check if we are done (tool called?) -> Detect by checking output text
     action = "ask"
-    if "registrado" in output_text.lower() or "claim_id" in str(state):
+    if "registrado" in output_text.lower() or "claim_id" in output_text.lower():
         action = "finish"
 
     return {
