@@ -74,7 +74,7 @@ For conversational agents with tools, use `create_langchain_agent()` from `core.
 - Agents receive `session` in `payload` with `agent_memory` already loaded
 
 ## Deterministic Dispatch
-- Router (`main_router.py`) never guesses, it follows `contracts/routes.json`
+- Router (`main_router.py`) never guesses, it follows `routers/routes.json`
 - Validation of allowed routes via `agent_allowlist.py`
 - If route is not allowed → error, no fallback
 
@@ -84,7 +84,7 @@ For conversational agents with tools, use `create_langchain_agent()` from `core.
 - Always tries to classify first, only asks if it fails
 
 ## Code Style
-- Path resolution: `core.hooks.get_contracts_path()`
+- Path resolution: `core.hooks.get_routes_path()` for routes config
 - LangChain agents: `core.agent_factory.create_langchain_agent()`
 - Structured output: `llm.with_structured_output()` for decision agents
 - Memory: `get_global_history()` for history, `get_agent_memory()` for agent data

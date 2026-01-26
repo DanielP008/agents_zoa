@@ -320,9 +320,9 @@ CREATE TABLE sessions (
 );
 ```
 
-### Routing (`contracts/routes.json`)
+### Routing (`routers/routes.json`)
 
-Defines the agent hierarchy and their labels. Access via `core.hooks.get_contracts_path("routes.json")`:
+Defines the agent hierarchy and their labels. Access via `core.hooks.get_routes_path()`:
 
 ```json
 {

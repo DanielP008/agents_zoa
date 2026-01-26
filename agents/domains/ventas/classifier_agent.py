@@ -18,14 +18,14 @@ with open(_ROUTES_PATH, "r") as f:
     _ROUTES_CONFIG = json.load(f)
     # Parse new structure
     try:
-        _VALID_ROUTES = _ROUTES_CONFIG["domains"]["siniestros"]["specialists"]
+        _VALID_ROUTES = _ROUTES_CONFIG["domains"]["ventas"]["specialists"]
     except KeyError:
         _VALID_ROUTES = []
 
 class ClassificationDecision(BaseModel):
     """Decision model for the classifier agent."""
     route: str = Field(
-        default="classifier_siniestros_agent",
+        default="classifier_ventas_agent",
         description=f"The target agent to route to. Must be one of: {', '.join(_VALID_ROUTES)}. If unsure, select the most likely one but set needs_more_info to True."
     )
     confidence: float = Field(
@@ -41,7 +41,7 @@ class ClassificationDecision(BaseModel):
         description="The question to ask the user if needs_more_info is True. Otherwise, an empty string or polite closing."
     )
 
-def classifier_siniestros_agent(payload: dict) -> dict:
+def classifier_ventas_agent(payload: dict) -> dict:
     decision = classify_message(payload)
     
     if decision.needs_more_info:
@@ -50,7 +50,7 @@ def classifier_siniestros_agent(payload: dict) -> dict:
             "message": decision.question,
             "memory": {
                 "agents": {
-                    "classifier_siniestros_agent": {
+                    "classifier_ventas_agent": {
                         "last_route": decision.route,
                         "confidence": decision.confidence,
                     }
@@ -61,7 +61,7 @@ def classifier_siniestros_agent(payload: dict) -> dict:
     return {
         "action": "route",
         "next_agent": decision.route, 
-        "domain": "siniestros",
+        "domain": "ventas",
         "message": None  # Passthrough: el agente especializado responderá directamente
     }
 
@@ -71,25 +71,25 @@ def classify_message(payload: dict) -> ClassificationDecision:
     session = payload.get("session", {})
     
     memory = session.get("agent_memory", {})
-    agent_mem = get_agent_memory(memory, "classifier_siniestros_agent")
+    agent_mem = get_agent_memory(memory, "classifier_ventas_agent")
     last_route = agent_mem.get("last_route", "unknown")
     history = get_global_history(memory)
     
     # Construct the prompt
     system_prompt = (
-        "Eres el Agente Clasificador de Siniestros de ZOA. "
+        "Eres el Agente Clasificador de Ventas de ZOA. "
         "Tu objetivo es entender EXACTAMENTE qué necesita el usuario y derivarlo al agente correcto.\n\n"
         f"Los agentes disponibles son:\n"
-        f"- telefonos_asistencia_agent: Para solicitar números de grúa, asistencia mecánica, o emergencias.\n"
-        f"- apertura_siniestro_agent: Para denunciar un choque, robo, o accidente nuevo.\n"
-        f"- consulta_estado_agent: Para consultar el estado de un siniestro YA iniciado o existente.\n\n"
+        f"- nueva_poliza_agent: Para cotizar y contratar una nueva póliza de seguro.\n"
+        f"- venta_cruzada_agent: Para ofrecer productos adicionales a clientes que YA tienen póliza (upgrades, coberturas extras, otros seguros).\n\n"
         "Instrucciones:\n"
         "1. Analiza el mensaje del usuario y el historial de conversación.\n"
         "2. Si la intención no es clara o faltan detalles clave para decidir entre los agentes, DEBES preguntar (needs_more_info=True).\n"
-        "3. NO asumas. Si el usuario dice 'siniestro', no sabes si quiere abrir uno o consultar uno existente. PREGUNTA.\n"
-        "4. Sé amable y directo en tus preguntas.\n"
-        "5. Si estás seguro, establece needs_more_info=False y route al agente correcto.\n"
-        "6. Contexto previo: El usuario puede estar respondiendo a una pregunta anterior. Usa el historial para entender el contexto completo.\n\n"
+        "3. Si el usuario ya es cliente y busca mejorar/ampliar su seguro actual, va a venta_cruzada_agent.\n"
+        "4. Si el usuario es nuevo o busca una póliza completamente nueva, va a nueva_poliza_agent.\n"
+        "5. Sé amable y directo en tus preguntas.\n"
+        "6. Si estás seguro, establece needs_more_info=False y route al agente correcto.\n"
+        "7. Contexto previo: El usuario puede estar respondiendo a una pregunta anterior. Usa el historial para entender el contexto completo.\n\n"
         "## Formato de respuesta\n"
         "DEBES responder en formato JSON válido con esta estructura exacta:\n"
         "{{\n"
@@ -118,8 +118,8 @@ def classify_message(payload: dict) -> ClassificationDecision:
     
     chain = prompt | structured_llm
 
-    print(f"\n[CLASSIFIER DEBUG] user_text: {user_text}")
-    print(f"[CLASSIFIER DEBUG] last_route: {last_route}")
+    print(f"\n[CLASSIFIER VENTAS DEBUG] user_text: {user_text}")
+    print(f"[CLASSIFIER VENTAS DEBUG] last_route: {last_route}")
     
     result = safe_structured_invoke(
         chain,
@@ -128,17 +128,17 @@ def classify_message(payload: dict) -> ClassificationDecision:
             "user_text": user_text,
         },
         fallback_factory=lambda: ClassificationDecision(
-            route="classifier_siniestros_agent",
+            route="classifier_ventas_agent",
             confidence=0.0,
             needs_more_info=True,
-            question="Disculpa, no entendí bien. ¿Podrías decirme si necesitas asistencia, denunciar un siniestro o consultar un trámite?"
+            question="Disculpa, no entendí bien. ¿Buscas contratar una póliza nueva o mejorar un seguro que ya tienes?"
         ),
-        error_context="classifier_siniestros_decision"
+        error_context="classifier_ventas_decision"
     )
     
-    print(f"[CLASSIFIER DEBUG] result: {result}")
-    print(f"[CLASSIFIER DEBUG] result.route: {result.route}")
-    print(f"[CLASSIFIER DEBUG] result.needs_more_info: {result.needs_more_info}")
-    print(f"[CLASSIFIER DEBUG] result.question: {result.question}")
+    print(f"[CLASSIFIER VENTAS DEBUG] result: {result}")
+    print(f"[CLASSIFIER VENTAS DEBUG] result.route: {result.route}")
+    print(f"[CLASSIFIER VENTAS DEBUG] result.needs_more_info: {result.needs_more_info}")
+    print(f"[CLASSIFIER VENTAS DEBUG] result.question: {result.question}")
     
     return result

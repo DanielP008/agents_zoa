@@ -11,9 +11,9 @@ from agents.llm import get_llm
 from core.memory_schema import get_global_history
 from core.llm_utils import safe_structured_invoke
 
-from core.hooks import get_contracts_path
+from core.hooks import get_routes_path
 
-_ROUTES_PATH = get_contracts_path("routes.json")
+_ROUTES_PATH = get_routes_path()
 
 with open(_ROUTES_PATH, "r") as f:
     _ROUTES_CONFIG = json.load(f)

@@ -13,12 +13,19 @@
     "gestion": {
       "receptionist_label": "gestión de una poliza",
       "classifier": "classifier_gestion_agent",
-      "specialists": []
+      "specialists": [
+        "devolucion_agent",
+        "consultar_poliza_agent",
+        "modificar_poliza_agent"
+      ]
     },
     "ventas": {
       "receptionist_label": "contratación de una poliza nueva",
       "classifier": "classifier_ventas_agent",
-      "specialists": []
+      "specialists": [
+        "nueva_poliza_agent",
+        "venta_cruzada_agent"
+      ]
     }
   }
 }

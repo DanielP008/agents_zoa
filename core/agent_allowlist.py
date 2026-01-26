@@ -1,8 +1,8 @@
 import json
 
-from core.hooks import get_contracts_path
+from core.hooks import get_routes_path
 
-_ROUTES_PATH = get_contracts_path("routes.json")
+_ROUTES_PATH = get_routes_path()
 
 
 def load_routes_config() -> dict:
