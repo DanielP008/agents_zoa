@@ -4,40 +4,40 @@
 User -> Handler -> Orchestrator -> Router -> Agent -> Orchestrator -> Handler -> User
 
 ## Session Flag (Postgres)
-La transición de agentes se persiste en la tabla `sessions` usando los campos `target_agent` y `domain`.
-El agente **no escribe directamente en Postgres**; en cambio retorna una acción `route` con `next_agent` y `domain`,
-y el `Orchestrator` actualiza la sesión.
+Agent transitions are persisted in the `sessions` table using the `target_agent` and `domain` fields.
+The agent **does not write directly to Postgres**; instead, it returns a `route` action with `next_agent` and `domain`,
+and the `Orchestrator` updates the session.
 
-Ejemplo:
+Example:
 ```json
 {
   "action": "route",
   "next_agent": "classifier_agent",
   "domain": "siniestros",
-  "message": "Te paso con el área de siniestros.",
+  "message": "I'm transferring you to the claims area.",
   "memory": {}
 }
 ```
 
 ## 1. Response Contract (All Agents)
-Los agentes devuelven un dict con:
+Agents return a dict with:
 ```json
 {
   "action": "ask | route | finish",
   "message": "string | null",
-  "next_agent": "string (solo si action=route)",
-  "domain": "string | null (solo si action=route)",
-  "memory": "object (opcional)"
+  "next_agent": "string (only if action=route)",
+  "domain": "string | null (only if action=route)",
+  "memory": "object (optional)"
 }
 ```
-El `Orchestrator` procesa la acción y actualiza la sesión en Postgres.
+The `Orchestrator` processes the action and updates the session in Postgres.
 
-## 1.0.1 Passthrough Routing (Route sin mensaje)
-Cuando un agente devuelve `action: "route"` con `message: null`, el Orchestrator
-**no envía mensaje al usuario** y en cambio llama inmediatamente al siguiente agente
-en el mismo turno. Esto permite cadenas de routing silenciosas.
+## 1.0.1 Passthrough Routing (Route without message)
+When an agent returns `action: "route"` with `message: null`, the Orchestrator
+**does not send a message to the user** and instead immediately calls the next agent
+in the same turn. This allows for silent routing chains.
 
-### Ejemplo: Receptionist -> Classifier (passthrough)
+### Example: Receptionist -> Classifier (passthrough)
 ```json
 {
   "action": "route",
@@ -46,26 +46,26 @@ en el mismo turno. Esto permite cadenas de routing silenciosas.
   "message": null
 }
 ```
-El usuario no recibe "te paso con siniestros", sino que el classifier responde directamente.
+The user does not receive "I'm transferring you to claims", instead the classifier responds directly.
 
-### Ejemplo: Route con mensaje (comportamiento tradicional)
+### Example: Route with message (traditional behavior)
 ```json
 {
   "action": "route",
   "next_agent": "apertura_siniestro_agent",
   "domain": "siniestros",
-  "message": "Te derivo con el agente especializado."
+  "message": "I'm transferring you to the specialist agent."
 }
 ```
-El usuario recibe el mensaje y en el siguiente turno habla con el nuevo agente.
+The user receives the message and in the next turn talks to the new agent.
 
-### Límite de cadena
-El Orchestrator limita a **5 passthroughs encadenados** para prevenir loops infinitos.
+### Chain Limit
+The Orchestrator limits to **5 chained passthroughs** to prevent infinite loops.
 
-## 1.1 Agent Memory Schema (Obligatorio)
-La memoria vive en `sessions.agent_memory` y **debe respetar esta estructura**.  
-El `Orchestrator` es quien consolida y persiste la memoria, los agentes solo deben
-escribir dentro de sus namespaces.
+## 1.1 Agent Memory Schema (Mandatory)
+Memory lives in `sessions.agent_memory` and **must respect this structure**.  
+The `Orchestrator` is responsible for consolidating and persisting memory; agents should only
+write within their namespaces.
 
 ```json
 {
@@ -112,12 +112,12 @@ escribir dentro de sus namespaces.
 }
 ```
 
-### Reglas obligatorias
-- Los agentes **NO** escriben en `global` ni en `conversation_history`.
-- Los agentes solo escriben bajo `agents.<agent_name>` y/o `domains.<domain>`.
-- `Orchestrator` agrega historial y actualiza `global.last_*`.
+### Mandatory Rules
+- Agents **DO NOT** write to `global` or `conversation_history`.
+- Agents only write under `agents.<agent_name>` and/or `domains.<domain>`.
+- `Orchestrator` appends history and updates `global.last_*`.
 
-### Ejemplo de memoria devuelta por un agente
+### Example of memory returned by an agent
 ```json
 {
   "memory": {
@@ -145,7 +145,7 @@ escribir dentro de sus namespaces.
 - **Input**: Inbound message payload (`text`, `from`, `metadata`).
 - **Output**: JSON dict with agent-specific keys (e.g. `claim_id`, `policy_data`, `message`).
 
-### Agent: Telefonos de Asistencia
+### Agent: Assistance Telephones
 - **Goal**: Provide assistance numbers based on policy type.
 - **Output**:
   ```json
@@ -156,7 +156,7 @@ escribir dentro de sus namespaces.
   }
   ```
 
-### Agent: Apertura Siniestro
+### Agent: Claim Opening
 - **Goal**: Create a claim in ZOA ERP.
 - **Tools**: `create_claim(payload)`
 - **Output**:
@@ -168,7 +168,7 @@ escribir dentro de sus namespaces.
   }
   ```
 
-### Agent: Consulta Estado
+### Agent: Status Inquiry
 - **Goal**: Check policy status or process documents via OCR.
 - **Tools**: `fetch_policy(id)`, `extract_text(doc)`
 - **Output**:

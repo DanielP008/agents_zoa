@@ -1,26 +1,26 @@
 # ZOA Agents
 
-Sistema multi-agente de IA para automatizar la atención al cliente en brokers de seguros.  
-Procesa mensajes de WhatsApp mediante una jerarquía de agentes especializados con memoria persistente.
+AI multi-agent system to automate customer service for insurance brokers.  
+Processes WhatsApp messages through a hierarchy of specialized agents with persistent memory.
 
 ---
 
-## Tabla de Contenidos
+## Table of Contents
 
-- [Arquitectura](#arquitectura)
-- [Flujo de Mensaje](#flujo-de-mensaje)
-- [Agentes](#agentes)
-- [Memoria](#memoria)
-- [Configuración](#configuración)
-- [Ejecución](#ejecución)
+- [Architecture](#architecture)
+- [Message Flow](#message-flow)
+- [Agents](#agents)
+- [Memory](#memory)
+- [Configuration](#configuration)
+- [Execution](#execution)
 - [Testing](#testing)
-- [Estructura del Proyecto](#estructura-del-proyecto)
+- [Project Structure](#project-structure)
 
 ---
 
-## Arquitectura
+## Architecture
 
-### Vista General
+### General View
 
 ```
                                     ┌──────────────────┐
@@ -40,19 +40,19 @@ Procesa mensajes de WhatsApp mediante una jerarquía de agentes especializados c
 │  ┌──────────────────────────────────────────────────────────────────────────┐  │
 │  │                        core/orchestrator.py                              │  │
 │  │  ┌────────────────────────────────────────────────────────────────────┐  │  │
-│  │  │  1. Cargar sesión desde PostgreSQL                                 │  │  │
-│  │  │  2. Preparar memoria (ensure_memory_shape)                         │  │  │
-│  │  │  3. Ejecutar agente actual                                         │  │  │
-│  │  │  4. Manejar passthrough si message=null                            │  │  │
-│  │  │  5. Persistir cambios en DB                                        │  │  │
-│  │  │  6. Enviar respuesta via ZOA API                                   │  │  │
+│  │  │  1. Load session from PostgreSQL                                   │  │  │
+│  │  │  2. Prepare memory (ensure_memory_shape)                           │  │  │
+│  │  │  3. Execute current agent                                          │  │  │
+│  │  │  4. Handle passthrough if message=null                             │  │  │
+│  │  │  5. Persist changes in DB                                          │  │  │
+│  │  │  6. Send response via ZOA API                                      │  │  │
 │  │  └────────────────────────────────────────────────────────────────────┘  │  │
 │  └────────────────────────────────┬─────────────────────────────────────────┘  │
 │                                   │                                            │
 │                                   ▼                                            │
 │  ┌──────────────────────────────────────────────────────────────────────────┐  │
 │  │                        routers/main_router.py                            │  │
-│  │                     (Dispatch determinístico)                            │  │
+│  │                     (Deterministic Dispatch)                             │  │
 │  └────────────────────────────────┬─────────────────────────────────────────┘  │
 │                                   │                                            │
 │           ┌───────────────────────┼───────────────────────┐                    │
@@ -60,8 +60,8 @@ Procesa mensajes de WhatsApp mediante una jerarquía de agentes especializados c
 │  ┌─────────────────┐   ┌─────────────────────┐   ┌─────────────────────┐       │
 │  │  RECEPTIONIST   │   │  DOMAIN CLASSIFIER  │   │  SPECIALIST AGENT   │       │
 │  │                 │   │                     │   │                     │       │
-│  │ Clasifica       │   │ Clasifica intención │   │ Ejecuta tarea       │       │
-│  │ dominio         │   │ dentro del dominio  │   │ específica          │       │
+│  │ Classifies      │   │ Classifies intent   │   │ Executes specific   │       │
+│  │ domain          │   │ within the domain   │   │ task                │       │
 │  └─────────────────┘   └─────────────────────┘   └─────────────────────┘       │
 │                                                                                │
 └────────────────────────────────────────────────────────────────────────────────┘
@@ -70,38 +70,38 @@ Procesa mensajes de WhatsApp mediante una jerarquía de agentes especializados c
                     ▼                        ▼                        ▼
            ┌─────────────────┐     ┌─────────────────┐      ┌─────────────────┐
            │   PostgreSQL    │     │    ZOA API      │      │   Gemini LLM    │
-           │   (Sesiones)    │     │   (WhatsApp)    │      │                 │
+           │   (Sessions)    │     │   (WhatsApp)    │      │                 │
            └─────────────────┘     └─────────────────┘      └─────────────────┘
 ```
 
-### Jerarquía de Agentes
+### Agent Hierarchy
 
 ```
 receptionist_agent
 │
 ├── classifier_siniestros_agent
-│   ├── telefonos_asistencia_agent    → Números de grúa/asistencia
-│   ├── apertura_siniestro_agent      → Denunciar siniestro nuevo
-│   └── consulta_estado_agent         → Consultar siniestro existente
+│   ├── telefonos_asistencia_agent    → Tow truck/assistance numbers
+│   ├── apertura_siniestro_agent      → Report new claim
+│   └── consulta_estado_agent         → Check existing claim status
 │
-├── classifier_gestion_agent          → (pendiente)
+├── classifier_gestion_agent          → (pending)
 │   └── ...
 │
-└── classifier_ventas_agent           → (pendiente)
+└── classifier_ventas_agent           → (pending)
     └── ...
 ```
 
 ---
 
-## Flujo de Mensaje
+## Message Flow
 
-### Diagrama de Secuencia
+### Sequence Diagram
 
 ```
-Usuario          Handler       Orchestrator      Router         Receptionist    Classifier
+User             Handler       Orchestrator      Router         Receptionist    Classifier
    │                │               │               │                │              │
-   │  "Tuve un      │               │               │                │              │
-   │   choque"      │               │               │                │              │
+   │  "I had an     │               │               │                │              │
+   │   accident"    │               │               │                │              │
    │───────────────>│               │               │                │              │
    │                │  process()    │               │                │              │
    │                │──────────────>│               │                │              │
@@ -124,34 +124,34 @@ Usuario          Handler       Orchestrator      Router         Receptionist    
    │                │               │               │──────────────────────────────>│
    │                │               │               │                │              │
    │                │               │               │  {action:ask,  │              │
-   │                │               │               │   message:"¿Querés denunciar  │
-   │                │               │               │   o consultar?"}              │
+   │                │               │               │   message:"Do you want to   │
+   │                │               │               │   report or check?"}        │
    │                │               │<──────────────│<──────────────────────────────│
    │                │               │               │                │              │
    │                │               │  save_session()                │              │
    │                │               │  send_whatsapp()               │              │
    │                │               │               │                │              │
-   │  "¿Querés      │<──────────────│               │                │              │
-   │   denunciar    │               │               │                │              │
-   │   o consultar?"│               │               │                │              │
+   │  "Do you want  │<──────────────│               │                │              │
+   │   to report    │               │               │                │              │
+   │   or check?"   │               │               │                │              │
    │                │               │               │                │              │
 ```
 
-### Acciones de Agentes
+### Agent Actions
 
-| Action   | message    | Comportamiento                                           |
+| Action   | message    | Behavior                                                 |
 |----------|------------|----------------------------------------------------------|
-| `ask`    | requerido  | Envía mensaje, espera respuesta, permanece en el agente  |
-| `route`  | `null`     | **Passthrough**: llama al siguiente agente inmediatamente|
-| `route`  | string     | Envía mensaje, cambia agente para el próximo turno       |
-| `finish` | requerido  | Envía mensaje, resetea sesión al receptionist            |
+| `ask`    | required   | Sends message, waits for response, stays on the agent    |
+| `route`  | `null`     | **Passthrough**: calls the next agent immediately        |
+| `route`  | string     | Sends message, changes agent for the next turn           |
+| `finish` | required   | Sends message, resets session to receptionist            |
 
 ### Passthrough Routing
 
-Cuando `message: null`, el orchestrator **no envía respuesta** y ejecuta el siguiente agente en el mismo turno:
+When `message: null`, the orchestrator **does not send a response** and executes the next agent in the same turn:
 
 ```python
-# Passthrough - el classifier responde inmediatamente
+# Passthrough - the classifier responds immediately
 return {
     "action": "route",
     "next_agent": "classifier_siniestros_agent",
@@ -162,32 +162,32 @@ return {
 
 ---
 
-## Agentes
+## Agents
 
 ### Receptionist (`receptionist_agent.py`)
 
-- **Función**: Clasifica el dominio del mensaje (siniestros, gestión, ventas)
-- **Primera interacción**: Muestra mensaje de bienvenida si no puede clasificar
-- **Interacciones posteriores**: Pide aclaración si no puede clasificar
-- **Output**: Siempre `route` con passthrough o `ask` para aclarar
+- **Function**: Classifies the message domain (claims, management, sales)
+- **First interaction**: Shows welcome message if it cannot classify
+- **Subsequent interactions**: Asks for clarification if it cannot classify
+- **Output**: Always `route` with passthrough or `ask` to clarify
 
 ### Classifier Siniestros (`classifier_agent.py`)
 
-- **Función**: Determina la intención específica dentro de siniestros
-- **Opciones**: Asistencia, apertura de siniestro, consulta de estado
-- **Output**: `ask` para clarificar o `route` al especialista
+- **Function**: Determines the specific intent within claims
+- **Options**: Assistance, claim opening, status inquiry
+- **Output**: `ask` to clarify or `route` to the specialist
 
-### Especialistas
+### Specialists
 
-| Agente                        | Función                                    |
+| Agent                         | Function                                   |
 |-------------------------------|--------------------------------------------|
-| `telefonos_asistencia_agent`  | Provee números de grúa y asistencia        |
-| `apertura_siniestro_agent`    | Recolecta datos y registra siniestro       |
-| `consulta_estado_agent`       | Consulta estado de siniestros existentes   |
+| `telefonos_asistencia_agent`  | Provides tow truck and assistance numbers  |
+| `apertura_siniestro_agent`    | Collects data and registers new claim      |
+| `consulta_estado_agent`       | Checks status of existing claims           |
 
 ---
 
-## Memoria
+## Memory
 
 ### Schema (`agent_memory`)
 
@@ -204,7 +204,7 @@ return {
   "conversation_history": [
     {
       "role": "user",
-      "text": "Tuve un choque",
+      "text": "I had an accident",
       "timestamp": "2026-01-23T12:45:00Z",
       "agent": "receptionist_agent",
       "domain": null,
@@ -212,7 +212,7 @@ return {
     },
     {
       "role": "assistant",
-      "text": "¿Querés denunciar o consultar?",
+      "text": "Do you want to report or check?",
       "timestamp": "2026-01-23T12:45:02Z",
       "agent": "classifier_siniestros_agent",
       "domain": "siniestros",
@@ -233,47 +233,47 @@ return {
 }
 ```
 
-### Responsabilidades de Escritura
+### Writing Responsibilities
 
-| Namespace              | Quién escribe   | Ejemplo                                      |
+| Namespace              | Who writes      | Example                                      |
 |------------------------|-----------------|----------------------------------------------|
 | `global.*`             | Orchestrator    | `last_agent`, `last_action`                  |
-| `conversation_history` | Orchestrator    | Cada turno user/assistant                    |
-| `agents.<name>.*`      | Cada agente     | `classifier_siniestros_agent.last_route`     |
-| `domains.<domain>.*`   | Agentes         | `siniestros.state`, `siniestros.fields`      |
+| `conversation_history` | Orchestrator    | Each user/assistant turn                     |
+| `agents.<name>.*`      | Each agent      | `classifier_siniestros_agent.last_route`     |
+| `domains.<domain>.*`   | Agents          | `siniestros.state`, `siniestros.fields`      |
 | `metadata.*`           | Orchestrator    | `version`, `updated_at`                      |
 
 ---
 
-## Configuración
+## Configuration
 
-### Variables de Entorno
+### Environment Variables
 
-Crear archivo `.env` basado en `.env.example`:
+Create `.env` file based on `.env.example`:
 
 ```bash
 cp .env.example .env
 ```
 
-**Variables requeridas:**
+**Required variables:**
 
-| Variable           | Descripción                          | Ejemplo                     |
+| Variable           | Description                          | Example                     |
 |--------------------|--------------------------------------|-----------------------------|
-| `GEMINI_API_KEY`   | API key de Google AI                 | `AIza...`                   |
-| `GEMINI_MODEL`     | Modelo principal                     | `gemini-2.5-flash`          |
-| `ZOA_ENDPOINT_URL` | URL del API de ZOA para WhatsApp     | `https://flow-zoa-...`      |
+| `GEMINI_API_KEY`   | Google AI API key                    | `AIza...`                   |
+| `GEMINI_MODEL`     | Main model                           | `gemini-2.5-flash`          |
+| `ZOA_ENDPOINT_URL` | ZOA API URL for WhatsApp             | `https://flow-zoa-...`      |
 
-**Variables opcionales:**
+**Optional variables:**
 
-| Variable                   | Descripción                    | Default                    |
+| Variable                   | Description                    | Default                    |
 |----------------------------|--------------------------------|----------------------------|
-| `GEMINI_OCR_MODEL`         | Modelo para OCR                | `gemini-1.5-flash`         |
-| `LANGSMITH_API_KEY`        | Key para tracing               | -                          |
-| `LANGCHAIN_TRACING_V2`     | Activar tracing                | `false`                    |
+| `GEMINI_OCR_MODEL`         | Model for OCR                  | `gemini-1.5-flash`         |
+| `LANGSMITH_API_KEY`        | Key for tracing                | -                          |
+| `LANGCHAIN_TRACING_V2`     | Enable tracing                 | `false`                    |
 
-### Base de Datos
+### Database
 
-La conexión a PostgreSQL está configurada en `core/db.py`. La tabla requerida:
+The PostgreSQL connection is configured in `core/db.py`. Required table:
 
 ```sql
 CREATE TABLE sessions (
@@ -287,7 +287,7 @@ CREATE TABLE sessions (
 
 ### Routing (`contracts/routes.json`)
 
-Define la jerarquía de agentes y sus etiquetas:
+Defines the agent hierarchy and their labels:
 
 ```json
 {
@@ -308,28 +308,28 @@ Define la jerarquía de agentes y sus etiquetas:
 
 ---
 
-## Ejecución
+## Execution
 
-### Docker (Recomendado)
+### Docker (Recommended)
 
 ```bash
-# Construir y ejecutar
+# Build and run
 docker compose up --build
 
-# El servicio estará en http://localhost:8080
+# The service will be at http://localhost:8080
 ```
 
 ### Local (venv)
 
 ```bash
-# Crear entorno virtual
+# Create virtual environment
 python3 -m venv .venv
 source .venv/bin/activate
 
-# Instalar dependencias
+# Install dependencies
 pip install -r requirements.txt
 
-# Ejecutar (requiere configurar DB externa)
+# Run (requires external DB configuration)
 python -m flask run --port 8080
 ```
 
@@ -339,7 +339,7 @@ python -m flask run --port 8080
 
 ### CLI Chat
 
-Herramienta interactiva para probar conversaciones:
+Interactive tool to test conversations:
 
 ```bash
 python3 test/cli_chat.py
@@ -348,16 +348,16 @@ python3 test/cli_chat.py
 ### cURL
 
 ```bash
-# Mensaje normal
+# Normal message
 curl -X POST http://localhost:8080 \
   -H "Content-Type: application/json" \
   -d '{
     "wa_id": "5491155551234",
-    "mensaje": "Hola, tuve un choque",
+    "mensaje": "Hi, I had an accident",
     "phone_number_id": "company_123"
   }'
 
-# Reset de sesión
+# Session reset
 curl -X POST http://localhost:8080 \
   -H "Content-Type: application/json" \
   -d '{
@@ -369,46 +369,46 @@ curl -X POST http://localhost:8080 \
 
 ---
 
-## Estructura del Proyecto
+## Project Structure
 
 ```
 zoa_agents/
 ├── agents/
 │   ├── domains/
 │   │   └── siniestros/
-│   │       ├── classifier_agent.py         # Clasifica intención en siniestros
-│   │       ├── apertura_siniestro_agent.py # Registra siniestros nuevos
-│   │       ├── consulta_estado_agent.py    # Consulta siniestros existentes
-│   │       └── telefonos_asistencia_agent.py # Provee números de asistencia
-│   ├── llm.py                              # Configuración de Gemini
-│   └── receptionist_agent.py               # Clasifica dominio inicial
+│   │       ├── classifier_agent.py         # Classifies intent in claims
+│   │       ├── apertura_siniestro_agent.py # Registers new claims
+│   │       ├── consulta_estado_agent.py    # Checks existing claim status
+│   │       └── telefonos_asistencia_agent.py # Provides assistance numbers
+│   ├── llm.py                              # Gemini configuration
+│   └── receptionist_agent.py               # Initial domain classifier
 │
 ├── app/
 │   └── handler.py                          # Entry point (Cloud Function)
 │
 ├── contracts/
-│   ├── agent_contracts.md                  # Documentación de contratos
-│   ├── routes.json                         # Configuración de routing
-│   └── message_schema.json                 # Schema de mensajes
+│   ├── agent_contracts.md                  # Contract documentation
+│   ├── routes.json                         # Routing configuration
+│   └── message_schema.json                 # Message schema
 │
 ├── core/
-│   ├── agent_allowlist.py                  # Validación de rutas permitidas
+│   ├── agent_allowlist.py                  # Validation of allowed routes
 │   ├── db.py                               # PostgreSQL session manager
-│   ├── memory_schema.py                    # Helpers para agent_memory
-│   └── orchestrator.py                     # Orquestación del flujo
+│   ├── memory_schema.py                    # Helpers for agent_memory
+│   └── orchestrator.py                     # Flow orchestration
 │
 ├── routers/
-│   └── main_router.py                      # Dispatch a agentes
+│   └── main_router.py                      # Agent dispatch
 │
 ├── tools/
-│   ├── ocr_client.py                       # Cliente OCR
-│   └── zoa_client.py                       # Cliente API ZOA (WhatsApp)
+│   ├── ocr_client.py                       # OCR client
+│   └── zoa_client.py                       # ZOA API client (WhatsApp)
 │
 ├── test/
-│   ├── cli_chat.py                         # CLI interactivo
-│   └── simulation_script.py                # Script de simulación
+│   ├── cli_chat.py                         # Interactive CLI
+│   └── simulation_script.py                # Simulation script
 │
-├── .env.example                            # Variables de entorno ejemplo
+├── .env.example                            # Example environment variables
 ├── Dockerfile
 ├── docker-compose.yml
 └── requirements.txt
@@ -418,17 +418,17 @@ zoa_agents/
 
 ## Tech Stack
 
-| Componente     | Tecnología                      |
+| Component      | Technology                      |
 |----------------|---------------------------------|
 | LLM            | Google Gemini (Flash/Pro)       |
 | Framework      | LangChain                       |
 | Hosting        | Google Cloud Run                |
-| Base de Datos  | PostgreSQL (Cloud SQL)          |
+| Database       | PostgreSQL (Cloud SQL)          |
 | Runtime        | Python 3.11                     |
-| Contenedor     | Docker                          |
+| Container      | Docker                          |
 
 ---
 
-## Documentación Adicional
+## Additional Documentation
 
-- [Contratos de Agentes](contracts/agent_contracts.md) - Especificación detallada de inputs/outputs
+- [Agent Contracts](contracts/agent_contracts.md) - Detailed input/output specification

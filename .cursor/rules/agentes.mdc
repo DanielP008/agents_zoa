@@ -1,12 +1,58 @@
-# Agent Patterns
+# Agent Patterns & Rules
 
-- **Multi-Level Routing**: 
-  1. `Receptionist` determines domain (e.g., Siniestros).
-  2. `Domain Classifier` determines intent (e.g., Apertura).
-  3. `Specific Agent` handles the task.
+## Multi-Level Routing
+1. **Receptionist** (`receptionist_agent.py`) - Determines domain (claims, management, sales)
+2. **Domain Classifier** (`classifier_<domain>_agent.py`) - Determines specific intent within the domain
+3. **Specialist Agent** (`<specialist>_agent.py`) - Executes the specific task
 
-- **Naming Convention**: All agents must end in `_agent.py`.
-- **Contracts**: Routes and valid agents are defined in `contracts/routes.json`.
-- **Statelessness**: Agents rely on `session_id` to retrieve state from store.
-- **Deterministic Dispatch**: Routers never guess; they follow `routes.json`.
-- **Aggregator**: Merges agent outputs into final response (handled by Router for single-turn).
+## Agent Response Contract
+All agents must return a dict with:
+```python
+{
+    "action": "ask | route | finish",
+    "message": "string | None",  # None = passthrough
+    "next_agent": "string",      # Only if action=route
+    "domain": "string | None",    # Only if action=route
+    "memory": {}                  # Optional, only allowed namespaces
+}
+```
+
+## Passthrough Routing
+- If `action="route"` and `message=None` → Orchestrator calls the next agent immediately (same turn)
+- If `action="route"` and `message="text"` → Message is sent, next turn talks to the new agent
+- Limit: 5 chained passthroughs to prevent infinite loops
+
+## Memory Schema (agent_memory)
+**Mandatory structure:**
+- `global.*` - Only Orchestrator writes here
+- `conversation_history[]` - Only Orchestrator writes here
+- `agents.<agent_name>.*` - Each agent writes in its own namespace
+- `domains.<domain>.*` - Agents write domain state
+- `metadata.*` - Only Orchestrator writes here
+
+**Critical Rule:** Agents NEVER write to `global` or `conversation_history`. Use helpers from `core.memory_schema`.
+
+## Naming Conventions
+- All agents must end in `_agent.py`
+- Files: `receptionist_agent.py`, `classifier_siniestros_agent.py`, `apertura_siniestro_agent.py`
+- Functions: `handle(payload: dict) -> dict`
+
+## Statelessness
+- Agents DO NOT write directly to PostgreSQL
+- State is persisted via `Orchestrator` using `SessionManager`
+- Agents receive `session` in `payload` with `agent_memory` already loaded
+
+## Deterministic Dispatch
+- Router (`main_router.py`) never guesses, it follows `contracts/routes.json`
+- Validation of allowed routes via `agent_allowlist.py`
+- If route is not allowed → error, no fallback
+
+## Receptionist Behavior
+- First interaction without history → welcome message if it cannot classify
+- Subsequent interactions → clarification message if it cannot classify
+- Always tries to classify first, only asks if it fails
+
+## Code Style
+- DO NOT use `print()` in production code (only in `test/`)
+- Use `logger.error()` for errors in `core/db.py`
+- Imports: `from core.memory_schema import ensure_memory_shape, append_turn, apply_memory_patch`

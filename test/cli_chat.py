@@ -10,7 +10,7 @@ def main():
     print("Escribe 'quit' o 'exit' para salir.\n")
 
     # Configuration
-    url = "http://localhost:8080"
+    url = "http://localhost:50816"
     user_id = "local_tester_001"
     company_id = "company_123" # Simulating the phone_number_id
     conversation_id = str(uuid.uuid4())
