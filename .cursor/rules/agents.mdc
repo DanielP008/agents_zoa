@@ -23,14 +23,45 @@ All agents must return a dict with:
 - Limit: 5 chained passthroughs to prevent infinite loops
 
 ## Memory Schema (agent_memory)
-**Mandatory structure:**
-- `global.*` - Only Orchestrator writes here
-- `conversation_history[]` - Only Orchestrator writes here
-- `agents.<agent_name>.*` - Each agent writes in its own namespace
-- `domains.<domain>.*` - Agents write domain state
-- `metadata.*` - Only Orchestrator writes here
+**Structure:**
+- `global.*` - Only Orchestrator writes
+- `conversation_history[]` - Only Orchestrator writes (Source of Truth)
+- `agents.<agent_name>.*` - Agent writes internal state/data (NOT history)
+- `domains.<domain>.*` - Agent writes domain state
+- `metadata.*` - Only Orchestrator writes
 
-**Critical Rule:** Agents NEVER write to `global` or `conversation_history`. Use helpers from `core.memory_schema`.
+**Memory Access:**
+```python
+from core.memory_schema import get_global_history, get_agent_memory
+
+# Read conversation history (ALWAYS use global)
+history = get_global_history(memory)  # Returns (role, content) tuples for LangChain
+
+# Read agent-specific data
+agent_data = get_agent_memory(memory, "agent_name")
+```
+
+**Rules:**
+- Agents NEVER write to `global` or `conversation_history`
+- Agents NEVER maintain their own history (use global history)
+
+## Structured Output (Decision Agents)
+For routing/classification agents that need structured decisions:
+```python
+from pydantic import BaseModel, Field
+from agents.llm import get_llm
+
+class Decision(BaseModel):
+    domain: str | None = Field(...)
+    message: str | None = Field(...)
+
+llm = get_llm()
+structured_llm = llm.with_structured_output(Decision)
+chain = prompt | structured_llm
+decision = chain.invoke({...})
+```
+
+For conversational agents with tools, use `create_langchain_agent()` from `core.agent_factory`.
 
 ## Naming Conventions
 - All agents must end in `_agent.py`
@@ -48,15 +79,12 @@ All agents must return a dict with:
 - If route is not allowed → error, no fallback
 
 ## Receptionist Behavior
-- First interaction without history → welcome message if it cannot classify
-- Subsequent interactions → clarification message if it cannot classify
+- First interaction (empty history) → presents itself as Sofía
+- Subsequent interactions → does NOT re-introduce, goes straight to the point
 - Always tries to classify first, only asks if it fails
 
 ## Code Style
-- DO NOT use `print()` in production code (only in `test/`)
-- Use `logger.error()` for errors in `core/db.py`
-- Path resolution: Use `core.hooks` functions instead of manual pathlib logic
-- LangChain agents: Use `core.agent_factory.create_langchain_agent()` instead of manual setup (✅ All agents updated)
-- LLM error handling: Use `core.llm_utils.safe_llm_invoke()` for LLM calls (✅ receptionist_agent updated)
-- Memory access: Use `core.memory_schema.get_agent_memory()` for agent data, `get_global_history()` for LangChain-compatible history (✅ All agents updated)
-- Imports: `from core.memory_schema import ensure_memory_shape, get_agent_memory, get_global_history`
+- Path resolution: `core.hooks.get_contracts_path()`
+- LangChain agents: `core.agent_factory.create_langchain_agent()`
+- Structured output: `llm.with_structured_output()` for decision agents
+- Memory: `get_global_history()` for history, `get_agent_memory()` for agent data

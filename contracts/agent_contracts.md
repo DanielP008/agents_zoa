@@ -95,13 +95,6 @@ write within their namespaces.
   },
   "agents": {
     "<agent_name>": {
-      "history": [
-        {
-          "role": "user | assistant",
-          "text": "string",
-          "timestamp": "ISO-8601"
-        }
-      ],
       "data": "object"
     }
   },
@@ -116,6 +109,7 @@ write within their namespaces.
 - Agents **DO NOT** write to `global` or `conversation_history`.
 - Agents only write under `agents.<agent_name>` and/or `domains.<domain>`.
 - `Orchestrator` appends history and updates `global.last_*`.
+- Agents read conversation history from `conversation_history` using `get_global_history()`.
 
 ### Example of memory returned by an agent
 ```json
@@ -140,47 +134,14 @@ write within their namespaces.
 - If `route` is valid: Call `call_{agent_name}(payload)`.
 - Fallback: Return error/help message.
 
-## 3. Specific Agents
-**Common Contract**:
-- **Function Signature**: `{agent_name}_agent(payload: dict) -> dict`
-- **Input**: Inbound message payload (`text`, `from`, `metadata`).
-- **Output**: JSON dict with agent-specific keys (e.g. `claim_id`, `policy_data`, `message`).
+## 3. Agent Implementation Patterns
 
-### Agent: Assistance Telephones
-- **Goal**: Provide assistance numbers based on policy type.
-- **Output**:
-  ```json
-  {
-    "agent": "telefonos_asistencia",
-    "message": "string (response text)",
-    "debug": "object"
-  }
-  ```
+**Decision Agents** (routing/classification):
+- Use `llm.with_structured_output(PydanticModel)` for structured decisions
+- Example: `receptionist_agent`, `classifier_siniestros_agent`
 
-### Agent: Claim Opening
-- **Goal**: Create a claim in ZOA ERP.
-- **Tools**: `create_claim(payload)`
-- **Output**:
-  ```json
-  {
-    "agent": "apertura_siniestro",
-    "message": "string (confirmation + next steps)",
-    "claim": { "id": "string", "status": "string" }
-  }
-  ```
+**Conversational Agents** (specialists with tools):
+- Use `core.agent_factory.create_langchain_agent()` with tools
+- Example: `telefonos_asistencia_agent`, `apertura_siniestro_agent`
 
-### Agent: Status Inquiry
-- **Goal**: Check policy status or process documents via OCR.
-- **Tools**: `fetch_policy(id)`, `extract_text(doc)`
-- **Output**:
-  ```json
-  {
-    "agent": "consulta_estado",
-    "message": "string",
-    "policy": "object",
-    "ocr": "object (optional)"
-  }
-  ```
-
-## 4. Aggregator (Deprecated)
-*Merged into Router/Handler logic for single-turn simplicity.*
+**Function Signature**: `{agent_name}_agent(payload: dict) -> dict`

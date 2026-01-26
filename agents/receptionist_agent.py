@@ -5,12 +5,9 @@ from langchain.agents.tool_calling_agent.base import create_tool_calling_agent
 from langchain.agents.agent import AgentExecutor
 
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import PydanticOutputParser
 from pydantic import BaseModel, Field
-from langchain_core.tools import tool
 
 from agents.llm import get_llm
-from core.llm_utils import safe_llm_invoke, parse_llm_json_response
 from core.memory_schema import get_global_history
 
 from core.hooks import get_contracts_path
@@ -60,7 +57,6 @@ def receptionist_agent(payload: dict) -> dict:
     
     # Check if this is the first interaction (ignoring the current input which is not in history yet)
     is_first_interaction = len(history) == 0
-    print(f"DEBUG: is_first_interaction: {is_first_interaction}")
     
     # Filter only domains with active classifiers
     active_domains_map = {
@@ -69,8 +65,6 @@ def receptionist_agent(payload: dict) -> dict:
         if v.get("classifier")
     }
     available_domains_str = ", ".join(active_domains_map.values())
-    
-    parser = PydanticOutputParser(pydantic_object=ReceptionistDecision)
 
     # Dynamic greeting instruction based on history state
     greeting_instruction = ""
@@ -108,9 +102,7 @@ Tu tarea es analizar el mensaje del usuario y decidir:
 - Si clasificas un dominio con confianza: devuelve el `domain` y `confidence` alto. `message` puede ser null.
 - Si NO clasificas: `domain` debe ser null. `message` debe ser tu respuesta al usuario.
 - Tu respuesta debe ser natural y profesional. No listes todas las opciones a menos que sea necesario para guiar al usuario.
-- **IMPORTANTE**: {greeting_instruction}
-
-{format_instructions}"""
+- **IMPORTANTE**: {greeting_instruction}"""
 
     prompt = ChatPromptTemplate.from_messages(
         [
@@ -121,32 +113,24 @@ Tu tarea es analizar el mensaje del usuario y decidir:
     )
 
     llm = get_llm()
-    chain = prompt | llm
+    structured_llm = llm.with_structured_output(ReceptionistDecision)
+    chain = prompt | structured_llm
 
-    result = safe_llm_invoke(
-        chain.invoke,
-        {
-            "user_text": user_text,
-            "format_instructions": parser.get_format_instructions(),
-            "available_domains": available_domains_str,
-            "greeting_instruction": greeting_instruction,
-        },
-        error_context="receptionist_decision"
-    )
-
-    # 3. Process Result
-    decision = None
-    if result and not (isinstance(result, dict) and result.get("error")):
-        parsed = parse_llm_json_response(result, ["domain", "message", "confidence"])
-        if parsed:
-            decision = parsed
-
-    # Fallback if LLM fails
-    if not decision:
-        return {
-            "action": "ask",
-            "message": "Disculpa, tuve un problema técnico. ¿Podrías repetir tu consulta?"
-        }
+    try:
+        decision = chain.invoke(
+            {
+                "user_text": user_text,
+                "available_domains": available_domains_str,
+                "greeting_instruction": greeting_instruction,
+            }
+        )
+    except Exception as e:
+        # Fallback if LLM fails
+        decision = ReceptionistDecision(
+            domain=None,
+            message="Disculpa, tuve un problema técnico. ¿Podrías repetir tu consulta?",
+            confidence=0.0
+        )
 
     domain = decision.get("domain")
     message = decision.get("message")

@@ -186,23 +186,23 @@ return {
 - **Function**: Classifies the message domain (claims, management, sales)
 - **First interaction**: Shows welcome message if it cannot classify
 - **Subsequent interactions**: Asks for clarification if it cannot classify
-- **Architecture**: Uses `llm_utils.safe_llm_invoke()` for robust LLM calls
+- **Architecture**: Uses `llm.with_structured_output()` for structured decisions
 - **Output**: Always `route` with passthrough or `ask` to clarify
 
 ### Classifier Siniestros (`classifier_agent.py`)
 
 - **Function**: Determines the specific intent within claims
 - **Options**: Assistance, claim opening, status inquiry
-- **Architecture**: Uses `memory_schema.get_agent_memory()` for type-safe memory access
+- **Architecture**: Uses `llm.with_structured_output()` for structured decisions
 - **Output**: `ask` to clarify or `route` to the specialist
 
 ### Specialists
 
 | Agent                         | Function                                   | Architecture |
 |-------------------------------|--------------------------------------------|-------------|
-| `telefonos_asistencia_agent`  | Provides tow truck and assistance numbers  | `agent_factory` + `get_agent_memory()` |
-| `apertura_siniestro_agent`    | Collects data and registers new claim      | `agent_factory` + `get_agent_memory()` |
-| `consulta_estado_agent`       | Checks status of existing claims           | `agent_factory` + `get_agent_memory()` |
+| `telefonos_asistencia_agent`  | Provides tow truck and assistance numbers  | `agent_factory` with tools |
+| `apertura_siniestro_agent`    | Collects data and registers new claim      | `agent_factory` with tools |
+| `consulta_estado_agent`       | Checks status of existing claims           | `agent_factory` with tools |
 
 ### Implementation Patterns
 
@@ -210,9 +210,9 @@ return {
 
 - **LangChain Setup**: Use `agent_factory.create_langchain_agent()` and `run_langchain_agent()` instead of manual boilerplate (eliminates 15+ lines per agent)
 
-- **Memory Access**: Use `memory_schema.get_agent_memory(agent_name)` for type-safe namespace access instead of manual dict traversal
+- **Memory Access**: Use `get_global_history()` for conversation history, `get_agent_memory()` for agent-specific data
 
-- **Error Handling**: LLM calls use `llm_utils.safe_llm_invoke()` with automatic logging, retry logic, and fallbacks
+- **Structured Output**: Use `llm.with_structured_output()` for decision agents (routing/classification)
 
 - **Path Resolution**: Use `hooks.get_contracts_path()` and `get_config_path()` for consistent file access across the project
 
@@ -255,8 +255,10 @@ return {
   "domains": {},
   "agents": {
     "classifier_siniestros_agent": {
-      "last_route": "apertura_siniestro_agent",
-      "confidence": 0.82
+      "data": {
+        "last_route": "apertura_siniestro_agent",
+        "confidence": 0.82
+      }
     }
   },
   "metadata": {
