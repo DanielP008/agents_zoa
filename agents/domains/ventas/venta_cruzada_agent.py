@@ -6,6 +6,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 
 from agents.llm import get_llm
+from tools.end_chat_tool import end_chat_tool
 
 
 @tool
@@ -66,7 +67,9 @@ def venta_cruzada_agent(payload: dict) -> dict:
         "4. Si hay interés, registra la oferta con 'create_cross_sell_offer_tool'. "
         "Sé consultivo, personalizado y enfócate en el valor agregado. "
         "No seas agresivo, el cliente ya confía en ZOA. "
-        "Responde siempre en español con un tono profesional y amigable."
+        "Responde siempre en español con un tono profesional y amigable. "
+        "\n\nIMPORTANTE: Usa 'end_chat_tool' cuando hayas registrado una oferta de venta cruzada exitosamente y el usuario no necesite nada más. "
+        "NO uses 'end_chat_tool' si el usuario solo pidió información o necesita explorar más opciones."
     )
 
     prompt = ChatPromptTemplate.from_messages(
@@ -78,16 +81,19 @@ def venta_cruzada_agent(payload: dict) -> dict:
     )
 
     llm = get_llm()
-    tools = [get_customer_policies_tool, create_cross_sell_offer_tool]
+    tools = [get_customer_policies_tool, create_cross_sell_offer_tool, end_chat_tool]
     executor = create_langchain_agent(llm, tools, prompt)
 
     result = run_langchain_agent(executor, user_text)
     output_text = result.get("output", "")
+    action = result.get("action", "ask")
 
-    # Check if we are done (offer created?)
-    action = "ask"
-    if "off-" in output_text.lower() or "oferta registrada" in output_text.lower():
-        action = "finish"
+    # If end_chat_tool was used, return the special action
+    if action == "end_chat":
+        return {
+            "action": "end_chat",
+            "message": output_text
+        }
 
     return {
         "action": action,

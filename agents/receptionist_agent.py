@@ -40,6 +40,36 @@ def receptionist_agent(payload: dict) -> dict:
     session = payload.get("session", {})
     memory = session.get("agent_memory", {})
     user_text = payload.get("mensaje", "")
+    wa_id = payload.get("wa_id")
+    company_id = payload.get("phone_number_id", "default")
+    
+    # Check if the previous consultation was completed
+    global_mem = memory.get("global", {})
+    consultation_completed = global_mem.get("consultation_completed", False)
+    
+    # Detect closure phrases (user saying goodbye or confirming they're done)
+    closure_phrases = [
+        "no", "no gracias", "nada más", "nada mas", "gracias", "thank you", 
+        "listo", "perfecto", "ok", "vale", "chau", "adiós", "adios", "bye",
+        "eso es todo", "ya está", "ya esta", "suficiente", "solucionado"
+    ]
+    user_text_lower = user_text.lower().strip()
+    is_closure = any(phrase in user_text_lower for phrase in closure_phrases)
+    
+    # If consultation was completed and user confirms closure, reset session
+    if consultation_completed and is_closure and len(user_text_lower) < 30:
+        # Import SessionManager to delete session
+        from core.db import SessionManager
+        session_manager = SessionManager()
+        session_manager.delete_session(wa_id, company_id)
+        
+        print(f"\n[RECEPTIONIST AUTO-RESET] Session deleted for wa_id: {wa_id}")
+        print(f"[RECEPTIONIST AUTO-RESET] Closure phrase detected: '{user_text}'")
+        
+        return {
+            "action": "finish",
+            "message": "¡Perfecto! Fue un placer ayudarte. Si necesitas algo más en el futuro, aquí estaré. ¡Que tengas un excelente día! 😊"
+        }
     
     # 1. Check active session domain (shortcut)
     if session.get("domain"):
@@ -59,8 +89,11 @@ def receptionist_agent(payload: dict) -> dict:
     # Use global conversation history formatted for LangChain
     history = get_global_history(memory)
     
-    # Check if this is the first interaction (ignoring the current input which is not in history yet)
-    is_first_interaction = len(history) == 0
+    # Check if this is the first interaction
+    # We need to check if there are any assistant messages in history
+    # (the current user message was already added by orchestrator, so we ignore user-only history)
+    has_assistant_messages = any(role == "ai" for role, _ in history)
+    is_first_interaction = not has_assistant_messages
     
     # Filter only domains with active classifiers
     active_domains_map = {
@@ -76,6 +109,11 @@ def receptionist_agent(payload: dict) -> dict:
         greeting_instruction = "Esta es la PRIMERA interacción. DEBES presentarte brevemente como Sofía, recepcionista virtual de ZOA Seguros."
     else:
         greeting_instruction = "Esta NO es la primera interacción. NO te vuelvas a presentar. Ve directo al grano o pide la información que falta."
+    
+    # Add context about completed consultation
+    consultation_context = ""
+    if consultation_completed:
+        consultation_context = "\n\n**IMPORTANTE**: La consulta anterior del usuario fue completada exitosamente. Si el usuario tiene una NUEVA consulta diferente, clasifícala normalmente. Si el usuario agradece o despide, responde amablemente y confirma que finalizas la atención."
 
     system_prompt = """Eres Sofia, la recepcionista virtual de ZOA Seguros. Eres profesional, amable y natural.
 
@@ -88,25 +126,30 @@ Tu tarea es analizar el mensaje del usuario y decidir:
 ## Guía de Clasificación
 
 ### SINIESTROS (domain: "siniestros")
-- Accidentes, choques, robos, daños.
-- **Asistencia en carretera**: grúa, batería, avería, quedarse tirado.
-- Consultas de siniestros existentes.
+- **Denunciar accidentes**: choques, robos, daños al vehículo.
+- **Asistencia en carretera**: números de grúa, auxilio mecánico, batería, quedarse sin combustible.
+- **Consultar siniestros**: estado de un siniestro ya iniciado, seguimiento de trámites.
 
 ### GESTION (domain: "gestion")
-- Recibos, pagos, devoluciones.
-- Modificar póliza, datos bancarios, beneficiarios.
-- Consultar coberturas.
+- **Solicitar devoluciones**: reembolsos, recibos pagados de más.
+- **Consultar póliza**: ver coberturas, datos del contrato, información del vehículo, vencimientos.
+- **Modificar póliza**: cambiar datos bancarios, beneficiarios, domicilio, teléfono, email.
 
 ### VENTAS (domain: "ventas")
-- Contratar nueva póliza.
-- Cotizaciones.
-- Información comercial.
+- **Contratar seguro nuevo**: cotizaciones, comparar coberturas (Terceros, Terceros Completo, Todo Riesgo).
+- **Mejorar tu seguro actual**: agregar coberturas, upgrades, productos complementarios (hogar, vida).
 
 ## Instrucciones de Respuesta
 - Si clasificas un dominio con confianza: devuelve el `domain` y `confidence` alto. `message` puede ser null.
 - Si NO clasificas: `domain` debe ser null. `message` debe ser tu respuesta al usuario.
-- Tu respuesta debe ser natural y profesional. No listes todas las opciones a menos que sea necesario para guiar al usuario.
 - **IMPORTANTE**: {greeting_instruction}
+- **Cuando el usuario saluda o pide ayuda general**: Preséntate y menciona de forma descriptiva las funcionalidades principales que ofreces:
+  - Asistencia en siniestros (denuncias, números de emergencia, seguimiento)
+  - Gestión de pólizas (devoluciones, consultas, modificaciones)
+  - Contratación y mejora de seguros (cotizaciones, nuevas pólizas, upgrades)
+  
+  Hazlo de manera conversacional y natural, sin listar mecánicamente. Invita al usuario a contarte qué necesita.
+{consultation_context}
 
 ## Formato de respuesta
 DEBES responder en formato JSON válido con esta estructura exacta:
@@ -139,6 +182,7 @@ DEBES responder en formato JSON válido con esta estructura exacta:
     print(f"\n[RECEPTIONIST DEBUG] user_text: {user_text}")
     print(f"[RECEPTIONIST DEBUG] available_domains: {available_domains_str}")
     print(f"[RECEPTIONIST DEBUG] greeting_instruction: {greeting_instruction}")
+    print(f"[RECEPTIONIST DEBUG] consultation_completed: {consultation_completed}")
     
     decision = safe_structured_invoke(
         chain,
@@ -146,6 +190,7 @@ DEBES responder en formato JSON válido con esta estructura exacta:
             "user_text": user_text,
             "available_domains": available_domains_str,
             "greeting_instruction": greeting_instruction,
+            "consultation_context": consultation_context,
         },
         fallback_factory=lambda: ReceptionistDecision(
             domain=None,

@@ -56,8 +56,26 @@ def process_message(payload: dict) -> dict:
         # 3. Handle Agent Response
         action = response.get("action")
         agent_message = response.get("message")
-        
-        
+
+
+        # Check if agent used end_chat_tool
+        if action == "end_chat":
+            # Delete session from postgres (this will clear all session data including agent_memory)
+            # No need to reset target_agent first - deletion will clear everything
+            deleted = session_manager.delete_session(wa_id, safe_company_id)
+            
+            if not deleted:
+                logger.warning(f"Failed to delete session for wa_id: {wa_id}, company_id: {safe_company_id}")
+
+            # Return final message to user
+            return {
+                "type": "text",
+                "message": agent_message,
+                "agent": "receptionist_agent",
+                "status": "completed"
+            }
+
+
         # Check for passthrough route (route without message)
         if action == "route" and not agent_message:
             new_target = response.get("next_agent")
@@ -195,8 +213,9 @@ def process_message(payload: dict) -> dict:
         return result
             
     if action == "finish":
-        # Flow complete
-        session_manager.set_target_agent(wa_id, "receptionist_agent", None, safe_company_id) # Reset
+        # Flow complete - mark as resolved and prepare for cleanup
+        session_manager.set_target_agent(wa_id, "receptionist_agent", None, safe_company_id) # Reset to receptionist
+        
         if agent_message:
             memory = append_turn(
                 memory,
@@ -206,13 +225,17 @@ def process_message(payload: dict) -> dict:
                 domain=session.get("domain"),
                 action=action,
             )
+        
+        # Mark that the last interaction was completed
         memory = update_global(
             memory,
             last_agent=target_agent,
             last_action=action,
             last_domain=session.get("domain"),
+            consultation_completed=True,  # Flag to indicate completion
         )
         session_manager.update_agent_memory(wa_id, memory, safe_company_id)
+        
         result = {
             "type": "text", 
             "message": agent_message, 

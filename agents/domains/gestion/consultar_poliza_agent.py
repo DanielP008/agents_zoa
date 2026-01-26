@@ -6,6 +6,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 
 from agents.llm import get_llm
+from tools.end_chat_tool import end_chat_tool
 
 
 @tool
@@ -39,7 +40,9 @@ def consultar_poliza_agent(payload: dict) -> dict:
         "Una vez que tengas el número, usa la tool 'get_policy_info_tool' para obtener los datos. "
         "Presenta la información de manera clara y organizada. "
         "Si el cliente pregunta por algo específico (coberturas, vencimiento, datos del vehículo), enfócate en eso. "
-        "Responde siempre en español, sé amable y profesional."
+        "Responde siempre en español, sé amable y profesional. "
+        "\n\nIMPORTANTE: Usa 'end_chat_tool' cuando hayas proporcionado toda la información solicitada sobre la póliza y el usuario no necesite nada más. "
+        "NO uses 'end_chat_tool' si el usuario hace preguntas adicionales o necesita consultar otros aspectos."
     )
 
     prompt = ChatPromptTemplate.from_messages(
@@ -51,16 +54,19 @@ def consultar_poliza_agent(payload: dict) -> dict:
     )
 
     llm = get_llm()
-    tools = [get_policy_info_tool]
+    tools = [get_policy_info_tool, end_chat_tool]
     executor = create_langchain_agent(llm, tools, prompt)
 
     result = run_langchain_agent(executor, user_text)
     output_text = result.get("output", "")
+    action = result.get("action", "ask")
 
-    # Check if we are done (tool called and info provided?)
-    action = "ask"
-    if "policy_number" in output_text.lower() or "cobertura" in output_text.lower():
-        action = "finish"
+    # If end_chat_tool was used, return the special action
+    if action == "end_chat":
+        return {
+            "action": "end_chat",
+            "message": output_text
+        }
 
     return {
         "action": action,

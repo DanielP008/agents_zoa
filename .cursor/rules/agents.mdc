@@ -88,3 +88,10 @@ For conversational agents with tools, use `create_langchain_agent()` from `core.
 - LangChain agents: `core.agent_factory.create_langchain_agent()`
 - Structured output: `llm.with_structured_output()` for decision agents
 - Memory: `get_global_history()` for history, `get_agent_memory()` for agent data
+
+## Documentation Rules
+- **NEVER create .md files automatically** - Code must be self-explanatory
+- Only create documentation files (.md) when explicitly requested by the user
+- When implementing major changes, focus on making the code clear and well-commented rather than creating separate documentation
+- Use meaningful variable names, clear function signatures, and inline comments when necessary
+- Documentation files should only be created if the user specifically asks for them

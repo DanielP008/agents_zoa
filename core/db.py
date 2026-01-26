@@ -146,6 +146,7 @@ class SessionManager:
                 result = conn.execute(query, {"sid": session_id})
                 conn.commit()
                 deleted = result.rowcount > 0
+                logger.info(f"Session deletion: session_id={session_id}, deleted={deleted}, rowcount={result.rowcount}")
                 return deleted
         except Exception as e:
             logger.error(f"DB Delete Error: {e}")

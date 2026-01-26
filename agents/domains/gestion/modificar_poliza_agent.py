@@ -6,6 +6,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 
 from agents.llm import get_llm
+from tools.end_chat_tool import end_chat_tool
 
 
 @tool
@@ -50,14 +51,21 @@ def modificar_poliza_agent(payload: dict) -> dict:
     )
 
     llm = get_llm()
-    tools = [update_policy_tool]
+    tools = [update_policy_tool, end_chat_tool]
     executor = create_langchain_agent(llm, tools, prompt)
 
     result = run_langchain_agent(executor, user_text)
     output_text = result.get("output", "")
+    action = result.get("action", "ask")
+
+    # If end_chat_tool was used, return the special action
+    if action == "end_chat":
+        return {
+            "action": "end_chat",
+            "message": output_text
+        }
 
     # Check if we are done (tool called?)
-    action = "ask"
     if "actualizada" in output_text.lower() or "modificada" in output_text.lower():
         action = "finish"
 

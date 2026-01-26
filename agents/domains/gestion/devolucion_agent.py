@@ -6,6 +6,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 
 from agents.llm import get_llm
+from tools.end_chat_tool import end_chat_tool
 
 
 @tool
@@ -32,7 +33,9 @@ def devolucion_agent(payload: dict) -> dict:
         "Pregunta uno por uno si faltan datos. "
         "Cuando tengas toda la información, usa la tool 'create_refund_request_tool' para registrar la solicitud. "
         "Responde siempre en español, sé amable y profesional. "
-        "Confirma la acción al usuario y proporciona un número de seguimiento."
+        "Confirma la acción al usuario y proporciona un número de seguimiento. "
+        "\n\nIMPORTANTE: Usa 'end_chat_tool' cuando la solicitud de devolución esté completamente registrada y el usuario no necesite nada más. "
+        "NO uses 'end_chat_tool' si el usuario hace preguntas adicionales o necesita otro tipo de ayuda."
     )
 
     prompt = ChatPromptTemplate.from_messages(
@@ -44,16 +47,19 @@ def devolucion_agent(payload: dict) -> dict:
     )
 
     llm = get_llm()
-    tools = [create_refund_request_tool]
+    tools = [create_refund_request_tool, end_chat_tool]
     executor = create_langchain_agent(llm, tools, prompt)
 
     result = run_langchain_agent(executor, user_text)
     output_text = result.get("output", "")
+    action = result.get("action", "ask")
 
-    # Check if we are done (tool called?)
-    action = "ask"
-    if "registrada" in output_text.lower() or "refund_id" in output_text.lower():
-        action = "finish"
+    # If end_chat_tool was used, return the special action
+    if action == "end_chat":
+        return {
+            "action": "end_chat",
+            "message": output_text
+        }
 
     return {
         "action": action,

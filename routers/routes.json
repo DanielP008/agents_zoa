@@ -27,5 +27,11 @@
         "venta_cruzada_agent"
       ]
     }
+  },
+  "tools": {
+    "end_chat_tool": {
+      "description": "Herramienta para finalizar la conversación cuando el usuario ya no necesita ayuda. Úsala cuando la consulta del usuario esté completamente resuelta y no necesite nada más.",
+      "available_to": ["specialists"]
+    }
   }
 }

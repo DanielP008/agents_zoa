@@ -6,6 +6,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 
 from agents.llm import get_llm
+from tools.end_chat_tool import end_chat_tool
 from tools.zoa_client import fetch_policy
 from tools.ocr_client import extract_text
 
@@ -44,13 +45,21 @@ def consulta_estado_agent(payload: dict) -> dict:
     )
 
     llm = get_llm()
-    tools = [lookup_policy, process_document]
+    tools = [lookup_policy, process_document, end_chat_tool]
     executor = create_langchain_agent(llm, tools, prompt)
 
     result = run_langchain_agent(executor, user_text)
     output_text = result.get("output", "")
+    action = result.get("action", "ask")
+
+    # If end_chat_tool was used, return the special action
+    if action == "end_chat":
+        return {
+            "action": "end_chat",
+            "message": output_text
+        }
 
     return {
-        "action": "ask",
+        "action": action,
         "message": output_text
     }

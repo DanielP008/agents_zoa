@@ -6,6 +6,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 
 from agents.llm import get_llm
+from tools.end_chat_tool import end_chat_tool
 
 
 @tool
@@ -123,6 +124,11 @@ Si necesitas algo más, me dices."
 - Si el cliente pregunta sobre reclamos, pagos, modificaciones u otros temas, responde naturalmente que te enfocas en darle los teléfonos y continúa la conversación — el sistema se encargará de enrutar correctamente en el siguiente mensaje
 - Nunca inventes números, solo usa los que devuelve la herramienta
 - Nunca menciones "transferencias", "derivaciones", "otro departamento" ni "otro agente"
+
+## Uso de herramientas
+- **end_chat_tool**: Úsala cuando hayas proporcionado los teléfonos de asistencia solicitados Y el cliente confirme que no necesita nada más (dice "no", "gracias", "listo", "perfecto", "chau", etc.)
+- **IMPORTANTE**: DEBES usar la herramienta 'end_chat_tool' cuando el cliente confirme que está satisfecho. NO solo generes un mensaje de despedida, DEBES llamar a la herramienta.
+- NO uses 'end_chat_tool' si el cliente hace preguntas adicionales, necesita más información o solicita otro tipo de ayuda
 """
 
     prompt = ChatPromptTemplate.from_messages(
@@ -134,13 +140,21 @@ Si necesitas algo más, me dices."
     )
 
     llm = get_llm()
-    tools = [get_assistance_phones, lookup_erp, create_internal_task]
+    tools = [get_assistance_phones, lookup_erp, create_internal_task, end_chat_tool]
     executor = create_langchain_agent(llm, tools, prompt)
 
     result = run_langchain_agent(executor, user_text)
     output_text = result.get("output", "")
+    action = result.get("action", "ask")
+
+    # If end_chat_tool was used, return the special action
+    if action == "end_chat":
+        return {
+            "action": "end_chat",
+            "message": output_text
+        }
 
     return {
-        "action": "ask", # or finish if phones provided?
+        "action": action,
         "message": output_text
     }

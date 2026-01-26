@@ -7,6 +7,7 @@ from langchain_core.tools import tool
 
 from agents.llm import get_llm
 from tools.zoa_client import create_claim as zoa_create_claim
+from tools.end_chat_tool import end_chat_tool
 
 
 @tool
@@ -30,7 +31,11 @@ def apertura_siniestro_agent(payload: dict) -> dict:
         "Tu objetivo es recolectar: fecha, lugar, descripcion del evento y numero de poliza. "
         "Pregunta uno por uno si faltan datos. "
         "Cuando tengas todo, usa la tool 'create_claim_tool' para registrarlo. "
-        "Responde siempre en español y confirma la accion al usuario."
+        "Responde siempre en español y confirma la accion al usuario. "
+        "\n\nIMPORTANTE: "
+        "- Usa 'end_chat_tool' cuando el siniestro esté completamente registrado y el usuario no necesite nada más. "
+        "- NO uses 'end_chat_tool' si el usuario hace preguntas adicionales o necesita otro tipo de ayuda. "
+        "- Sé inteligente: analiza si la conversación ha terminado realmente o si el usuario podría necesitar más asistencia."
     )
 
     prompt = ChatPromptTemplate.from_messages(
@@ -42,16 +47,19 @@ def apertura_siniestro_agent(payload: dict) -> dict:
     )
 
     llm = get_llm()
-    tools = [create_claim_tool]
+    tools = [create_claim_tool, end_chat_tool]
     executor = create_langchain_agent(llm, tools, prompt)
 
     result = run_langchain_agent(executor, user_text)
     output_text = result.get("output", "")
+    action = result.get("action", "ask")
 
-    # Check if we are done (tool called?) -> Detect by checking output text
-    action = "ask"
-    if "registrado" in output_text.lower() or "claim_id" in output_text.lower():
-        action = "finish"
+    # If end_chat_tool was used, return the special action
+    if action == "end_chat":
+        return {
+            "action": "end_chat",
+            "message": output_text
+        }
 
     return {
         "action": action,
