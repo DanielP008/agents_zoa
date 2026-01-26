@@ -1,7 +1,7 @@
 import json
 
 from core.agent_factory import create_langchain_agent, run_langchain_agent
-from core.memory_schema import get_agent_history
+from core.memory_schema import get_global_history
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 
@@ -55,7 +55,7 @@ def telefonos_asistencia_agent(payload: dict) -> dict:
     user_text = payload.get("mensaje", "")
     session = payload.get("session", {})
     memory = session.get("agent_memory", {})
-    history = get_agent_history(memory, "telefonos_asistencia_agent")
+    history = get_global_history(memory)
 
     system_prompt = """Eres parte del equipo de atención de ZOA Seguros. Tu función es proporcionar los números de teléfono de asistencia a los clientes que los necesiten.
 
@@ -140,18 +140,7 @@ Si necesitas algo más, me dices."
     result = run_langchain_agent(executor, user_text)
     output_text = result.get("output", "")
 
-    # Update state
-    history.append(("human", user_text))
-    history.append(("ai", output_text))
-
     return {
         "action": "ask", # or finish if phones provided?
-        "message": output_text,
-        "memory": {
-            "agents": {
-                "telefonos_asistencia_agent": {
-                    "history": history[-6:]
-                }
-            }
-        }
+        "message": output_text
     }

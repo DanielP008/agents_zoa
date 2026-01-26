@@ -6,7 +6,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 
 from agents.llm import get_llm
-from core.memory_schema import get_agent_memory, get_agent_history
+from core.memory_schema import get_agent_memory, get_global_history
 
 # Configuration loading to avoid circular imports with main_router
 from core.hooks import get_contracts_path
@@ -69,7 +69,7 @@ def classify_message(payload: dict) -> ClassificationDecision:
     memory = session.get("agent_memory", {})
     agent_mem = get_agent_memory(memory, "classifier_siniestros_agent")
     last_route = agent_mem.get("last_route", "unknown")
-    history = get_agent_history(memory, "classifier_siniestros_agent")
+    history = get_global_history(memory)
     
     # Construct the prompt
     system_prompt = (

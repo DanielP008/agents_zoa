@@ -1,7 +1,7 @@
 import json
 
 from core.agent_factory import create_langchain_agent, run_langchain_agent
-from core.memory_schema import get_agent_history
+from core.memory_schema import get_global_history
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 
@@ -26,7 +26,7 @@ def consulta_estado_agent(payload: dict) -> dict:
     user_text = payload.get("mensaje", "")
     session = payload.get("session", {})
     memory = session.get("agent_memory", {})
-    history = get_agent_history(memory, "consulta_estado_agent")
+    history = get_global_history(memory)
 
     system_prompt = (
         "Eres el agente de Consulta de Estado de ZOA. "
@@ -50,18 +50,7 @@ def consulta_estado_agent(payload: dict) -> dict:
     result = run_langchain_agent(executor, user_text)
     output_text = result.get("output", "")
 
-    # Update state
-    history.append(("human", user_text))
-    history.append(("ai", output_text))
-
     return {
         "action": "ask",
-        "message": output_text,
-        "memory": {
-            "agents": {
-                "consulta_estado_agent": {
-                    "history": history[-6:]
-                }
-            }
-        }
+        "message": output_text
     }

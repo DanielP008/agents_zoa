@@ -89,6 +89,29 @@ def apply_memory_patch(memory: Dict[str, Any], patch: Optional[Dict[str, Any]]) 
     return memory
 
 
+def get_global_history(memory: Dict[str, Any]) -> List[tuple]:
+    """
+    Get global conversation history formatted for LangChain.
+    Extracts 'conversation_history' from memory and converts to (role, content) tuples.
+
+    Args:
+        memory: The full memory dict
+
+    Returns:
+        List of (role, content) tuples ready for ChatPromptTemplate
+    """
+    memory = ensure_memory_shape(memory)
+    raw_history = memory.get("conversation_history", [])
+    
+    formatted_history = []
+    for turn in raw_history:
+        role = "human" if turn.get("role") == "user" else "ai"
+        content = turn.get("text", "")
+        formatted_history.append((role, content))
+        
+    return formatted_history
+
+
 def get_agent_memory(memory: Dict[str, Any], agent_name: str, default: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """
     Get agent-specific memory namespace.
@@ -103,24 +126,6 @@ def get_agent_memory(memory: Dict[str, Any], agent_name: str, default: Optional[
     """
     memory = ensure_memory_shape(memory)
     return memory.get("agents", {}).get(agent_name, default or {})
-
-
-def get_agent_history(memory: Dict[str, Any], agent_name: str) -> List[tuple]:
-    """
-    Get agent history as LangChain-compatible tuples.
-    Automatically converts lists to tuples (JSON deserializes tuples as lists).
-
-    Args:
-        memory: The full memory dict
-        agent_name: Name of the agent
-
-    Returns:
-        List of (role, content) tuples ready for ChatPromptTemplate
-    """
-    agent_mem = get_agent_memory(memory, agent_name)
-    raw_history = agent_mem.get("history", [])
-    # Convert lists to tuples (JSON deserializes tuples as lists)
-    return [tuple(msg) if isinstance(msg, list) else msg for msg in raw_history]
 
 
 def set_agent_memory(memory: Dict[str, Any], agent_name: str, agent_data: Dict[str, Any]) -> Dict[str, Any]:

@@ -58,5 +58,5 @@ All agents must return a dict with:
 - Path resolution: Use `core.hooks` functions instead of manual pathlib logic
 - LangChain agents: Use `core.agent_factory.create_langchain_agent()` instead of manual setup (✅ All agents updated)
 - LLM error handling: Use `core.llm_utils.safe_llm_invoke()` for LLM calls (✅ receptionist_agent updated)
-- Memory access: Use `core.memory_schema.get_agent_memory()` for agent data, `get_agent_history()` for LangChain-compatible history (✅ All agents updated)
-- Imports: `from core.memory_schema import ensure_memory_shape, append_turn, apply_memory_patch, get_agent_memory`
+- Memory access: Use `core.memory_schema.get_agent_memory()` for agent data, `get_global_history()` for LangChain-compatible history (✅ All agents updated)
+- Imports: `from core.memory_schema import ensure_memory_shape, get_agent_memory, get_global_history`

@@ -11,7 +11,7 @@ from langchain_core.tools import tool
 
 from agents.llm import get_llm
 from core.llm_utils import safe_llm_invoke, parse_llm_json_response
-from core.memory_schema import get_agent_history
+from core.memory_schema import get_global_history
 
 from core.hooks import get_contracts_path
 
@@ -55,7 +55,12 @@ def receptionist_agent(payload: dict) -> dict:
                 }
 
     # 2. Prepare Context for LLM
-    history = get_agent_history(memory, "receptionist_agent")
+    # Use global conversation history formatted for LangChain
+    history = get_global_history(memory)
+    
+    # Check if this is the first interaction (ignoring the current input which is not in history yet)
+    is_first_interaction = len(history) == 0
+    print(f"DEBUG: is_first_interaction: {is_first_interaction}")
     
     # Filter only domains with active classifiers
     active_domains_map = {
@@ -66,6 +71,13 @@ def receptionist_agent(payload: dict) -> dict:
     available_domains_str = ", ".join(active_domains_map.values())
     
     parser = PydanticOutputParser(pydantic_object=ReceptionistDecision)
+
+    # Dynamic greeting instruction based on history state
+    greeting_instruction = ""
+    if is_first_interaction:
+        greeting_instruction = "Esta es la PRIMERA interacción. DEBES presentarte brevemente como Sofía, recepcionista virtual de ZOA Seguros."
+    else:
+        greeting_instruction = "Esta NO es la primera interacción. NO te vuelvas a presentar. Ve directo al grano o pide la información que falta."
 
     system_prompt = """Eres Sofia, la recepcionista virtual de ZOA Seguros. Eres profesional, amable y natural.
 
@@ -96,7 +108,7 @@ Tu tarea es analizar el mensaje del usuario y decidir:
 - Si clasificas un dominio con confianza: devuelve el `domain` y `confidence` alto. `message` puede ser null.
 - Si NO clasificas: `domain` debe ser null. `message` debe ser tu respuesta al usuario.
 - Tu respuesta debe ser natural y profesional. No listes todas las opciones a menos que sea necesario para guiar al usuario.
-- Si el usuario solo saluda, preséntate brevemente.
+- **IMPORTANTE**: {greeting_instruction}
 
 {format_instructions}"""
 
@@ -117,6 +129,7 @@ Tu tarea es analizar el mensaje del usuario y decidir:
             "user_text": user_text,
             "format_instructions": parser.get_format_instructions(),
             "available_domains": available_domains_str,
+            "greeting_instruction": greeting_instruction,
         },
         error_context="receptionist_decision"
     )
