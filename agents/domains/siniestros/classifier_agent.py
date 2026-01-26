@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from agents.llm import get_llm
 from core.memory_schema import get_agent_memory, get_global_history
+from core.llm_utils import safe_structured_invoke
 
 # Configuration loading to avoid circular imports with main_router
 from core.hooks import get_contracts_path
@@ -24,17 +25,20 @@ with open(_ROUTES_PATH, "r") as f:
 class ClassificationDecision(BaseModel):
     """Decision model for the classifier agent."""
     route: str = Field(
+        default="classifier_siniestros_agent",
         description=f"The target agent to route to. Must be one of: {', '.join(_VALID_ROUTES)}. If unsure, select the most likely one but set needs_more_info to True."
     )
     confidence: float = Field(
+        default=0.0,
         description="Confidence score between 0.0 and 1.0."
     )
     needs_more_info: bool = Field(
+        default=True,
         description="Set to True if you need to ask the user a clarifying question before routing. Set to False if you are confident."
     )
     question: str = Field(
-        description="The question to ask the user if needs_more_info is True. Otherwise, an empty string or polite closing.",
-        default=""
+        default="",
+        description="The question to ask the user if needs_more_info is True. Otherwise, an empty string or polite closing."
     )
 
 def classifier_siniestros_agent(payload: dict) -> dict:
@@ -100,19 +104,17 @@ def classify_message(payload: dict) -> ClassificationDecision:
     structured_llm = llm.with_structured_output(ClassificationDecision)
     chain = prompt | structured_llm
 
-    try:
-        result = chain.invoke(
-            {
-                "last_route": last_route,
-                "user_text": user_text,
-            }
-        )
-        return result
-    except Exception as e:
-        # Fallback in case of LLM failure
-        return ClassificationDecision(
-            route="classifier_siniestros_agent", # provisional
+    return safe_structured_invoke(
+        chain,
+        {
+            "last_route": last_route,
+            "user_text": user_text,
+        },
+        fallback_factory=lambda: ClassificationDecision(
+            route="classifier_siniestros_agent",
             confidence=0.0,
             needs_more_info=True,
             question="Disculpa, no entendí bien. ¿Podrías decirme si necesitas asistencia, denunciar un siniestro o consultar un trámite?"
-        )
+        ),
+        error_context="classifier_siniestros_decision"
+    )

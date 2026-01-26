@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from agents.llm import get_llm
 from core.memory_schema import get_global_history
+from core.llm_utils import safe_structured_invoke
 
 from core.hooks import get_contracts_path
 
@@ -21,12 +22,15 @@ with open(_ROUTES_PATH, "r") as f:
 
 class ReceptionistDecision(BaseModel):
     domain: str | None = Field(
+        default=None,
         description="El dominio detectado (siniestros, gestion, ventas) si está claro, o null si no."
     )
     message: str | None = Field(
+        default=None,
         description="Respuesta natural al usuario si no se detecta dominio o se requiere más información."
     )
     confidence: float = Field(
+        default=0.0,
         description="Nivel de confianza de la clasificación (0.0 a 1.0).",
         ge=0.0,
         le=1.0
@@ -116,24 +120,23 @@ Tu tarea es analizar el mensaje del usuario y decidir:
     structured_llm = llm.with_structured_output(ReceptionistDecision)
     chain = prompt | structured_llm
 
-    try:
-        decision = chain.invoke(
-            {
-                "user_text": user_text,
-                "available_domains": available_domains_str,
-                "greeting_instruction": greeting_instruction,
-            }
-        )
-    except Exception as e:
-        # Fallback if LLM fails
-        decision = ReceptionistDecision(
+    decision = safe_structured_invoke(
+        chain,
+        {
+            "user_text": user_text,
+            "available_domains": available_domains_str,
+            "greeting_instruction": greeting_instruction,
+        },
+        fallback_factory=lambda: ReceptionistDecision(
             domain=None,
             message="Disculpa, tuve un problema técnico. ¿Podrías repetir tu consulta?",
             confidence=0.0
-        )
+        ),
+        error_context="receptionist_decision"
+    )
 
-    domain = decision.get("domain")
-    message = decision.get("message")
+    domain = decision.domain
+    message = decision.message
     
     # 4. Execute Decision
     

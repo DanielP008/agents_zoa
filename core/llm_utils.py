@@ -2,9 +2,45 @@
 LLM utilities with safe error handling and consistent behavior.
 """
 import logging
-from typing import Any, Dict, Optional, Callable
+from typing import Any, Dict, Optional, Callable, TypeVar, Type
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar('T')
+
+
+def safe_structured_invoke(
+    chain: Any,
+    inputs: Dict[str, Any],
+    fallback_factory: Callable[[], T],
+    error_context: Optional[str] = None
+) -> T:
+    """
+    Safely invoke structured output chains (with_structured_output) with error handling.
+    Handles both exceptions and None returns (known LangChain/Gemini edge cases).
+
+    Args:
+        chain: LangChain chain with with_structured_output() applied
+        inputs: Input dictionary for the chain
+        fallback_factory: Callable that returns a fallback instance of the Pydantic model
+        error_context: Additional context for error logging
+
+    Returns:
+        Pydantic model instance (never None)
+    """
+    try:
+        result = chain.invoke(inputs)
+        # Handle case where with_structured_output returns None silently
+        # (known issue with LangChain/Gemini in edge cases)
+        if result is None:
+            context_msg = f" [{error_context}]" if error_context else ""
+            logger.warning(f"Structured output returned None{context_msg}, using fallback")
+            return fallback_factory()
+        return result
+    except Exception as e:
+        context_msg = f" [{error_context}]" if error_context else ""
+        logger.error(f"Structured output error{context_msg}: {e}")
+        return fallback_factory()
 
 
 def safe_llm_invoke(

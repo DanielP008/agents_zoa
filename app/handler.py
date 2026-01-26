@@ -18,8 +18,7 @@ def handle_whatsapp(request):
         return handle_session_reset(data)
     
     response = process_message(data)
-    
-    
+
     return (
         json.dumps({"status": "ok", "response": response}, ensure_ascii=False),
         200,
