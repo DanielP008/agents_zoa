@@ -10,7 +10,7 @@ def main():
     print("Escribe 'quit' o 'exit' para salir.\n")
 
     # Configuration
-    url = "http://localhost:53149"
+    url = "http://localhost:8080"
     user_id = "local_tester_001"
     company_id = "company_123" # Simulating the phone_number_id
     conversation_id = str(uuid.uuid4())
@@ -48,9 +48,22 @@ def main():
             data = response.json()
             agent_response = data.get("response", {})
             
+            # Log the current agent
             if isinstance(agent_response, dict):
+                agent = agent_response.get("agent")
+                next_agent = agent_response.get("next_agent")
+                response_type = agent_response.get("type", "unknown")
+                
+                if agent:
+                    print(f"AGENTE ACTUAL: {agent}")
+                elif next_agent:
+                    print(f"AGENTE ACTUAL: {next_agent} (transición)")
+                else:
+                    print(f"AGENTE ACTUAL: unknown (tipo: {response_type})")
+                
                 message = agent_response.get("message", str(agent_response))
             else:
+                print(f"AGENTE ACTUAL: unknown")
                 message = str(agent_response)
 
             print(f"Agente: {message}\n")
