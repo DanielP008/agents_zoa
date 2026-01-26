@@ -28,17 +28,29 @@ def safe_structured_invoke(
     Returns:
         Pydantic model instance (never None)
     """
+    context_msg = f" [{error_context}]" if error_context else ""
+    
+    print(f"\n[SAFE_INVOKE DEBUG]{context_msg} Starting chain invocation...")
+    print(f"[SAFE_INVOKE DEBUG]{context_msg} Inputs: {inputs}")
+    
     try:
         result = chain.invoke(inputs)
+        
+        print(f"[SAFE_INVOKE DEBUG]{context_msg} Raw result: {result}")
+        print(f"[SAFE_INVOKE DEBUG]{context_msg} Result type: {type(result)}")
+        print(f"[SAFE_INVOKE DEBUG]{context_msg} Result is None: {result is None}")
+        
         # Handle case where with_structured_output returns None silently
         # (known issue with LangChain/Gemini in edge cases)
         if result is None:
-            context_msg = f" [{error_context}]" if error_context else ""
+            print(f"[SAFE_INVOKE DEBUG]{context_msg} Result is None, using fallback")
             logger.warning(f"Structured output returned None{context_msg}, using fallback")
             return fallback_factory()
+        
+        print(f"[SAFE_INVOKE DEBUG]{context_msg} Returning valid result")
         return result
     except Exception as e:
-        context_msg = f" [{error_context}]" if error_context else ""
+        print(f"[SAFE_INVOKE DEBUG]{context_msg} Exception caught: {type(e).__name__}: {e}")
         logger.error(f"Structured output error{context_msg}: {e}")
         return fallback_factory()
 

@@ -62,7 +62,7 @@ def classifier_siniestros_agent(payload: dict) -> dict:
         "action": "route",
         "next_agent": decision.route, 
         "domain": "siniestros",
-        "message": "Te derivo con el agente especializado."
+        "message": None  # Passthrough: el agente especializado responderá directamente
     }
 
 def classify_message(payload: dict) -> ClassificationDecision:
@@ -89,7 +89,15 @@ def classify_message(payload: dict) -> ClassificationDecision:
         "3. NO asumas. Si el usuario dice 'siniestro', no sabes si quiere abrir uno o consultar uno existente. PREGUNTA.\n"
         "4. Sé amable y directo en tus preguntas.\n"
         "5. Si estás seguro, establece needs_more_info=False y route al agente correcto.\n"
-        "6. Contexto previo: El usuario puede estar respondiendo a una pregunta anterior. Usa el historial para entender el contexto completo.\n"
+        "6. Contexto previo: El usuario puede estar respondiendo a una pregunta anterior. Usa el historial para entender el contexto completo.\n\n"
+        "## Formato de respuesta\n"
+        "DEBES responder en formato JSON válido con esta estructura exacta:\n"
+        "{{\n"
+        '  "route": "nombre_del_agente",\n'
+        '  "confidence": número entre 0.0 y 1.0,\n'
+        '  "needs_more_info": true o false,\n'
+        '  "question": "string o cadena vacía"\n'
+        "}}"
     )
 
     prompt = ChatPromptTemplate.from_messages(
@@ -101,10 +109,19 @@ def classify_message(payload: dict) -> ClassificationDecision:
     )
 
     llm = get_llm()
-    structured_llm = llm.with_structured_output(ClassificationDecision)
+    
+    # Use json_mode for more reliable structured output with Gemini
+    try:
+        structured_llm = llm.with_structured_output(ClassificationDecision, method="json_mode")
+    except:
+        structured_llm = llm.with_structured_output(ClassificationDecision)
+    
     chain = prompt | structured_llm
 
-    return safe_structured_invoke(
+    print(f"\n[CLASSIFIER DEBUG] user_text: {user_text}")
+    print(f"[CLASSIFIER DEBUG] last_route: {last_route}")
+    
+    result = safe_structured_invoke(
         chain,
         {
             "last_route": last_route,
@@ -118,3 +135,10 @@ def classify_message(payload: dict) -> ClassificationDecision:
         ),
         error_context="classifier_siniestros_decision"
     )
+    
+    print(f"[CLASSIFIER DEBUG] result: {result}")
+    print(f"[CLASSIFIER DEBUG] result.route: {result.route}")
+    print(f"[CLASSIFIER DEBUG] result.needs_more_info: {result.needs_more_info}")
+    print(f"[CLASSIFIER DEBUG] result.question: {result.question}")
+    
+    return result

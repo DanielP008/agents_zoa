@@ -106,7 +106,15 @@ Tu tarea es analizar el mensaje del usuario y decidir:
 - Si clasificas un dominio con confianza: devuelve el `domain` y `confidence` alto. `message` puede ser null.
 - Si NO clasificas: `domain` debe ser null. `message` debe ser tu respuesta al usuario.
 - Tu respuesta debe ser natural y profesional. No listes todas las opciones a menos que sea necesario para guiar al usuario.
-- **IMPORTANTE**: {greeting_instruction}"""
+- **IMPORTANTE**: {greeting_instruction}
+
+## Formato de respuesta
+DEBES responder en formato JSON válido con esta estructura exacta:
+{{{{
+  "domain": "string o null",
+  "message": "string o null", 
+  "confidence": número entre 0.0 y 1.0
+}}}}"""
 
     prompt = ChatPromptTemplate.from_messages(
         [
@@ -117,9 +125,21 @@ Tu tarea es analizar el mensaje del usuario y decidir:
     )
 
     llm = get_llm()
-    structured_llm = llm.with_structured_output(ReceptionistDecision)
+    
+    # Use json_mode for more reliable structured output with Gemini
+    # This is a known workaround for with_structured_output reliability issues
+    try:
+        structured_llm = llm.with_structured_output(ReceptionistDecision, method="json_mode")
+    except:
+        # Fallback to default method if json_mode is not available
+        structured_llm = llm.with_structured_output(ReceptionistDecision)
+    
     chain = prompt | structured_llm
 
+    print(f"\n[RECEPTIONIST DEBUG] user_text: {user_text}")
+    print(f"[RECEPTIONIST DEBUG] available_domains: {available_domains_str}")
+    print(f"[RECEPTIONIST DEBUG] greeting_instruction: {greeting_instruction}")
+    
     decision = safe_structured_invoke(
         chain,
         {
@@ -134,6 +154,11 @@ Tu tarea es analizar el mensaje del usuario y decidir:
         ),
         error_context="receptionist_decision"
     )
+    
+    print(f"[RECEPTIONIST DEBUG] decision: {decision}")
+    print(f"[RECEPTIONIST DEBUG] decision.domain: {decision.domain}")
+    print(f"[RECEPTIONIST DEBUG] decision.message: {decision.message}")
+    print(f"[RECEPTIONIST DEBUG] decision.confidence: {decision.confidence}")
 
     domain = decision.domain
     message = decision.message
