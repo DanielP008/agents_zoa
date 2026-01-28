@@ -1,6 +1,4 @@
-"""
-LLM utilities with safe error handling and consistent behavior.
-"""
+"""LLM utilities with safe error handling."""
 import logging
 from typing import Any, Dict, Optional, Callable, TypeVar, Type
 
@@ -15,19 +13,7 @@ def safe_structured_invoke(
     fallback_factory: Callable[[], T],
     error_context: Optional[str] = None
 ) -> T:
-    """
-    Safely invoke structured output chains (with_structured_output) with error handling.
-    Handles both exceptions and None returns (known LangChain/Gemini edge cases).
-
-    Args:
-        chain: LangChain chain with with_structured_output() applied
-        inputs: Input dictionary for the chain
-        fallback_factory: Callable that returns a fallback instance of the Pydantic model
-        error_context: Additional context for error logging
-
-    Returns:
-        Pydantic model instance (never None)
-    """
+    """Safely invoke a structured output chain."""
     context_msg = f" [{error_context}]" if error_context else ""
     
     print(f"\n[SAFE_INVOKE DEBUG]{context_msg} Starting chain invocation...")
@@ -40,8 +26,6 @@ def safe_structured_invoke(
         print(f"[SAFE_INVOKE DEBUG]{context_msg} Result type: {type(result)}")
         print(f"[SAFE_INVOKE DEBUG]{context_msg} Result is None: {result is None}")
         
-        # Handle case where with_structured_output returns None silently
-        # (known issue with LangChain/Gemini in edge cases)
         if result is None:
             print(f"[SAFE_INVOKE DEBUG]{context_msg} Result is None, using fallback")
             logger.warning(f"Structured output returned None{context_msg}, using fallback")
@@ -62,19 +46,7 @@ def safe_llm_invoke(
     log_error: bool = True,
     error_context: Optional[str] = None
 ) -> Any:
-    """
-    Safely invoke LLM chains with error handling and logging.
-
-    Args:
-        chain_callable: Function/callable to invoke (chain.invoke, etc.)
-        inputs: Input dictionary for the chain
-        fallback: Value to return on error (default: None)
-        log_error: Whether to log errors (default: True)
-        error_context: Additional context for error logging
-
-    Returns:
-        Chain result or fallback value on error
-    """
+    """Safely invoke an LLM callable with error handling."""
     try:
         return chain_callable(inputs)
     except Exception as e:
@@ -90,33 +62,19 @@ def parse_llm_json_response(
     expected_keys: Optional[list] = None,
     fallback: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
-    """
-    Parse LLM JSON responses with cleanup and validation.
-
-    Args:
-        raw_response: Raw response from LLM
-        expected_keys: Keys that should be present in response
-        fallback: Fallback dict if parsing fails
-
-    Returns:
-        Parsed and cleaned response dict
-    """
+    """Parse an LLM JSON response with cleanup and validation."""
     if not raw_response:
         return fallback or {}
 
-    # Extract content if it's a LangChain response object
     if hasattr(raw_response, 'content'):
         content = raw_response.content
     else:
         content = str(raw_response)
 
-    # Clean markdown formatting
     content = content.strip()
     if content.startswith("```"):
-        # Remove markdown code blocks
         lines = content.split("\n")
         if len(lines) > 2 and lines[0].startswith("```"):
-            # Remove opening ``` and optional language marker
             content = "\n".join(lines[1:])
             if "```" in content:
                 content = content.split("```")[0]
@@ -133,7 +91,6 @@ def parse_llm_json_response(
         import json
         parsed = json.loads(content)
 
-        # Basic validation if expected keys provided
         if expected_keys and isinstance(parsed, dict):
             missing_keys = [key for key in expected_keys if key not in parsed]
             if missing_keys:
@@ -154,17 +111,7 @@ def create_llm_retry_decorator(
     backoff_factor: float = 1.0,
     exceptions: tuple = (Exception,)
 ):
-    """
-    Create a retry decorator for LLM operations.
-
-    Args:
-        max_retries: Maximum number of retry attempts
-        backoff_factor: Backoff multiplier for sleep time
-        exceptions: Tuple of exceptions to catch and retry
-
-    Returns:
-        Decorator function
-    """
+    """Create a retry decorator for LLM operations."""
     import time
     from functools import wraps
 
@@ -184,7 +131,6 @@ def create_llm_retry_decorator(
                     else:
                         logger.error(f"LLM operation failed after {max_retries + 1} attempts: {e}")
 
-            # If all retries failed, return a safe fallback
             return {"error": f"Operation failed after {max_retries + 1} attempts", "last_exception": str(last_exception)}
 
         return wrapper

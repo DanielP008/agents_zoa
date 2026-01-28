@@ -8,6 +8,7 @@ COPY . /app
 
 ENV PORT=8080
 ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
 EXPOSE 8080
 
 CMD ["functions-framework", "--source", "app/handler.py", "--target", "handle_whatsapp", "--port", "8080"]

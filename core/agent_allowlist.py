@@ -17,7 +17,6 @@ def build_agent_allowlist(routes_config: dict) -> dict:
     allowlist = {}
     domains = routes_config.get("domains", {})
 
-    # Receptionist can route to all domain classifiers
     classifiers = [
         domain.get("classifier")
         for domain in domains.values()
@@ -25,7 +24,6 @@ def build_agent_allowlist(routes_config: dict) -> dict:
     ]
     allowlist["receptionist_agent"] = classifiers
 
-    # Domain classifiers can route to specialists
     for domain in domains.values():
         classifier = domain.get("classifier")
         specialists = domain.get("specialists", [])

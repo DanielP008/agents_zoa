@@ -4,10 +4,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 def setup_tracing():
-    """
-    Configures LangSmith tracing based on environment variables.
-    This should be called at application startup.
-    """
+    """Configure LangSmith tracing from environment variables."""
     if os.environ.get("LANGCHAIN_TRACING_V2") == "true":
         api_key = os.environ.get("LANGCHAIN_API_KEY")
         if not api_key:

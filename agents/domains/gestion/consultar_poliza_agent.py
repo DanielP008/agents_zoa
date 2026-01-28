@@ -13,7 +13,6 @@ from tools.end_chat_tool import end_chat_tool
 def get_policy_info_tool(policy_number: str) -> dict:
     """Obtiene información de una póliza desde ZOA dado su número."""
     try:
-        # TODO: Implement actual ZOA API call to get policy info
         return {
             "success": True,
             "policy_number": policy_number,
@@ -61,7 +60,6 @@ def consultar_poliza_agent(payload: dict) -> dict:
     output_text = result.get("output", "")
     action = result.get("action", "ask")
 
-    # If end_chat_tool was used, return the special action
     if action == "end_chat":
         return {
             "action": "end_chat",

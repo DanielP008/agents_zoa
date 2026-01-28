@@ -1,5 +1,9 @@
 import os
+import re
+import logging
 from core.db import SessionManager
+
+logger = logging.getLogger(__name__)
 from core.memory_schema import (
     append_turn,
     apply_memory_patch,
@@ -7,30 +11,103 @@ from core.memory_schema import (
     update_global,
 )
 from routers.main_router import route_request
-from tools.zoa_client import send_whatsapp_response
+from tools.zoa_client import (
+    send_whatsapp_response,
+    search_contact_by_phone,
+    extract_nif_from_contact_search,
+)
 from core.agent_allowlist import build_agent_allowlist, load_routes_config
 
-# Managers
+
+def _extract_attachments(payload: dict) -> list:
+    attachments = []
+    media = payload.get("media")
+    if isinstance(media, dict):
+        media = [media]
+    if isinstance(media, list):
+        for item in media:
+            if not isinstance(item, dict):
+                continue
+            data = item.get("data") or item.get("base64")
+            if not data:
+                continue
+            attachments.append(
+                {
+                    "mime_type": item.get("mime_type") or item.get("type") or "application/octet-stream",
+                    "data": data,
+                    "filename": item.get("filename"),
+                    "source": "media",
+                }
+            )
+    image_b64 = payload.get("image_base64")
+    if image_b64:
+        attachments.append(
+            {
+                "mime_type": payload.get("image_mime_type") or "image/jpeg",
+                "data": image_b64,
+                "filename": payload.get("image_filename"),
+                "source": "image_base64",
+            }
+        )
+    return attachments
+
 session_manager = SessionManager()
 
-# Routes config for allowlist validation
 _ROUTES_CONFIG = load_routes_config()
 _AGENT_ALLOWLIST = build_agent_allowlist(_ROUTES_CONFIG)
 
 def process_message(payload: dict) -> dict:
     
-    # Use Buffer System names (Source of Truth)
     wa_id = payload.get("wa_id")
     mensaje = payload.get("mensaje")
     company_id = payload.get("phone_number_id")
     
-    
-    # 1. Load Session
     safe_company_id = company_id or "default"
     session = session_manager.get_session(wa_id, safe_company_id)
     target_agent = session.get("target_agent", "receptionist_agent")
-    
     memory = ensure_memory_shape(session.get("agent_memory", {}))
+
+    attachments = _extract_attachments(payload)
+    if attachments:
+        global_mem = memory.get("global", {})
+        existing = global_mem.get("attachments", [])
+        if not isinstance(existing, list):
+            existing = []
+        memory = update_global(memory, attachments=existing + attachments)
+        session["agent_memory"] = memory
+
+        if not mensaje:
+            mensaje = "[imagen adjunta]"
+            payload["mensaje"] = mensaje
+
+    global_mem = memory.get("global", {})
+    nif_value = global_mem.get("nif")
+    nif_lookup_failed = global_mem.get("nif_lookup_failed", False)
+    
+    print(f"[ORCHESTRATOR] NIF check - wa_id: {wa_id}, company_id: {company_id}")
+    print(f"[ORCHESTRATOR] NIF check - memory nif: {nif_value}, lookup_failed: {nif_lookup_failed}")
+    
+    if not nif_value and not nif_lookup_failed and wa_id and company_id:
+        print(f"[ORCHESTRATOR] Calling ZOA API to search NIF by phone: {wa_id}")
+        contact_response = search_contact_by_phone(wa_id, company_id)
+        print(f"[ORCHESTRATOR] ZOA API raw response: {contact_response}")
+        nif_value = extract_nif_from_contact_search(contact_response)
+        print(f"[ORCHESTRATOR] ZOA API response - extracted nif: {nif_value}")
+    
+    if nif_value:
+        print(f"NIF FOUND for {wa_id}: {nif_value}")
+        print(f"[ORCHESTRATOR] NIF found and saved to memory: {nif_value}")
+        memory = update_global(memory, nif=nif_value, nif_lookup_failed=False)
+        session["agent_memory"] = memory
+        session_manager.update_agent_memory(wa_id, memory, safe_company_id)
+    elif not nif_lookup_failed and wa_id and company_id:
+        print(f"[ORCHESTRATOR] NIF not found, marking lookup_failed=True")
+        memory = update_global(memory, nif_lookup_failed=True)
+        session["agent_memory"] = memory
+        session_manager.update_agent_memory(wa_id, memory, safe_company_id)
+    else:
+        print(f"[ORCHESTRATOR] NIF not in memory and lookup already failed or missing IDs, skipping API call")
+    
     memory = append_turn(
         memory,
         role="user",
@@ -42,32 +119,28 @@ def process_message(payload: dict) -> dict:
     session["agent_memory"] = memory
     payload["session"] = session
 
-    # Agent processing loop (supports passthrough routing)
-    MAX_CHAIN_DEPTH = 5  # Prevent infinite loops
+    MAX_CHAIN_DEPTH = 5
     chain_depth = 0
     
     while chain_depth < MAX_CHAIN_DEPTH:
         chain_depth += 1
         
         payload["allowed_next_agents"] = _AGENT_ALLOWLIST.get(target_agent, [])
-        # 2. Route to the target agent (State Machine)
         response = route_request(target_agent, payload)
         
-        # 3. Handle Agent Response
         action = response.get("action")
         agent_message = response.get("message")
 
-
-        # Check if agent used end_chat_tool
         if action == "end_chat":
-            # Delete session from postgres (this will clear all session data including agent_memory)
-            # No need to reset target_agent first - deletion will clear everything
+            print(f"[ORCHESTRATOR] end_chat detected - deleting session for wa_id: {wa_id}, company_id: {safe_company_id}")
             deleted = session_manager.delete_session(wa_id, safe_company_id)
             
-            if not deleted:
+            if deleted:
+                print(f"[ORCHESTRATOR] Session successfully deleted from database")
+            else:
                 logger.warning(f"Failed to delete session for wa_id: {wa_id}, company_id: {safe_company_id}")
+                print(f"[ORCHESTRATOR] WARNING: Session deletion failed or session not found")
 
-            # Return final message to user
             return {
                 "type": "text",
                 "message": agent_message,
@@ -75,8 +148,6 @@ def process_message(payload: dict) -> dict:
                 "status": "completed"
             }
 
-
-        # Check for passthrough route (route without message)
         if action == "route" and not agent_message:
             new_target = response.get("next_agent")
             new_domain = response.get("domain")
@@ -95,13 +166,11 @@ def process_message(payload: dict) -> dict:
                 }
             
             
-            # Update session for next agent in chain
             session["target_agent"] = new_target
             if new_domain:
                 session["domain"] = new_domain
             payload["session"] = session
             
-            # Update memory with route info (no message to log)
             memory = apply_memory_patch(memory, response.get("memory", {}))
             memory = update_global(
                 memory,
@@ -111,27 +180,22 @@ def process_message(payload: dict) -> dict:
             )
             session["agent_memory"] = memory
             
-            # Persist the routing change
             session_manager.set_target_agent(wa_id, new_target, new_domain, safe_company_id)
             session_manager.update_agent_memory(wa_id, memory, safe_company_id)
             
-            # Continue loop with new target
             target_agent = new_target
             continue
         
-        # Not a passthrough, break loop and process normally
         break
     
     if chain_depth >= MAX_CHAIN_DEPTH:
         return {"error": "Max routing chain depth exceeded"}
     
-    # Decide if we need to send a message back to WhatsApp
     should_send_message = False
     if action in ["ask", "finish", "route"] and agent_message:
         should_send_message = True
     
         
-    # Send the message if needed
     if should_send_message and company_id:
         
         whatsapp_result = send_whatsapp_response(
@@ -144,7 +208,6 @@ def process_message(payload: dict) -> dict:
         pass
 
     if action == "ask":
-        # Agent wants to ask user -> Stay on same agent, update memory
         if agent_message:
             memory = append_turn(
                 memory,
@@ -170,7 +233,6 @@ def process_message(payload: dict) -> dict:
         return result
         
     if action == "route":
-        # Agent finished, route to next (next turn)
         new_target = response.get("next_agent")
         new_domain = response.get("domain")
         if new_domain is None:
@@ -203,7 +265,7 @@ def process_message(payload: dict) -> dict:
             last_action=action,
             last_domain=new_domain,
         )
-        session_manager.update_agent_memory(wa_id, memory, safe_company_id) # Pass context forward
+        session_manager.update_agent_memory(wa_id, memory, safe_company_id)
         
         result = {
             "type": "transition", 
@@ -213,8 +275,7 @@ def process_message(payload: dict) -> dict:
         return result
             
     if action == "finish":
-        # Flow complete - mark as resolved and prepare for cleanup
-        session_manager.set_target_agent(wa_id, "receptionist_agent", None, safe_company_id) # Reset to receptionist
+        session_manager.set_target_agent(wa_id, "receptionist_agent", None, safe_company_id)
         
         if agent_message:
             memory = append_turn(
@@ -226,13 +287,12 @@ def process_message(payload: dict) -> dict:
                 action=action,
             )
         
-        # Mark that the last interaction was completed
         memory = update_global(
             memory,
             last_agent=target_agent,
             last_action=action,
             last_domain=session.get("domain"),
-            consultation_completed=True,  # Flag to indicate completion
+            consultation_completed=True,
         )
         session_manager.update_agent_memory(wa_id, memory, safe_company_id)
         

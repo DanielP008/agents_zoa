@@ -1,1 +1,1 @@
-# Ventas domain agents
+"""Ventas domain agents."""

@@ -19,7 +19,6 @@ def lookup_policy(policy_number: str) -> dict:
 @tool
 def process_document(doc_type: str) -> dict:
     """Procesa un documento (OCR) para extraer texto. Simulado."""
-    # En la realidad, aqui pasariamos la URL o el binario del documento
     return extract_text({"type": doc_type})
 
 
@@ -52,7 +51,6 @@ def consulta_estado_agent(payload: dict) -> dict:
     output_text = result.get("output", "")
     action = result.get("action", "ask")
 
-    # If end_chat_tool was used, return the special action
     if action == "end_chat":
         return {
             "action": "end_chat",
