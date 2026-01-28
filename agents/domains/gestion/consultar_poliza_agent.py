@@ -10,6 +10,8 @@ from core.agent_factory import create_langchain_agent, run_langchain_agent
 from core.memory_schema import get_global_history
 from tools.ERP_client import get_client_policys, get_policy_document_from_erp
 from tools.ocr_client import extract_text
+from tools.zoa_client import create_task_with_activity
+from tools.end_chat_tool import end_chat_tool
 
 
 RAMO_OPTIONS = [
@@ -44,9 +46,10 @@ def consultar_poliza_agent(payload: dict) -> dict:
     global_mem = memory.get("global", {})
     nif = global_mem.get("nif")
     company_id = payload.get("phone_number_id") or session.get("company_id", "")
-
-    # Removed strict NIF check at the beginning to allow generic queries first
     
+    # Check if we have WA ID to report
+    wa_id = payload.get("wa_id")
+
     state = _get_state(memory)
     ramo = state.get("ramo")
     ocr_text = state.get("ocr_text")
@@ -79,14 +82,30 @@ def consultar_poliza_agent(payload: dict) -> dict:
         result = generic_knowledge_agent(sub_payload)
         return result.get("message", "No pude obtener respuesta del experto.")
 
+    @tool
+    def report_unidentified_user(description: str) -> dict:
+        """Reporta un usuario no identificado (sin NIF) a un gestor humano.
+        Usar cuando el usuario quiere consultar SU póliza pero no tenemos su NIF identificado."""
+        return create_task_with_activity(
+            task_description=f"Usuario no identificado intentando consultar póliza. Mensaje: {description}",
+            client_nif="UNKNOWN",
+            company_id=company_id,
+            wa_id=wa_id,
+            priority="high",
+            activity_type="whatsapp_notification"
+        )
+
     system_prompt = (
         "Eres el agente de Consulta de Póliza.\n"
         "ANALIZA PRIMERO SI LA CONSULTA ES GENÉRICA O ESPECÍFICA.\n"
         "1. Si es GENÉRICA (preguntas teóricas, conceptos, coberturas generales sin referirse a SU poliza concreta): \n"
         "   Usa 'ask_expert_knowledge' INMEDIATAMENTE. No pidas NIF ni ramo.\n"
         "2. Si es ESPECÍFICA (quiere ver SU póliza, sus coberturas particulares, descargar recibo): \n"
-        "   - Si no tienes el NIF, pídelo: 'Para consultar tu póliza necesito tu NIF/DNI/NIE. ¿Me lo indicás?'\n"
-        "   - Si ya tienes NIF:\n"
+        "   - VERIFICA SI TIENES EL NIF DEL CLIENTE.\n"
+        "   - Si NO tienes NIF (NIF_actual es NO_IDENTIFICADO): \n"
+        "     NO LO PIDAS. El cliente debería haber sido identificado antes. Hay un error.\n"
+        "     Usa 'report_unidentified_user' para avisar a un gestor y dile al usuario que un agente revisará su caso porque no se han encontrado sus datos.\n"
+        "   - Si SÍ tienes NIF:\n"
         "     Paso 1: Pide el ramo (hogar, auto, etc) si no lo tienes.\n"
         "     Paso 2: Usa get_client_policys_tool(nif, ramo).\n"
         "     Paso 3: Identifica la póliza correcta.\n"
@@ -103,7 +122,14 @@ def consultar_poliza_agent(payload: dict) -> dict:
     )
 
     llm = get_llm()
-    tools = [get_client_policys_tool, get_policy_document_tool, ocr_policy_document_tool, ask_expert_knowledge]
+    tools = [
+        get_client_policys_tool, 
+        get_policy_document_tool, 
+        ocr_policy_document_tool, 
+        ask_expert_knowledge, 
+        report_unidentified_user,
+        end_chat_tool
+    ]
     executor = create_langchain_agent(llm, tools, prompt)
 
     result = run_langchain_agent(
@@ -116,6 +142,13 @@ def consultar_poliza_agent(payload: dict) -> dict:
         policies=policies or [],
     )
     output_text = result.get("output", "")
+    action = result.get("action", "ask")
+    
+    if action == "end_chat":
+        return {
+            "action": "end_chat",
+            "message": output_text
+        }
     
     # State update logic (same as before)
     memory_patch = _state_patch(
@@ -136,6 +169,12 @@ def consultar_poliza_agent(payload: dict) -> dict:
         tool_result = step[1]
         tool_name = getattr(agent_action, "tool", None)
         tool_input = getattr(agent_action, "tool_input", None)
+
+        if tool_name == "report_unidentified_user":
+            # If we reported the user, we effectively end this flow or mark it as done for now, 
+            # but usually the agent will output a message saying "I've notified...".
+            # We don't strictly need to update memory state for this, but could if we tracked 'incident_reported'
+            pass
 
         if tool_name == "get_client_policys_tool" and tool_input:
             ramo_value = None
@@ -190,7 +229,7 @@ def consultar_poliza_agent(payload: dict) -> dict:
                 )
 
     return {
-        "action": "ask",
+        "action": action,
         "message": output_text,
         "memory": memory_patch,
     }
