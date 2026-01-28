@@ -255,3 +255,26 @@ def get_claims_status_from_erp(
     """Fetch claims status for a client."""
     client = ERPClient(company_id=company_id)
     return client.get_client_claims_status(nif)
+
+## TO-DO: RE DO WHEN THIS FUNCTION IS CREATED BY GUILLEM
+def get_client_policys(
+    nif: str,
+    ramo: str,
+    company_id: str = ""
+) -> Dict[str, Any]:
+    """Fetch client policies for the provided ramo."""
+    client = ERPClient(company_id=company_id)
+    result = client.get_client_policies_with_phones(nif)
+    if not result.get("success"):
+        return result
+    return {"success": True, "policies": result.get("policies", [])}
+
+
+def get_policy_document_from_erp(
+    nif: str,
+    policy_number: str,
+    company_id: str = ""
+) -> Dict[str, Any]:
+    """Fetch a policy document from ERP by policy number."""
+    client = ERPClient(company_id=company_id)
+    return client.get_policy_document(nif, policy_number)
