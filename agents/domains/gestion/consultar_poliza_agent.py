@@ -5,6 +5,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 
 from agents.llm import get_llm
+from agents.domains.common.generic_knowledge_agent import generic_knowledge_agent
 from core.agent_factory import create_langchain_agent, run_langchain_agent
 from core.memory_schema import get_global_history
 from tools.ERP_client import get_client_policys, get_policy_document_from_erp
@@ -44,12 +45,8 @@ def consultar_poliza_agent(payload: dict) -> dict:
     nif = global_mem.get("nif")
     company_id = payload.get("phone_number_id") or session.get("company_id", "")
 
-    if not nif:
-        return {
-            "action": "ask",
-            "message": "Para consultar tu póliza necesito tu NIF/DNI/NIE. ¿Me lo indicás?",
-        }
-
+    # Removed strict NIF check at the beginning to allow generic queries first
+    
     state = _get_state(memory)
     ramo = state.get("ramo")
     ocr_text = state.get("ocr_text")
@@ -71,16 +68,31 @@ def consultar_poliza_agent(payload: dict) -> dict:
         """Convierte un PDF base64 en texto OCR."""
         return extract_text({"mime_type": mime_type, "data": data})
 
+    @tool
+    def ask_expert_knowledge(query: str) -> str:
+        """Consulta al agente experto en seguros para responder dudas GENÉRICAS.
+        Usar cuando la pregunta es sobre conceptos, coberturas generales o dudas que no requieren datos del cliente."""
+        sub_payload = {
+            "mensaje": query,
+            "session": session
+        }
+        result = generic_knowledge_agent(sub_payload)
+        return result.get("message", "No pude obtener respuesta del experto.")
+
     system_prompt = (
         "Eres el agente de Consulta de Póliza.\n"
-        "Paso 1: Pide el ramo (hogar, auto, pyme/comercio, responsabilidad civil, comunidades vecinos).\n"
-        "Si el usuario escribe con errores o sinónimos, infiere el ramo correcto.\n"
-        "Paso 2: Con NIF y ramo, usa get_client_policys_tool(nif, ramo).\n"
-        "Paso 3: Identifica la póliza correcta por el ID que mencione el cliente.\n"
-        "Paso 4: Usa get_policy_document_tool(nif, policy_id) para obtener el PDF.\n"
-        "Paso 5: Si el usuario pregunta sobre la póliza, usa ocr_policy_document_tool.\n"
-        "Si falta el identificador de póliza, pedilo.\n"
-        f"Ramo_actual: {ramo or ''}"
+        "ANALIZA PRIMERO SI LA CONSULTA ES GENÉRICA O ESPECÍFICA.\n"
+        "1. Si es GENÉRICA (preguntas teóricas, conceptos, coberturas generales sin referirse a SU poliza concreta): \n"
+        "   Usa 'ask_expert_knowledge' INMEDIATAMENTE. No pidas NIF ni ramo.\n"
+        "2. Si es ESPECÍFICA (quiere ver SU póliza, sus coberturas particulares, descargar recibo): \n"
+        "   - Si no tienes el NIF, pídelo: 'Para consultar tu póliza necesito tu NIF/DNI/NIE. ¿Me lo indicás?'\n"
+        "   - Si ya tienes NIF:\n"
+        "     Paso 1: Pide el ramo (hogar, auto, etc) si no lo tienes.\n"
+        "     Paso 2: Usa get_client_policys_tool(nif, ramo).\n"
+        "     Paso 3: Identifica la póliza correcta.\n"
+        "     Paso 4: Usa get_policy_document_tool para obtener el PDF.\n"
+        f"Ramo_actual: {ramo or ''}\n"
+        f"NIF_actual: {nif or 'NO_IDENTIFICADO'}"
     )
     prompt = ChatPromptTemplate.from_messages(
         [
@@ -91,20 +103,21 @@ def consultar_poliza_agent(payload: dict) -> dict:
     )
 
     llm = get_llm()
-    tools = [get_client_policys_tool, get_policy_document_tool, ocr_policy_document_tool]
+    tools = [get_client_policys_tool, get_policy_document_tool, ocr_policy_document_tool, ask_expert_knowledge]
     executor = create_langchain_agent(llm, tools, prompt)
 
     result = run_langchain_agent(
         executor,
         user_text,
         system_prompt=system_prompt,
-        nif=nif,
+        nif=nif or "",
         ocr_text=ocr_text or "",
         policy_id=policy_id or "",
         policies=policies or [],
     )
     output_text = result.get("output", "")
-
+    
+    # State update logic (same as before)
     memory_patch = _state_patch(
         memory,
         {
@@ -114,6 +127,8 @@ def consultar_poliza_agent(payload: dict) -> dict:
             "ocr_text": ocr_text,
         },
     )
+    
+    # Process intermediate steps to update memory from tool inputs/outputs
     for step in result.get("intermediate_steps", []):
         if not isinstance(step, tuple) or len(step) < 2:
             continue
