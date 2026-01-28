@@ -18,39 +18,6 @@ from tools.zoa_client import (
 )
 from core.agent_allowlist import build_agent_allowlist, load_routes_config
 
-
-def _extract_attachments(payload: dict) -> list:
-    attachments = []
-    media = payload.get("media")
-    if isinstance(media, dict):
-        media = [media]
-    if isinstance(media, list):
-        for item in media:
-            if not isinstance(item, dict):
-                continue
-            data = item.get("data") or item.get("base64")
-            if not data:
-                continue
-            attachments.append(
-                {
-                    "mime_type": item.get("mime_type") or item.get("type") or "application/octet-stream",
-                    "data": data,
-                    "filename": item.get("filename"),
-                    "source": "media",
-                }
-            )
-    image_b64 = payload.get("image_base64")
-    if image_b64:
-        attachments.append(
-            {
-                "mime_type": payload.get("image_mime_type") or "image/jpeg",
-                "data": image_b64,
-                "filename": payload.get("image_filename"),
-                "source": "image_base64",
-            }
-        )
-    return attachments
-
 session_manager = SessionManager()
 
 _ROUTES_CONFIG = load_routes_config()
@@ -304,3 +271,36 @@ def process_message(payload: dict) -> dict:
         return result
 
     return {"error": "Unknown action"}
+
+
+def _extract_attachments(payload: dict) -> list:
+    attachments = []
+    media = payload.get("media")
+    if isinstance(media, dict):
+        media = [media]
+    if isinstance(media, list):
+        for item in media:
+            if not isinstance(item, dict):
+                continue
+            data = item.get("data") or item.get("base64")
+            if not data:
+                continue
+            attachments.append(
+                {
+                    "mime_type": item.get("mime_type") or item.get("type") or "application/octet-stream",
+                    "data": data,
+                    "filename": item.get("filename"),
+                    "source": "media",
+                }
+            )
+    image_b64 = payload.get("image_base64")
+    if image_b64:
+        attachments.append(
+            {
+                "mime_type": payload.get("image_mime_type") or "image/jpeg",
+                "data": image_b64,
+                "filename": payload.get("image_filename"),
+                "source": "image_base64",
+            }
+        )
+    return attachments
