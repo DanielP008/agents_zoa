@@ -70,7 +70,6 @@ def receptionist_agent(payload: dict) -> dict:
     global_mem = memory.get("global", {})
     nif_value = global_mem.get("nif")
     memory_patch = None
-    print(f"[RECEPTIONIST] NIF check - memory nif: {nif_value}")
     
     consultation_completed = global_mem.get("consultation_completed", False)
     
@@ -86,9 +85,6 @@ def receptionist_agent(payload: dict) -> dict:
         from core.db import SessionManager
         session_manager = SessionManager()
         session_manager.delete_session(wa_id, company_id)
-        
-        print(f"\n[RECEPTIONIST AUTO-RESET] Session deleted for wa_id: {wa_id}")
-        print(f"[RECEPTIONIST AUTO-RESET] Closure phrase detected: '{user_text}'")
         
         return {
             "action": "finish",
@@ -116,19 +112,15 @@ def receptionist_agent(payload: dict) -> dict:
     if not nif_value:
         detected_nif = _extract_nif_from_text(user_text)
         if detected_nif:
-            print(f"[RECEPTIONIST] NIF extracted from user text: {detected_nif}")
             nif_value = detected_nif
             memory_patch = _build_nif_memory_patch(detected_nif)
         elif not is_first_interaction:
-            print(f"[RECEPTIONIST] NIF missing and not first interaction, asking user for NIF")
             return {
                 "action": "ask",
                 "message": "Para continuar, necesito tu NIF, DNI, NIE o CIF. ¿Podés indicármelo?"
             }
         else:
-            print(f"[RECEPTIONIST] NIF missing but first interaction, continuing with greeting")
     else:
-        print(f"[RECEPTIONIST] NIF already in memory: {nif_value}")
     
     if payload.get("ask_nif") and not nif_value:
         return {
@@ -214,11 +206,6 @@ DEBES responder en formato JSON válido con esta estructura exacta:
     
     chain = prompt | structured_llm
 
-    print(f"\n[RECEPTIONIST DEBUG] user_text: {user_text}")
-    print(f"[RECEPTIONIST DEBUG] available_domains: {available_domains_str}")
-    print(f"[RECEPTIONIST DEBUG] greeting_instruction: {greeting_instruction}")
-    print(f"[RECEPTIONIST DEBUG] consultation_completed: {consultation_completed}")
-    
     decision = safe_structured_invoke(
         chain,
         {
@@ -235,10 +222,6 @@ DEBES responder en formato JSON válido con esta estructura exacta:
         error_context="receptionist_decision"
     )
     
-    print(f"[RECEPTIONIST DEBUG] decision: {decision}")
-    print(f"[RECEPTIONIST DEBUG] decision.domain: {decision.domain}")
-    print(f"[RECEPTIONIST DEBUG] decision.message: {decision.message}")
-    print(f"[RECEPTIONIST DEBUG] decision.confidence: {decision.confidence}")
 
     domain = decision.domain
     message = decision.message

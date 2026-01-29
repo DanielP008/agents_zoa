@@ -51,29 +51,20 @@ def process_message(payload: dict) -> dict:
     nif_value = global_mem.get("nif")
     nif_lookup_failed = global_mem.get("nif_lookup_failed", False)
     
-    print(f"[ORCHESTRATOR] NIF check - wa_id: {wa_id}, company_id: {company_id}")
-    print(f"[ORCHESTRATOR] NIF check - memory nif: {nif_value}, lookup_failed: {nif_lookup_failed}")
     
     if not nif_value and not nif_lookup_failed and wa_id and company_id:
-        print(f"[ORCHESTRATOR] Calling ZOA API to search NIF by phone: {wa_id}")
         contact_response = search_contact_by_phone(wa_id, company_id)
-        print(f"[ORCHESTRATOR] ZOA API raw response: {contact_response}")
         nif_value = extract_nif_from_contact_search(contact_response)
-        print(f"[ORCHESTRATOR] ZOA API response - extracted nif: {nif_value}")
     
     if nif_value:
-        print(f"NIF FOUND for {wa_id}: {nif_value}")
-        print(f"[ORCHESTRATOR] NIF found and saved to memory: {nif_value}")
         memory = update_global(memory, nif=nif_value, nif_lookup_failed=False)
         session["agent_memory"] = memory
         session_manager.update_agent_memory(wa_id, memory, safe_company_id)
     elif not nif_lookup_failed and wa_id and company_id:
-        print(f"[ORCHESTRATOR] NIF not found, marking lookup_failed=True")
         memory = update_global(memory, nif_lookup_failed=True)
         session["agent_memory"] = memory
         session_manager.update_agent_memory(wa_id, memory, safe_company_id)
     else:
-        print(f"[ORCHESTRATOR] NIF not in memory and lookup already failed or missing IDs, skipping API call")
     
     memory = append_turn(
         memory,
@@ -99,14 +90,11 @@ def process_message(payload: dict) -> dict:
         agent_message = response.get("message")
 
         if action == "end_chat":
-            print(f"[ORCHESTRATOR] end_chat detected - deleting session for wa_id: {wa_id}, company_id: {safe_company_id}")
             deleted = session_manager.delete_session(wa_id, safe_company_id)
             
             if deleted:
-                print(f"[ORCHESTRATOR] Session successfully deleted from database")
             else:
                 logger.warning(f"Failed to delete session for wa_id: {wa_id}, company_id: {safe_company_id}")
-                print(f"[ORCHESTRATOR] WARNING: Session deletion failed or session not found")
 
             return {
                 "type": "text",
