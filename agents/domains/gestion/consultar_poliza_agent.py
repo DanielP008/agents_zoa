@@ -10,6 +10,11 @@ from core.agent_factory import create_langchain_agent, run_langchain_agent
 from core.memory_schema import get_global_history
 from tools.create_task_activity_tool import create_task_activity_tool
 from tools.end_chat_tool import end_chat_tool
+from tools.consult_policy_tools import (
+    get_client_policys_tool_factory,
+    get_policy_document_tool_factory,
+    ocr_policy_document_tool
+)
 
 
 RAMO_OPTIONS = [
@@ -53,12 +58,6 @@ def consultar_poliza_agent(payload: dict) -> dict:
     ocr_text = state.get("ocr_text")
     policy_id = state.get("policy_id")
     policies = state.get("policies")
-
-from tools.consult_policy_tools import (
-    get_client_policys_tool_factory,
-    get_policy_document_tool_factory,
-    ocr_policy_document_tool
-)
 
     get_client_policys_tool = get_client_policys_tool_factory(company_id)
     get_policy_document_tool = get_policy_document_tool_factory(company_id)

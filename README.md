@@ -439,7 +439,7 @@ zoa_agents/
 │   └── main_router.py                      # Agent dispatch
 │
 ├── tools/
-│   ├── ocr_client.py                       # OCR client
+│   ├── ocr_tools.py                        # OCR tools
 │   └── zoa_client.py                       # ZOA API client (WhatsApp)
 │
 ├── test/

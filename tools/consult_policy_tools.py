@@ -1,6 +1,6 @@
 from langchain_core.tools import tool
 from services.erp_client import get_client_policys, get_policy_document_from_erp
-from services.ocr_client import extract_text
+from tools.ocr_tools import document_to_json
 
 def get_client_policys_tool_factory(company_id: str):
     @tool
@@ -18,5 +18,5 @@ def get_policy_document_tool_factory(company_id: str):
 
 @tool
 def ocr_policy_document_tool(mime_type: str, data: str) -> dict:
-    """Convierte un PDF base64 en texto OCR."""
-    return extract_text({"mime_type": mime_type, "data": data})
+    """Convierte un PDF base64 en información estructurada JSON."""
+    return document_to_json(mime_type, data)

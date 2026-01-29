@@ -10,8 +10,6 @@ from core.llm import get_llm
 from agents.domains.common.generic_knowledge_agent import generic_knowledge_agent
 from tools.end_chat_tool import end_chat_tool
 from tools.create_task_activity_tool import create_task_activity_tool
-
-
 from tools.policy_tools import lookup_policy, process_document
 
 
@@ -54,7 +52,7 @@ def consulta_estado_agent(payload: dict) -> dict:
 
     <herramientas>
     1. lookup_policy(policy_number): Busca información de una póliza y sus siniestros asociados por número de póliza.
-    2. process_document(doc_type): Procesa un documento enviado por el cliente para extraer información (OCR).
+    2. process_document(data): Procesa un documento enviado por el cliente (PDF/Imagen) para extraer información en formato JSON. Requiere un JSON string con 'mime_type' y 'b64_data'.
     3. create_task_activity_tool(json_string): Crea una tarea para que un gestor atienda una consulta específica.
        - USAR cuando la consulta es muy específica (datos personales sensibles, importes exactos) y no puedes responder automáticamente.
        - JSON debe incluir:

@@ -6,8 +6,8 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 from core.llm import get_llm
 from tools.end_chat_tool import end_chat_tool
-from services.zoa_client import create_task_with_activity
 from tools.create_task_activity_tool import create_task_activity_tool
+from tools.assistance_tools import get_assistance_phones_tool_factory
 
 def telefonos_asistencia_agent(payload: dict) -> dict:
     user_text = payload.get("mensaje", "")
@@ -18,8 +18,6 @@ def telefonos_asistencia_agent(payload: dict) -> dict:
     wa_id = payload.get("wa_id")
     global_mem = memory.get("global", {})
     nif_value = global_mem.get("nif")
-
-from tools.assistance_tools import get_assistance_phones_tool_factory
 
     get_assistance_phones = get_assistance_phones_tool_factory(nif_value, company_id)
 
@@ -72,7 +70,7 @@ from tools.assistance_tools import get_assistance_phones_tool_factory
     1. IDENTIFICAR RAMO y NIF:
        - Si no sabes de qué seguro se trata (Auto, Hogar, etc.), pregunta al cliente.
        - Clasifica la respuesta en uno de los <ramos_validos>.
-       - Llama a get_assistance_phones con el NIF actual y el RAMO identificado.
+       - Llama a get_assistance_phones with the NIF actual and the RAMO identified.
        
     2. ANALIZAR RESPUESTA:
        - ¿No hay pólizas/teléfonos? -> Usa create_task_activity_tool para que un humano le llame. Informa al cliente que un gestor le llamará enseguida. Cierra con end_chat_tool.

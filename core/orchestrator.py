@@ -16,7 +16,7 @@ from services.zoa_client import (
     search_contact_by_phone,
     extract_nif_from_contact_search,
 )
-from core.agent_allowlist import build_agent_allowlist, load_routes_config
+from core.routing.allowlist import build_agent_allowlist, load_routes_config
 
 session_manager = SessionManager()
 

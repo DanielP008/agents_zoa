@@ -9,7 +9,7 @@ from core.llm import get_llm
 from core.memory_schema import get_agent_memory, get_global_history
 from core.llm_utils import safe_structured_invoke
 
-from core.hooks import get_routes_path
+from core.config import get_routes_path
 
 _ROUTES_PATH = get_routes_path()
 
