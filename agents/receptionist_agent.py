@@ -119,8 +119,6 @@ def receptionist_agent(payload: dict) -> dict:
                 "action": "ask",
                 "message": "Para continuar, necesito tu NIF, DNI, NIE o CIF. ¿Podés indicármelo?"
             }
-        else:
-    else:
     
     if payload.get("ask_nif") and not nif_value:
         return {
