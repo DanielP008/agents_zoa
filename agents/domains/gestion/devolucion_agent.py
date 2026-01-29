@@ -8,7 +8,6 @@ from langchain_core.tools import tool
 from core.llm import get_llm
 from tools.communication.end_chat_tool import end_chat_tool
 from tools.zoa.tasks import create_task_activity_tool
-from tools.zoa.refunds import create_refund_request_tool
 
 
 def devolucion_agent(payload: dict) -> dict:
@@ -47,20 +46,18 @@ def devolucion_agent(payload: dict) -> dict:
     </datos_necesarios>
 
     <herramientas>
-    1. create_refund_request_tool(data): Registra la solicitud de devolución en el sistema con los datos en formato JSON. USAR SI TENEMOS NIF.
-    2. create_task_activity_tool(json_string): Crea una tarea manual para gestionar la devolución.
-       - USAR SI NO TENEMOS NIF IDENTIFICADO.
+    1. create_task_activity_tool(json_string): Crea una tarea + actividad para que el gestor tramite la devolución.
        - JSON debe incluir:
          - company_id: "{company_id}"
-         - title: "Solicitud Devolución - Sin NIF"
-         - description: "Solicitud de devolución manual. Motivo: [motivo]. Cliente: [nombre/dni]. Importe: [importe]"
+         - title: "Devolución - Póliza [número]"
+         - description: "Solicitud de devolución. Póliza: [número]. Motivo: [motivo]. Importe: [importe]. IBAN: [iban]. NIF: {nif}"
          - card_type: "task"
          - type_of_activity: "call"
-         - activity_title: "Gestionar devolución manual"
-         - priority: "normal"
-         - phone: (teléfono del cliente)
-         - wa_id: "{wa_id}"
-    3. end_chat_tool(): Finaliza la conversación cuando la solicitud esté registrada y el cliente no necesite nada más.
+         - activity_title: "Gestionar devolución"
+         - activity_description: "Contactar al cliente para tramitar devolución"
+         - nif: "{nif}" (si disponible)
+         - phone: (teléfono del cliente si disponible)
+    2. end_chat_tool(): Finaliza la conversación cuando la solicitud esté registrada y el cliente no necesite nada más.
     </herramientas>
 
     <flujo_de_atencion>
@@ -68,7 +65,6 @@ def devolucion_agent(payload: dict) -> dict:
        - Si NIF_identificado está vacío:
          - Pregunta si es particular o empresa.
          - Pide el DNI/NIF para identificarlo.
-         - NO uses create_refund_request_tool.
          - RECOPILAR: Motivo, DNI, Teléfono.
          - CREAR TAREA: Usa create_task_activity_tool.
          - Informa: "Al no tener tus datos validados, he creado una solicitud para que un compañero de administración te contacte y gestione la devolución."
@@ -77,7 +73,7 @@ def devolucion_agent(payload: dict) -> dict:
          - Pregunta por el identificador del hogar/coche/local (póliza).
          - Pregunta si quiere que reenviemos el cobro al banco (si aplica) o devolución por transferencia.
          - Recopila IBAN si es transferencia.
-         - Usa create_refund_request_tool.
+         - Usa create_task_activity_tool.
 
     2. ENTENDER el motivo (Si hay NIF):
        - "¿Podrías contarme qué pasó? ¿Te han cobrado de más, un recibo duplicado...?"
@@ -91,9 +87,10 @@ def devolucion_agent(payload: dict) -> dict:
     4. CONFIRMAR antes de registrar:
        - Resume: "Perfecto, registro la solicitud de devolución de [importe] a la cuenta terminada en [últimos 4 dígitos del IBAN]. ¿Es correcto?"
 
-    5. REGISTRAR con la herramienta adecuada.
+    5. REGISTRAR con create_task_activity_tool, incluyendo todos los datos recopilados en la description.
 
-    6. INFORMAR próximos pasos.
+    6. INFORMAR próximos pasos:
+       - "Solicitud registrada. Un gestor se pondrá en contacto contigo para tramitarla."
     </flujo_de_atencion>
 
     <personalidad>
@@ -126,7 +123,7 @@ def devolucion_agent(payload: dict) -> dict:
     )
 
     llm = get_llm()
-    tools = [create_refund_request_tool, create_task_activity_tool, end_chat_tool]
+    tools = [create_task_activity_tool, end_chat_tool]
     executor = create_langchain_agent(llm, tools, prompt)
 
     result = run_langchain_agent(executor, user_text)
