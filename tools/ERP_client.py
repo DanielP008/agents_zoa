@@ -55,13 +55,15 @@ class ERPClient:
     def get_client_policies_with_phones(
         self,
         nif: str,
+        ramo: Optional[str] = None,
         company_id: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Get active policies with assistance phones."""
+        """Get active policies with assistance phones for a specific category (ramo)."""
         payload = {
             "company_id": company_id or self.company_id,
-            "option": "polizas_cliente",
-            "nif": nif
+            "option": "get_policies",
+            "nif": nif,
+            "lines": ramo  # 'lines' corresponds to 'ramo' in the cloud function
         }
 
         try:
@@ -232,11 +234,12 @@ class ERPClient:
 
 def get_assistance_phones_from_erp(
     nif: str,
+    ramo: str,
     company_id: str = ""
 ) -> Dict[str, Any]:
     """Fetch assistance phone numbers for active policies."""
     client = ERPClient(company_id=company_id)
-    return client.get_client_policies_with_phones(nif)
+    return client.get_client_policies_with_phones(nif, ramo=ramo)
 
 
 def get_client_info_from_erp(

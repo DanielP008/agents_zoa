@@ -8,7 +8,7 @@ from agents.llm import get_llm
 from agents.domains.common.generic_knowledge_agent import generic_knowledge_agent
 from core.agent_factory import create_langchain_agent, run_langchain_agent
 from core.memory_schema import get_global_history
-from tools.ERP_client import get_client_policys, get_policy_document_from_erp
+from tools.erp_client import get_client_policys, get_policy_document_from_erp
 from tools.ocr_client import extract_text
 from tools.zoa_client import create_task_activity_tool
 from tools.end_chat_tool import end_chat_tool

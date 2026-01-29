@@ -6,7 +6,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 from agents.llm import get_llm
 from tools.end_chat_tool import end_chat_tool
-from tools.ERP_client import get_assistance_phones_from_erp
+from tools.erp_client import get_assistance_phones_from_erp
 from tools.zoa_client import create_task_with_activity, create_task_activity_tool
 
 def telefonos_asistencia_agent(payload: dict) -> dict:
@@ -20,10 +20,11 @@ def telefonos_asistencia_agent(payload: dict) -> dict:
     nif_value = global_mem.get("nif")
 
     @tool
-    def get_assistance_phones(nif: str) -> dict:
-        """Obtiene las pólizas activas del cliente con sus teléfonos de asistencia."""
+    def get_assistance_phones(nif: str, ramo: str) -> dict:
+        """Obtiene las pólizas activas del cliente para un ramo específico (AUTO, HOGAR, etc.) con sus teléfonos de asistencia."""
         final_nif = nif_value or "00000000T"
-        return get_assistance_phones_from_erp(nif=final_nif, company_id=company_id)
+        # Mapeamos 'ramo' si es necesario o lo pasamos directo. Asumimos que el agente extrae uno de los valores válidos.
+        return get_assistance_phones_from_erp(nif=final_nif, ramo=ramo, company_id=company_id)
 
     system_prompt = (
         """<rol>
@@ -33,7 +34,7 @@ def telefonos_asistencia_agent(payload: dict) -> dict:
     <contexto>
     - El cliente necesita asistencia en carretera, auxilio mecánico o emergencias del hogar
     - Tienes acceso al historial de conversación
-    - Puedes buscar información del cliente en el sistema usando su NIF (si está identificado)
+    - Puedes buscar información del cliente en el sistema usando su NIF (si está identificado) y el Ramo del seguro.
     - ZOA opera en España
     </contexto>
 
@@ -41,9 +42,20 @@ def telefonos_asistencia_agent(payload: dict) -> dict:
     NIF_actual: {nif}
     Company_ID: {company_id}
     </variables_actuales>
+    
+    <ramos_validos>
+    - AUTO
+    - HOGAR
+    - PYME
+    - COMERCIOS
+    - TRANSPORTES
+    - COMUNIDADES
+    - ACCIDENTES
+    - RC (Responsabilidad Civil)
+    </ramos_validos>
 
     <herramientas>
-    1. get_assistance_phones(nif): Obtiene los teléfonos de asistencia asociados al cliente.
+    1. get_assistance_phones(nif, ramo): Obtiene los teléfonos de asistencia asociados al cliente para un ramo específico. Requiere NIF y RAMO.
     2. create_task_activity_tool(json_string): Crea una tarea y/o actividad en el CRM.
        - Usar SI NO obtenemos teléfonos de la API (get_assistance_phones devuelve lista vacía o error).
        - Usar SI NO encontramos datos del cliente.
@@ -60,13 +72,14 @@ def telefonos_asistencia_agent(payload: dict) -> dict:
     </herramientas>
 
     <flujo_de_atencion>
-    1. IDENTIFICAR AL CLIENTE Y PÓLIZAS:
-       - Llama a get_assistance_phones inmediatamente con el NIF actual.
+    1. IDENTIFICAR RAMO y NIF:
+       - Si no sabes de qué seguro se trata (Auto, Hogar, etc.), pregunta al cliente.
+       - Clasifica la respuesta en uno de los <ramos_validos>.
+       - Llama a get_assistance_phones con el NIF actual y el RAMO identificado.
        
     2. ANALIZAR RESPUESTA:
        - ¿No hay pólizas/teléfonos? -> Usa create_task_activity_tool para que un humano le llame. Informa al cliente que un gestor le llamará enseguida. Cierra con end_chat_tool.
-       - ¿Hay UNA póliza? -> Da los teléfonos de esa póliza. Cierra con end_chat_tool.
-       - ¿Hay VARIAS pólizas? -> Pregunta al cliente cuál necesita (Auto, Hogar...). Cuando identifiques la correcta, da los números y cierra.
+       - ¿Hay teléfonos? -> Da los números de asistencia encontrados. Cierra con end_chat_tool.
 
     3. EMERGENCIA ACTIVA:
        - Sé muy directo y rápido.

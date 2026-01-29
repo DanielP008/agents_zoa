@@ -1,6 +1,6 @@
 # ERP Client
 
-`tools/ERP_client.py` contains ERP-facing functions for policy and customer data.
+`tools/erp_client.py` contains ERP-facing functions for policy and customer data.
 
 ## Capabilities
 - Query policy data and customer records.

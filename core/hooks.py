@@ -15,16 +15,13 @@ def get_project_root() -> pathlib.Path:
 
     return current_dir.parent
 
-
 def get_contracts_path(filename: str) -> pathlib.Path:
     """Get path to a contracts file."""
     return get_project_root() / "contracts" / filename
 
-
 def get_routes_path() -> pathlib.Path:
     """Get path to routes configuration."""
     return get_project_root() / "routers" / "routes.json"
-
 
 def get_config_path(filename: str = ".env") -> pathlib.Path:
     """Get path to a config file in the project root."""
