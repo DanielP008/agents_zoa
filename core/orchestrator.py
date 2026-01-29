@@ -64,7 +64,6 @@ def process_message(payload: dict) -> dict:
         memory = update_global(memory, nif_lookup_failed=True)
         session["agent_memory"] = memory
         session_manager.update_agent_memory(wa_id, memory, safe_company_id)
-    else:
     
     memory = append_turn(
         memory,
@@ -92,8 +91,7 @@ def process_message(payload: dict) -> dict:
         if action == "end_chat":
             deleted = session_manager.delete_session(wa_id, safe_company_id)
             
-            if deleted:
-            else:
+            if not deleted:
                 logger.warning(f"Failed to delete session for wa_id: {wa_id}, company_id: {safe_company_id}")
 
             return {
