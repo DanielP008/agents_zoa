@@ -90,16 +90,7 @@ def apply_memory_patch(memory: Dict[str, Any], patch: Optional[Dict[str, Any]]) 
 
 
 def get_global_history(memory: Dict[str, Any]) -> List[tuple]:
-    """
-    Get global conversation history formatted for LangChain.
-    Extracts 'conversation_history' from memory and converts to (role, content) tuples.
-
-    Args:
-        memory: The full memory dict
-
-    Returns:
-        List of (role, content) tuples ready for ChatPromptTemplate
-    """
+    """Get conversation history formatted for LangChain."""
     memory = ensure_memory_shape(memory)
     raw_history = memory.get("conversation_history", [])
     
@@ -113,33 +104,13 @@ def get_global_history(memory: Dict[str, Any]) -> List[tuple]:
 
 
 def get_agent_memory(memory: Dict[str, Any], agent_name: str, default: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """
-    Get agent-specific memory namespace.
-
-    Args:
-        memory: The full memory dict
-        agent_name: Name of the agent (e.g., "classifier_siniestros_agent")
-        default: Default value if agent memory doesn't exist
-
-    Returns:
-        Agent-specific memory dict
-    """
+    """Get agent-specific memory namespace."""
     memory = ensure_memory_shape(memory)
     return memory.get("agents", {}).get(agent_name, default or {})
 
 
 def set_agent_memory(memory: Dict[str, Any], agent_name: str, agent_data: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Set agent-specific memory namespace.
-
-    Args:
-        memory: The full memory dict
-        agent_name: Name of the agent
-        agent_data: Data to store for this agent
-
-    Returns:
-        Updated memory dict
-    """
+    """Set agent-specific memory namespace."""
     memory = ensure_memory_shape(memory)
     if "agents" not in memory:
         memory["agents"] = {}
@@ -149,33 +120,13 @@ def set_agent_memory(memory: Dict[str, Any], agent_name: str, agent_data: Dict[s
 
 
 def get_domain_memory(memory: Dict[str, Any], domain_name: str, default: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """
-    Get domain-specific memory namespace.
-
-    Args:
-        memory: The full memory dict
-        domain_name: Name of the domain (e.g., "siniestros")
-        default: Default value if domain memory doesn't exist
-
-    Returns:
-        Domain-specific memory dict
-    """
+    """Get domain-specific memory namespace."""
     memory = ensure_memory_shape(memory)
     return memory.get("domains", {}).get(domain_name, default or {})
 
 
 def set_domain_memory(memory: Dict[str, Any], domain_name: str, domain_data: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Set domain-specific memory namespace.
-
-    Args:
-        memory: The full memory dict
-        domain_name: Name of the domain
-        domain_data: Data to store for this domain
-
-    Returns:
-        Updated memory dict
-    """
+    """Set domain-specific memory namespace."""
     memory = ensure_memory_shape(memory)
     if "domains" not in memory:
         memory["domains"] = {}
@@ -185,30 +136,13 @@ def set_domain_memory(memory: Dict[str, Any], domain_name: str, domain_data: Dic
 
 
 def get_global_memory(memory: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Get global memory namespace.
-
-    Args:
-        memory: The full memory dict
-
-    Returns:
-        Global memory dict
-    """
+    """Get global memory namespace."""
     memory = ensure_memory_shape(memory)
     return memory["global"]
 
 
 def update_global_memory(memory: Dict[str, Any], **updates) -> Dict[str, Any]:
-    """
-    Update global memory namespace.
-
-    Args:
-        memory: The full memory dict
-        **updates: Key-value pairs to update in global memory
-
-    Returns:
-        Updated memory dict
-    """
+    """Update global memory namespace."""
     memory = ensure_memory_shape(memory)
     memory["global"].update(updates)
     memory["metadata"]["updated_at"] = _utc_now()

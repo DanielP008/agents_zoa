@@ -9,14 +9,12 @@ from agents.llm import get_llm
 from core.memory_schema import get_agent_memory, get_global_history
 from core.llm_utils import safe_structured_invoke
 
-# Configuration loading to avoid circular imports with main_router
 from core.hooks import get_routes_path
 
 _ROUTES_PATH = get_routes_path()
 
 with open(_ROUTES_PATH, "r") as f:
     _ROUTES_CONFIG = json.load(f)
-    # Parse new structure
     try:
         _VALID_ROUTES = _ROUTES_CONFIG["domains"]["siniestros"]["specialists"]
     except KeyError:
@@ -62,7 +60,7 @@ def classifier_siniestros_agent(payload: dict) -> dict:
         "action": "route",
         "next_agent": decision.route, 
         "domain": "siniestros",
-        "message": None  # Passthrough: el agente especializado responderá directamente
+        "message": None
     }
 
 def classify_message(payload: dict) -> ClassificationDecision:
@@ -75,7 +73,6 @@ def classify_message(payload: dict) -> ClassificationDecision:
     last_route = agent_mem.get("last_route", "unknown")
     history = get_global_history(memory)
     
-    # Construct the prompt
     system_prompt = (
         """<rol>
 Eres el clasificador del área de Siniestros de ZOA Seguros. Tu trabajo es entender exactamente qué necesita el cliente y dirigirlo al especialista correcto.
@@ -138,7 +135,6 @@ Responde SOLO en JSON válido:
 
     llm = get_llm()
     
-    # Use json_mode for more reliable structured output with Gemini
     try:
         structured_llm = llm.with_structured_output(ClassificationDecision, method="json_mode")
     except:

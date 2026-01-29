@@ -7,7 +7,6 @@ from core.memory_schema import ensure_memory_shape
 
 logger = logging.getLogger(__name__)
 
-# Hardcoded Credentials (Quick fix requested by user)
 DB_HOST = "34.175.165.97"
 DB_USER = "postgres"
 DB_PASS = "8lk4vM}BpAPtXY/<"
@@ -17,11 +16,9 @@ DB_PORT = "5432"
 _POOL = None
 
 def init_connection_pool():
-    """Initializes the connection pool using direct IP connection."""
-    # Build connection URL
+    """Initialize the DB connection pool."""
     connection_url = f"postgresql+pg8000://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
     
-    # Create engine
     pool = create_engine(
         connection_url,
         pool_size=5,
@@ -56,7 +53,7 @@ class SessionManager:
         return {}
 
     def _get_composite_id(self, user_id: str, company_id: str) -> str:
-        """Constructs the composite session ID."""
+        """Construct the composite session ID."""
         return f"{company_id}_{user_id}"
 
     def get_session(self, user_id: str, company_id: str) -> dict:
@@ -81,7 +78,7 @@ class SessionManager:
                         "domain": result[0],
                         "target_agent": result[1],
                         "agent_memory": ensure_memory_shape(normalized_memory),
-                        "history": [] 
+                        "history": []
                     }
         except Exception as e:
             logger.error(f"DB Read Error: {e}")
@@ -137,8 +134,9 @@ class SessionManager:
         self.save_session(session_id, session)
 
     def delete_session(self, user_id: str, company_id: str) -> bool:
-        """Deletes a session from the database."""
+        """Delete a session from the database."""
         session_id = self._get_composite_id(user_id, company_id)
+        print(f"[DB] Attempting to delete session: session_id={session_id}, user_id={user_id}, company_id={company_id}")
         
         query = text("DELETE FROM sessions WHERE session_id = :sid")
         try:
@@ -146,8 +144,10 @@ class SessionManager:
                 result = conn.execute(query, {"sid": session_id})
                 conn.commit()
                 deleted = result.rowcount > 0
+                print(f"[DB] Session deletion result: session_id={session_id}, deleted={deleted}, rowcount={result.rowcount}")
                 logger.info(f"Session deletion: session_id={session_id}, deleted={deleted}, rowcount={result.rowcount}")
                 return deleted
         except Exception as e:
+            print(f"[DB] ERROR deleting session: {e}")
             logger.error(f"DB Delete Error: {e}")
             return False

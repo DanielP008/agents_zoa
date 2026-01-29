@@ -4,6 +4,8 @@ import os
 from langchain.agents.tool_calling_agent.base import create_tool_calling_agent
 from langchain.agents.agent import AgentExecutor
 
+import re
+
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 
@@ -20,6 +22,25 @@ with open(_ROUTES_PATH, "r") as f:
     _VALID_DOMAINS = set(_ROUTES_CONFIG["domains"])
 
 
+def _extract_nif_from_text(text: str) -> str:
+    if not text:
+        return ""
+    patterns = [
+        r"\b\d{8}[A-Za-z]\b",
+        r"\b[XYZ]\d{7}[A-Za-z]\b",
+        r"\b[A-Za-z]\d{7}[A-Za-z0-9]\b",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            return match.group(0).upper()
+    return ""
+
+
+def _build_nif_memory_patch(nif: str) -> dict:
+    return {"global": {"nif": nif, "nif_lookup_failed": False}}
+
+
 class ReceptionistDecision(BaseModel):
     domain: str | None = Field(
         default=None,
@@ -29,7 +50,7 @@ class ReceptionistDecision(BaseModel):
         default=None,
         description="Respuesta natural al usuario si no se detecta dominio o se requiere más información."
     )
-    confidence: float = Field(
+    confidence: float | None = Field(
         default=0.0,
         description="Nivel de confianza de la clasificación (0.0 a 1.0).",
         ge=0.0,
@@ -42,12 +63,13 @@ def receptionist_agent(payload: dict) -> dict:
     user_text = payload.get("mensaje", "")
     wa_id = payload.get("wa_id")
     company_id = payload.get("phone_number_id", "default")
-    
-    # Check if the previous consultation was completed
     global_mem = memory.get("global", {})
+    nif_value = global_mem.get("nif")
+    memory_patch = None
+    print(f"[RECEPTIONIST] NIF check - memory nif: {nif_value}")
+    
     consultation_completed = global_mem.get("consultation_completed", False)
     
-    # Detect closure phrases (user saying goodbye or confirming they're done)
     closure_phrases = [
         "no", "no gracias", "nada más", "nada mas", "gracias", "thank you", 
         "listo", "perfecto", "ok", "vale", "chau", "adiós", "adios", "bye",
@@ -56,9 +78,7 @@ def receptionist_agent(payload: dict) -> dict:
     user_text_lower = user_text.lower().strip()
     is_closure = any(phrase in user_text_lower for phrase in closure_phrases)
     
-    # If consultation was completed and user confirms closure, reset session
     if consultation_completed and is_closure and len(user_text_lower) < 30:
-        # Import SessionManager to delete session
         from core.db import SessionManager
         session_manager = SessionManager()
         session_manager.delete_session(wa_id, company_id)
@@ -70,11 +90,10 @@ def receptionist_agent(payload: dict) -> dict:
             "action": "finish",
             "message": "¡Perfecto! Fue un placer ayudarte. Si necesitas algo más en el futuro, aquí estaré. ¡Que tengas un excelente día! 😊"
         }
+
     
-    # 1. Check active session domain (shortcut)
     if session.get("domain"):
         existing_domain = session.get("domain")
-        # Validate it still exists/is active
         if existing_domain in _ROUTES_CONFIG["domains"]:
             domain_config = _ROUTES_CONFIG["domains"][existing_domain]
             if domain_config.get("classifier"):
@@ -85,17 +104,34 @@ def receptionist_agent(payload: dict) -> dict:
                     "message": None
                 }
 
-    # 2. Prepare Context for LLM
-    # Use global conversation history formatted for LangChain
     history = get_global_history(memory)
     
-    # Check if this is the first interaction
-    # We need to check if there are any assistant messages in history
-    # (the current user message was already added by orchestrator, so we ignore user-only history)
     has_assistant_messages = any(role == "ai" for role, _ in history)
     is_first_interaction = not has_assistant_messages
+
+    if not nif_value:
+        detected_nif = _extract_nif_from_text(user_text)
+        if detected_nif:
+            print(f"[RECEPTIONIST] NIF extracted from user text: {detected_nif}")
+            nif_value = detected_nif
+            memory_patch = _build_nif_memory_patch(detected_nif)
+        elif not is_first_interaction:
+            print(f"[RECEPTIONIST] NIF missing and not first interaction, asking user for NIF")
+            return {
+                "action": "ask",
+                "message": "Para continuar, necesito tu NIF, DNI, NIE o CIF. ¿Podés indicármelo?"
+            }
+        else:
+            print(f"[RECEPTIONIST] NIF missing but first interaction, continuing with greeting")
+    else:
+        print(f"[RECEPTIONIST] NIF already in memory: {nif_value}")
     
-    # Filter only domains with active classifiers
+    if payload.get("ask_nif") and not nif_value:
+        return {
+            "action": "ask",
+            "message": "Para continuar, necesito tu NIF, DNI, NIE o CIF. ¿Podés indicármelo?"
+        }
+
     active_domains_map = {
         k: v.get("receptionist_label", k.capitalize())
         for k, v in _ROUTES_CONFIG["domains"].items()
@@ -103,14 +139,12 @@ def receptionist_agent(payload: dict) -> dict:
     }
     available_domains_str = ", ".join(active_domains_map.values())
 
-    # Dynamic greeting instruction based on history state
     greeting_instruction = ""
     if is_first_interaction:
         greeting_instruction = "Esta es la PRIMERA interacción. DEBES presentarte brevemente como Sofía, recepcionista virtual de ZOA Seguros."
     else:
         greeting_instruction = "Esta NO es la primera interacción. NO te vuelvas a presentar. Ve directo al grano o pide la información que falta."
     
-    # Add context about completed consultation
     consultation_context = ""
     if consultation_completed:
         consultation_context = "\n\n**IMPORTANTE**: La consulta anterior del usuario fue completada exitosamente. Si el usuario tiene una NUEVA consulta diferente, clasifícala normalmente. Si el usuario agradece o despide, responde amablemente y confirma que finalizas la atención."
@@ -169,12 +203,9 @@ DEBES responder en formato JSON válido con esta estructura exacta:
 
     llm = get_llm()
     
-    # Use json_mode for more reliable structured output with Gemini
-    # This is a known workaround for with_structured_output reliability issues
     try:
         structured_llm = llm.with_structured_output(ReceptionistDecision, method="json_mode")
     except:
-        # Fallback to default method if json_mode is not available
         structured_llm = llm.with_structured_output(ReceptionistDecision)
     
     chain = prompt | structured_llm
@@ -207,28 +238,30 @@ DEBES responder en formato JSON válido con esta estructura exacta:
 
     domain = decision.domain
     message = decision.message
+    confidence = decision.confidence if decision.confidence is not None else 0.0
     
-    # 4. Execute Decision
-    
-    # Case A: Valid Domain Identified
     if domain and domain in active_domains_map:
         domain_config = _ROUTES_CONFIG["domains"][domain]
         classifier_agent = domain_config.get("classifier")
         
         if classifier_agent:
-            return {
+            response = {
                 "action": "route",
                 "next_agent": classifier_agent,
                 "domain": domain,
-                "message": None # Passthrough
+                "message": None
             }
+            if memory_patch:
+                response["memory"] = memory_patch
+            return response
     
-    # Case B: No domain or Invalid domain -> Ask with generated message
     if not message:
-        # Fallback message if LLM routed but failed valid check (rare) or returned null message
         message = f"Disculpa, no entendí bien. ¿Tu consulta es sobre {available_domains_str}?"
 
-    return {
+    response = {
         "action": "ask",
         "message": message
     }
+    if memory_patch:
+        response["memory"] = memory_patch
+    return response

@@ -6,18 +6,8 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 
 from agents.llm import get_llm
-from tools.zoa_client import create_claim as zoa_create_claim
+from tools.zoa_client import create_claim as zoa_create_claim, create_task_with_activity
 from tools.end_chat_tool import end_chat_tool
-
-
-@tool
-def create_claim_tool(data: str) -> dict:
-    """Registra un siniestro en ZOA con los datos proporcionados (JSON string)."""
-    try:
-        payload = json.loads(data)
-        return zoa_create_claim(payload)
-    except:
-        return {"error": "Invalid JSON format"}
 
 
 def apertura_siniestro_agent(payload: dict) -> dict:
@@ -25,6 +15,42 @@ def apertura_siniestro_agent(payload: dict) -> dict:
     session = payload.get("session", {})
     memory = session.get("agent_memory", {})
     history = get_global_history(memory)
+    
+    company_id = payload.get("phone_number_id") or session.get("company_id", "")
+    wa_id = payload.get("wa_id")
+    global_mem = memory.get("global", {})
+    nif_value = global_mem.get("nif")
+
+    @tool
+    def create_claim_tool(data: str) -> dict:
+        """Registra un siniestro en ZOA (JSON string)."""
+        try:
+            payload_data = json.loads(data)
+            claim_result = zoa_create_claim(payload_data)
+            
+            if claim_result.get("success") or claim_result.get("status") == "success":
+                claim_id = claim_result.get("claim_id", "unknown")
+                case_type = payload_data.get("case_type", "siniestro")
+                attachments = global_mem.get("attachments", [])
+                
+                task_result = create_task_with_activity(
+                    task_description=f"Seguimiento de siniestro {case_type} - ID: {claim_id}",
+                    client_nif=nif_value or "00000000T",
+                    company_id=company_id,
+                    wa_id=wa_id,
+                    priority="high",
+                    activity_type="call",
+                    attachments=attachments,
+                    context=payload_data,
+                )
+                
+                claim_result["task_created"] = task_result.get("success", False)
+                if task_result.get("task_id"):
+                    claim_result["task_id"] = task_result["task_id"]
+            
+            return claim_result
+        except Exception as e:
+            return {"error": f"Invalid JSON format or processing error: {str(e)}"}
 
     system_prompt = (
         """<rol>
@@ -80,8 +106,7 @@ RESPONSABILIDAD CIVIL:
 </datos_por_tipo_de_poliza>
 
 <herramientas>
-1. create_claim_tool(data): Registra el siniestro en el sistema con todos los datos recopilados en formato JSON.
-
+1. create_claim_tool(data): Registra el siniestro en el sistema con todos los datos recopilados en formato JSON. El JSON debe incluir "case_type" (auto, hogar, etc.) y "answers".
 2. end_chat_tool(): Finaliza la conversación. Usar SOLO cuando el siniestro esté registrado Y el cliente confirme que no necesita nada más.
 </herramientas>
 
@@ -145,7 +170,6 @@ RESPONSABILIDAD CIVIL:
     output_text = result.get("output", "")
     action = result.get("action", "ask")
 
-    # If end_chat_tool was used, return the special action
     if action == "end_chat":
         return {
             "action": "end_chat",

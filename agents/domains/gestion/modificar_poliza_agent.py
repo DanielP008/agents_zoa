@@ -14,7 +14,6 @@ def update_policy_tool(data: str) -> dict:
     """Actualiza datos de una póliza en ZOA con los cambios proporcionados (JSON string)."""
     try:
         payload = json.loads(data)
-        # TODO: Implement actual ZOA API call to update policy
         return {
             "success": True,
             "policy_number": payload.get("policy_number"),
@@ -120,14 +119,12 @@ Eres parte del equipo de gestión de ZOA Seguros. Tu función es ayudar a los cl
     output_text = result.get("output", "")
     action = result.get("action", "ask")
 
-    # If end_chat_tool was used, return the special action
     if action == "end_chat":
         return {
             "action": "end_chat",
             "message": output_text
         }
 
-    # Check if we are done (tool called?)
     if "actualizada" in output_text.lower() or "modificada" in output_text.lower():
         action = "finish"
 

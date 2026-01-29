@@ -3,14 +3,10 @@ from core.orchestrator import process_message
 from core.db import SessionManager
 from core.tracing import setup_tracing
 
-# Initialize tracing on cold start
 setup_tracing()
 
 def handle_whatsapp(request):
-    """
-    Handler dedicated to the ZOA Buffer System (Source of Truth).
-    Receives 'mensaje', 'wa_id', 'phone_number_id'.
-    """
+    """Handle incoming ZOA Buffer System messages."""
     
     data = request.get_json(silent=True) or {}
     
@@ -26,7 +22,6 @@ def handle_whatsapp(request):
     )
 
 def handle_session_reset(data):
-    # Check for session reset command
     mensaje = data.get("mensaje", "").strip()
     if mensaje == "BORRAR_POSTGRESS_INFO":
         wa_id = data.get("wa_id")

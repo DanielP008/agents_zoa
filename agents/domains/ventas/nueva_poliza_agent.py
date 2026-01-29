@@ -14,7 +14,6 @@ def create_quote_tool(data: str) -> dict:
     """Genera una cotización de seguro en ZOA con los datos proporcionados (JSON string)."""
     try:
         payload = json.loads(data)
-        # TODO: Implement actual ZOA API call for quotes
         return {
             "success": True,
             "quote_id": "COT-12345",
@@ -31,7 +30,6 @@ def create_new_policy_tool(data: str) -> dict:
     """Crea una nueva póliza en ZOA con los datos proporcionados (JSON string)."""
     try:
         payload = json.loads(data)
-        # TODO: Implement actual ZOA API call to create policy
         return {
             "success": True,
             "policy_number": "POL-98765",
@@ -158,7 +156,6 @@ RESPONSABILIDAD CIVIL:
     output_text = result.get("output", "")
     action = result.get("action", "ask")
 
-    # If end_chat_tool was used, return the special action
     if action == "end_chat":
         return {
             "action": "end_chat",
