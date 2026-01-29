@@ -231,7 +231,6 @@ class ERPClient:
                 "account_number": None
             }
 
-
 def get_assistance_phones_from_erp(
     nif: str,
     ramo: str,
@@ -281,3 +280,61 @@ def get_policy_document_from_erp(
     """Fetch a policy document from ERP by policy number."""
     client = ERPClient(company_id=company_id)
     return client.get_policy_document(nif, policy_number)
+
+
+def get_claims_from_erp(
+    nif: str,
+    line: str,
+    company_id: str = "",
+    phone: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Fetch claims (siniestros) for a NIF and ramo/line from ERP.
+    Returns { success, claims: [{ id_claim, riesgo, date }] }."""
+    client = ERPClient(company_id=company_id)
+    payload: Dict[str, Any] = {
+        "company_id": company_id or client.company_id,
+        "option": "get_claims",
+        "nif": nif,
+        "lines": line,
+    }
+    if phone is not None:
+        payload["phone"] = phone
+    try:
+        response = client._make_request(payload)
+        if isinstance(response, dict) and response.get("error"):
+            return {"success": False, "error": response.get("error"), "claims": []}
+        if not isinstance(response, list):
+            return {"success": True, "claims": []}
+        claims = []
+        for c in response:
+            claims.append({
+                "id_claim": str(c.get("id", c.get("id_claim", ""))),
+                "riesgo": c.get("risk", c.get("riesgo", "")),
+                "date": c.get("opening_date", c.get("date", "")),
+            })
+        return {"success": True, "claims": claims}
+    except ERPClientError as e:
+        return {"success": False, "error": str(e), "claims": []}
+
+
+def get_status_claim_from_erp(
+    id_claim: str,
+    company_id: str = "",
+) -> Dict[str, Any]:
+    """Fetch status of a specific claim by id_claim from ERP."""
+    client = ERPClient(company_id=company_id)
+    payload = {
+        "company_id": company_id or client.company_id,
+        "option": "get_status_claims",
+        "id_siniestro": id_claim,
+    }
+    try:
+        response = client._make_request(payload)
+        if isinstance(response, dict) and response.get("error"):
+            return {"success": False, "error": response.get("error"), "status": None}
+        status = None
+        if isinstance(response, dict):
+            status = response.get("status") or response.get("Status")
+        return {"success": True, "status": status, "raw": response}
+    except ERPClientError as e:
+        return {"success": False, "error": str(e), "status": None}
