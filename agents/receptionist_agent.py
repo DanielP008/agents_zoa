@@ -19,7 +19,11 @@ _ROUTES_PATH = get_routes_path()
 
 with open(_ROUTES_PATH, "r") as f:
     _ROUTES_CONFIG = json.load(f)
-    _VALID_DOMAINS = set(_ROUTES_CONFIG["domains"])
+    # Solo dominios con enabled !== false (por defecto true)
+    _VALID_DOMAINS = set(
+        k for k, v in _ROUTES_CONFIG["domains"].items()
+        if v.get("enabled", True)
+    )
 
 
 def _extract_nif_from_text(text: str) -> str:
@@ -94,7 +98,7 @@ def receptionist_agent(payload: dict) -> dict:
     
     if session.get("domain"):
         existing_domain = session.get("domain")
-        if existing_domain in _ROUTES_CONFIG["domains"]:
+        if existing_domain in _ROUTES_CONFIG["domains"] and _ROUTES_CONFIG["domains"][existing_domain].get("enabled", True):
             domain_config = _ROUTES_CONFIG["domains"][existing_domain]
             if domain_config.get("classifier"):
                 return {
@@ -135,7 +139,7 @@ def receptionist_agent(payload: dict) -> dict:
     active_domains_map = {
         k: v.get("receptionist_label", k.capitalize())
         for k, v in _ROUTES_CONFIG["domains"].items()
-        if v.get("classifier")
+        if v.get("classifier") and v.get("enabled", True)
     }
     available_domains_str = ", ".join(active_domains_map.values())
 

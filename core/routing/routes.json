@@ -20,6 +20,7 @@
       ]
     },
     "ventas": {
+      "enabled": false,
       "receptionist_label": "contratación de una poliza nueva",
       "classifier": "classifier_ventas_agent",
       "specialists": [

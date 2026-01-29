@@ -15,9 +15,10 @@ from agents.domains.gestion.devolucion_agent import devolucion_agent
 from agents.domains.gestion.consultar_poliza_agent import consultar_poliza_agent
 from agents.domains.gestion.modificar_poliza_agent import modificar_poliza_agent
 
-from agents.domains.ventas.classifier_agent import classifier_ventas_agent
-from agents.domains.ventas.nueva_poliza_agent import nueva_poliza_agent
-from agents.domains.ventas.venta_cruzada_agent import venta_cruzada_agent
+# Ventas deshabilitado (enabled: false en routes.json). Descomentar para reactivar:
+# from agents.domains.ventas.classifier_agent import classifier_ventas_agent
+# from agents.domains.ventas.nueva_poliza_agent import nueva_poliza_agent
+# from agents.domains.ventas.venta_cruzada_agent import venta_cruzada_agent
 
 _ROUTES_PATH = Path(__file__).parent / "routes.json"
 
@@ -35,44 +36,31 @@ def route_request(target_agent: str, payload: dict) -> dict:
     """Dispatch a request to the target agent."""
 
     if target_agent == "receptionist_agent":
-        result = receptionist_agent(payload)
-        return result
-    
+        return receptionist_agent(payload)
     if target_agent == "classifier_siniestros_agent":
-        result = classifier_siniestros_agent(payload)
-        return result
+        return classifier_siniestros_agent(payload)
     if target_agent == "apertura_siniestro_agent":
-        result = apertura_siniestro_agent(payload)
-        return result
+        return apertura_siniestro_agent(payload)
     if target_agent == "consulta_estado_agent":
-        result = consulta_estado_agent(payload)
-        return result
+        return consulta_estado_agent(payload)
     if target_agent == "telefonos_asistencia_agent":
-        result = telefonos_asistencia_agent(payload)
-        return result
-    
+        return telefonos_asistencia_agent(payload)
     if target_agent == "classifier_gestion_agent":
-        result = classifier_gestion_agent(payload)
-        return result
+        return classifier_gestion_agent(payload)
     if target_agent == "devolucion_agent":
-        result = devolucion_agent(payload)
-        return result
+        return devolucion_agent(payload)
     if target_agent == "consultar_poliza_agent":
-        result = consultar_poliza_agent(payload)
-        return result
+        return consultar_poliza_agent(payload)
     if target_agent == "modificar_poliza_agent":
-        result = modificar_poliza_agent(payload)
-        return result
-    
-    if target_agent == "classifier_ventas_agent":
-        result = classifier_ventas_agent(payload)
-        return result
-    if target_agent == "nueva_poliza_agent":
-        result = nueva_poliza_agent(payload)
-        return result
-    if target_agent == "venta_cruzada_agent":
-        result = venta_cruzada_agent(payload)
-        return result
+        return modificar_poliza_agent(payload)
+
+    # Ventas deshabilitado. Descomentar imports arriba y este bloque para reactivar:
+    # if target_agent == "classifier_ventas_agent":
+    #     return classifier_ventas_agent(payload)
+    # if target_agent == "nueva_poliza_agent":
+    #     return nueva_poliza_agent(payload)
+    # if target_agent == "venta_cruzada_agent":
+    #     return venta_cruzada_agent(payload)
 
     return {
         "action": "finish",
