@@ -439,8 +439,11 @@ zoa_agents/
 │   └── main_router.py                      # Agent dispatch
 │
 ├── tools/
-│   ├── ocr_tools.py                        # OCR tools
-│   └── zoa_client.py                       # ZOA API client (WhatsApp)
+│   ├── communication/                      # Chat/comms tools
+│   ├── document_ai/                        # OCR and document parsing
+│   ├── erp/                                # ERP-related tools
+│   ├── sales/                              # Sales and cross-sell tools
+│   └── zoa/                                # ZOA CRM tools
 │
 ├── test/
 │   ├── cli_chat.py                         # Interactive CLI

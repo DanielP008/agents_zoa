@@ -95,3 +95,12 @@ def ocr_extract_json_tool(data: str) -> dict:
         return {"error": "Invalid JSON format in input"}
     except Exception as e:
         return {"error": str(e)}
+
+@tool
+def process_document(data: str) -> dict:
+    """Convenience OCR tool that accepts JSON with mime_type and b64_data."""
+    try:
+        payload = json.loads(data)
+        return document_to_json(payload.get("mime_type"), payload.get("b64_data"))
+    except Exception:
+        return {"error": "Invalid input format"}

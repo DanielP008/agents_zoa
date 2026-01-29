@@ -6,9 +6,9 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 
 from core.llm import get_llm
-from tools.create_task_activity_tool import create_task_activity_tool
-from tools.claim_tools import create_claim_tool
-from tools.end_chat_tool import end_chat_tool
+from tools.zoa.tasks import create_task_activity_tool
+from tools.zoa.claims import create_claim_tool
+from tools.communication.end_chat_tool import end_chat_tool
 
 def apertura_siniestro_agent(payload: dict) -> dict:
     user_text = payload.get("mensaje", "")

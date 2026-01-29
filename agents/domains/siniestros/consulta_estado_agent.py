@@ -8,9 +8,10 @@ from langchain_core.tools import tool
 
 from core.llm import get_llm
 from agents.domains.common.generic_knowledge_agent import generic_knowledge_agent
-from tools.end_chat_tool import end_chat_tool
-from tools.create_task_activity_tool import create_task_activity_tool
-from tools.policy_tools import lookup_policy, process_document
+from tools.communication.end_chat_tool import end_chat_tool
+from tools.zoa.tasks import create_task_activity_tool
+from tools.zoa.policies import lookup_policy
+from tools.document_ai.ocr_tools import process_document
 
 
 def consulta_estado_agent(payload: dict) -> dict:

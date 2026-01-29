@@ -5,9 +5,9 @@ from core.memory_schema import get_global_history
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 from core.llm import get_llm
-from tools.end_chat_tool import end_chat_tool
-from tools.create_task_activity_tool import create_task_activity_tool
-from tools.assistance_tools import get_assistance_phones_tool_factory
+from tools.communication.end_chat_tool import end_chat_tool
+from tools.zoa.tasks import create_task_activity_tool
+from tools.erp.assistance_tools import get_assistance_phones_tool_factory
 
 def telefonos_asistencia_agent(payload: dict) -> dict:
     user_text = payload.get("mensaje", "")

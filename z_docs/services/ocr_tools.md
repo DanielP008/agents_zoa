@@ -1,6 +1,6 @@
 # OCR Tools
 
-`tools/ocr_tools.py` uses Google Gemini to extract data from documents (PDFs, images) and return it as a structured JSON object.
+`tools/document_ai/ocr_tools.py` uses Google Gemini to extract data from documents (PDFs, images) and return it as a structured JSON object.
 
 ## Capabilities
 - **Generalistic Extraction**: Captures all relevant data points (names, dates, numbers, addresses) without requiring a specific schema.
@@ -12,8 +12,7 @@
 - `ocr_extract_json_tool`: The LangChain tool wrapper for agents.
 
 ## Usage in Other Tools
-- `tools/policy_tools.py`: Uses OCR to process insurance policies.
-- `tools/consult_policy_tools.py`: Uses OCR for document-based policy inquiries.
+- `tools/erp/policy_tools.py`: Uses OCR for document-based policy inquiries.
 
 ## Configuration
 - `GEMINI_API_KEY`: Required for Gemini access.

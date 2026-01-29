@@ -6,10 +6,8 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 
 from core.llm import get_llm
-from tools.end_chat_tool import end_chat_tool
-
-
-from tools.sales_tools import create_quote_tool, create_new_policy_tool
+from tools.communication.end_chat_tool import end_chat_tool
+from tools.sales.quotes import create_quote_tool, create_new_policy_tool
 
 
 def nueva_poliza_agent(payload: dict) -> dict:

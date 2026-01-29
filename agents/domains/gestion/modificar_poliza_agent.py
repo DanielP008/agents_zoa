@@ -6,11 +6,9 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 
 from core.llm import get_llm
-from tools.create_task_activity_tool import create_task_activity_tool
-from tools.end_chat_tool import end_chat_tool
-
-
-from tools.update_policy_tool import update_policy_tool
+from tools.zoa.tasks import create_task_activity_tool
+from tools.communication.end_chat_tool import end_chat_tool
+from tools.zoa.policy_updates import update_policy_tool
 
 
 def modificar_poliza_agent(payload: dict) -> dict:

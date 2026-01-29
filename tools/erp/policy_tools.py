@@ -1,6 +1,6 @@
 from langchain_core.tools import tool
 from services.erp_client import get_client_policys, get_policy_document_from_erp
-from tools.ocr_tools import document_to_json
+from tools.document_ai.ocr_tools import document_to_json
 
 def get_client_policys_tool_factory(company_id: str):
     @tool

@@ -17,7 +17,7 @@
 ### Tasks & Activities
 - `create_task_with_activity(...)`: Creates a task and an associated activity (e.g., call, meeting) in the CRM.
 - `create_task_activity(...)`: Low-level function to create cards/activities with support for all fields.
-- `create_task_activity_tool`: LangChain tool wrapper for `create_task_activity`. Located in `tools/create_task_activity_tool.py`. Used by agents to create tasks for manual intervention.
+- `create_task_activity_tool`: LangChain tool wrapper for `create_task_activity`. Located in `tools/zoa/tasks.py`. Used by agents to create tasks for manual intervention.
 
 ## Configuration
 - `ZOA_ENDPOINT_URL`: URL of the ZOA Cloud Function.

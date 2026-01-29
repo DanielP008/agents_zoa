@@ -6,12 +6,9 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 
 from core.llm import get_llm
-from tools.end_chat_tool import end_chat_tool
-
-
-from tools.create_task_activity_tool import create_task_activity_tool
-
-from tools.refund_tools import create_refund_request_tool
+from tools.communication.end_chat_tool import end_chat_tool
+from tools.zoa.tasks import create_task_activity_tool
+from tools.zoa.refunds import create_refund_request_tool
 
 
 def devolucion_agent(payload: dict) -> dict:
