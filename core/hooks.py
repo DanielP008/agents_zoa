@@ -21,7 +21,7 @@ def get_contracts_path(filename: str) -> pathlib.Path:
 
 def get_routes_path() -> pathlib.Path:
     """Get path to routes configuration."""
-    return get_project_root() / "routers" / "routes.json"
+    return get_project_root() / "core" / "routing" / "routes.json"
 
 def get_config_path(filename: str = ".env") -> pathlib.Path:
     """Get path to a config file in the project root."""

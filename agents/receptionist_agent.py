@@ -9,7 +9,7 @@ import re
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 
-from agents.llm import get_llm
+from core.llm import get_llm
 from core.memory_schema import get_global_history
 from core.llm_utils import safe_structured_invoke
 

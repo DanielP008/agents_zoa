@@ -5,9 +5,9 @@ The system processes WhatsApp messages through a deterministic router and a
 hierarchy of agents with persistent memory stored in PostgreSQL.
 
 ## High-Level Flow
-1. `app/handler.py` receives the HTTP request.
+1. `api/handler.py` receives the HTTP request.
 2. `core/orchestrator.py` loads session state and executes the agent.
-3. `routers/main_router.py` dispatches based on `routes.json`.
+3. `core/routing/main_router.py` dispatches based on `routes.json`.
 4. Agents respond with `ask`, `route`, or `finish`.
 5. The orchestrator persists state and sends a response via ZOA API.
 

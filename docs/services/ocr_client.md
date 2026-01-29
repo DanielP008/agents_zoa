@@ -1,6 +1,6 @@
 # OCR Client
 
-`tools/ocr_client.py` wraps Gemini OCR for document text extraction and analysis.
+`services/ocr_client.py` wraps Gemini OCR for document text extraction and analysis.
 
 ## Capabilities
 - Extract raw text from PDF and image documents.

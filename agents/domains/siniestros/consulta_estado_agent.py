@@ -6,22 +6,13 @@ from core.memory_schema import get_global_history
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 
-from agents.llm import get_llm
+from core.llm import get_llm
 from agents.domains.common.generic_knowledge_agent import generic_knowledge_agent
 from tools.end_chat_tool import end_chat_tool
-from tools.zoa_client import fetch_policy, create_task_activity_tool
-from tools.ocr_client import extract_text
+from tools.create_task_activity_tool import create_task_activity_tool
 
 
-@tool
-def lookup_policy(policy_number: str) -> dict:
-    """Busca informacion de una poliza por su numero."""
-    return fetch_policy(policy_number)
-
-@tool
-def process_document(doc_type: str) -> dict:
-    """Procesa un documento (OCR) para extraer texto. Simulado."""
-    return extract_text({"type": doc_type})
+from tools.policy_tools import lookup_policy, process_document
 
 
 def consulta_estado_agent(payload: dict) -> dict:

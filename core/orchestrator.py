@@ -10,8 +10,8 @@ from core.memory_schema import (
     ensure_memory_shape,
     update_global,
 )
-from routers.main_router import route_request
-from tools.zoa_client import (
+from core.routing.main_router import route_request
+from services.zoa_client import (
     send_whatsapp_response,
     search_contact_by_phone,
     extract_nif_from_contact_search,

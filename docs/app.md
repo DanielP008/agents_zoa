@@ -1,6 +1,6 @@
 # App Entry
 
-`app/handler.py` is the HTTP entry point for the Cloud Run/Functions service.
+`api/handler.py` is the HTTP entry point for the Cloud Run/Functions service.
 
 ## Responsibilities
 1. **Input Validation**: Ensures the request contains required fields (`wa_id`, `mensaje`, etc.).

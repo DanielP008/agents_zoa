@@ -1,7 +1,7 @@
 import json
 from langchain_core.prompts import ChatPromptTemplate
 from core.agent_factory import create_langchain_agent, run_langchain_agent
-from agents.llm import get_llm
+from core.llm import get_llm
 from tools.end_chat_tool import end_chat_tool
 
 def generic_knowledge_agent(payload: dict) -> dict:

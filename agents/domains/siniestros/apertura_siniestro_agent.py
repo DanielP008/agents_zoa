@@ -5,8 +5,8 @@ from core.memory_schema import get_global_history
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 
-from agents.llm import get_llm
-from tools.zoa_client import create_claim as zoa_create_claim, create_task_activity_tool
+from core.llm import get_llm
+from tools.create_task_activity_tool import create_task_activity_tool
 
 def apertura_siniestro_agent(payload: dict) -> dict:
     user_text = payload.get("mensaje", "")
@@ -19,15 +19,7 @@ def apertura_siniestro_agent(payload: dict) -> dict:
     global_mem = memory.get("global", {})
     nif_value = global_mem.get("nif")
 
-    @tool
-    def create_claim_tool(data: str) -> dict:
-        """Registra un siniestro en ZOA (JSON string)."""
-        try:
-            payload_data = json.loads(data)
-            claim_result = zoa_create_claim(payload_data)
-            return claim_result
-        except Exception as e:
-            return {"error": f"Invalid JSON format or processing error: {str(e)}"}
+from tools.claim_tools import create_claim_tool
 
     system_prompt = (
         """<rol>

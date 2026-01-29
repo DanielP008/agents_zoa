@@ -4,13 +4,11 @@ from typing import Any, Dict, Optional
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 
-from agents.llm import get_llm
+from core.llm import get_llm
 from agents.domains.common.generic_knowledge_agent import generic_knowledge_agent
 from core.agent_factory import create_langchain_agent, run_langchain_agent
 from core.memory_schema import get_global_history
-from tools.erp_client import get_client_policys, get_policy_document_from_erp
-from tools.ocr_client import extract_text
-from tools.zoa_client import create_task_activity_tool
+from tools.create_task_activity_tool import create_task_activity_tool
 from tools.end_chat_tool import end_chat_tool
 
 
@@ -56,20 +54,14 @@ def consultar_poliza_agent(payload: dict) -> dict:
     policy_id = state.get("policy_id")
     policies = state.get("policies")
 
-    @tool
-    def get_client_policys_tool(nif: str, ramo: str) -> dict:
-        """Devuelve las pólizas del cliente para un ramo."""
-        return get_client_policys(nif, ramo, company_id=company_id)
+from tools.consult_policy_tools import (
+    get_client_policys_tool_factory,
+    get_policy_document_tool_factory,
+    ocr_policy_document_tool
+)
 
-    @tool
-    def get_policy_document_tool(nif: str, policy_id: str) -> dict:
-        """Devuelve el PDF de póliza para un ID."""
-        return get_policy_document_from_erp(nif, policy_id, company_id=company_id)
-
-    @tool
-    def ocr_policy_document_tool(mime_type: str, data: str) -> dict:
-        """Convierte un PDF base64 en texto OCR."""
-        return extract_text({"mime_type": mime_type, "data": data})
+    get_client_policys_tool = get_client_policys_tool_factory(company_id)
+    get_policy_document_tool = get_policy_document_tool_factory(company_id)
 
     @tool
     def ask_expert_knowledge(query: str) -> str:

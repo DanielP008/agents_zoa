@@ -49,7 +49,7 @@ agent_data = get_agent_memory(memory, "agent_name")
 For routing/classification agents that need structured decisions:
 ```python
 from pydantic import BaseModel, Field
-from agents.llm import get_llm
+from core.llm import get_llm
 
 class Decision(BaseModel):
     domain: str | None = Field(...)
@@ -74,7 +74,7 @@ For conversational agents with tools, use `create_langchain_agent()` from `core.
 - Agents receive `session` in `payload` with `agent_memory` already loaded
 
 ## Deterministic Dispatch
-- Router (`main_router.py`) never guesses, it follows `routers/routes.json`
+- Router (`main_router.py`) never guesses, it follows `core/routing/routes.json`
 - Validation of allowed routes via `agent_allowlist.py`
 - If route is not allowed → error, no fallback
 

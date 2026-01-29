@@ -3,9 +3,9 @@
 Routing logic determines which agent should handle a user's message.
 
 ## Main Router
-`routers/main_router.py` is the entry point for routing. It uses `routers/routes.json` to map intent or state to a specific agent.
+`core/routing/main_router.py` is the entry point for routing. It uses `core/routing/routes.json` to map intent or state to a specific agent.
 
-## Configuration (`routers/routes.json`)
+## Configuration (`core/routing/routes.json`)
 This JSON file defines the structure of the agent network:
 - **`default_agent`**: Usually the `receptionist_agent`.
 - **`domains`**: Definitions for each domain (Siniestros, Ventas, Gestión).

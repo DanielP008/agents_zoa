@@ -1,6 +1,6 @@
 # ERP Client
 
-`tools/erp_client.py` contains ERP-facing functions for policy and customer data. It acts as a bridge to the eBroker Cloud Function.
+`services/erp_client.py` contains ERP-facing functions for policy and customer data. It acts as a bridge to the eBroker Cloud Function.
 
 ## Capabilities
 - **Get Client Policies**: Retrieve active policies, including assistance phone numbers. Supports filtering by `ramo` (Category).

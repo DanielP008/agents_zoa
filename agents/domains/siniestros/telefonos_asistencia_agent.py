@@ -4,10 +4,10 @@ from core.agent_factory import create_langchain_agent, run_langchain_agent
 from core.memory_schema import get_global_history
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
-from agents.llm import get_llm
+from core.llm import get_llm
 from tools.end_chat_tool import end_chat_tool
-from tools.erp_client import get_assistance_phones_from_erp
-from tools.zoa_client import create_task_with_activity, create_task_activity_tool
+from services.zoa_client import create_task_with_activity
+from tools.create_task_activity_tool import create_task_activity_tool
 
 def telefonos_asistencia_agent(payload: dict) -> dict:
     user_text = payload.get("mensaje", "")
@@ -19,12 +19,9 @@ def telefonos_asistencia_agent(payload: dict) -> dict:
     global_mem = memory.get("global", {})
     nif_value = global_mem.get("nif")
 
-    @tool
-    def get_assistance_phones(nif: str, ramo: str) -> dict:
-        """Obtiene las pólizas activas del cliente para un ramo específico (AUTO, HOGAR, etc.) con sus teléfonos de asistencia."""
-        final_nif = nif_value or "00000000T"
-        # Mapeamos 'ramo' si es necesario o lo pasamos directo. Asumimos que el agente extrae uno de los valores válidos.
-        return get_assistance_phones_from_erp(nif=final_nif, ramo=ramo, company_id=company_id)
+from tools.assistance_tools import get_assistance_phones_tool_factory
+
+    get_assistance_phones = get_assistance_phones_tool_factory(nif_value, company_id)
 
     system_prompt = (
         """<rol>

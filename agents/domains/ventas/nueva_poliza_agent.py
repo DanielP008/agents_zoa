@@ -5,38 +5,11 @@ from core.memory_schema import get_global_history
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 
-from agents.llm import get_llm
+from core.llm import get_llm
 from tools.end_chat_tool import end_chat_tool
 
 
-@tool
-def create_quote_tool(data: str) -> dict:
-    """Genera una cotización de seguro en ZOA con los datos proporcionados (JSON string)."""
-    try:
-        payload = json.loads(data)
-        return {
-            "success": True,
-            "quote_id": "COT-12345",
-            "premium": "$12,500/mes",
-            "coverage": payload.get("coverage_type", "Terceros Completo"),
-            "message": "Cotización generada exitosamente"
-        }
-    except:
-        return {"error": "Invalid JSON format"}
-
-
-@tool
-def create_new_policy_tool(data: str) -> dict:
-    """Crea una nueva póliza en ZOA con los datos proporcionados (JSON string)."""
-    try:
-        payload = json.loads(data)
-        return {
-            "success": True,
-            "policy_number": "POL-98765",
-            "message": "Póliza creada exitosamente. Te enviaremos los detalles por email."
-        }
-    except:
-        return {"error": "Invalid JSON format"}
+from tools.sales_tools import create_quote_tool, create_new_policy_tool
 
 
 def nueva_poliza_agent(payload: dict) -> dict:

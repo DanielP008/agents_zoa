@@ -26,7 +26,7 @@ CREATE TABLE sessions (
 ```
 
 ## Routing
-`routers/routes.json` defines the default agent, domain classifiers, and
+`core/routing/routes.json` defines the default agent, domain classifiers, and
 specialists. Use `core.hooks.get_routes_path()` for consistent path access.
 
 ## Execution

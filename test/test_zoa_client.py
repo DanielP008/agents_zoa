@@ -5,7 +5,7 @@ import json
 
 sys.path.append(os.getcwd())
 
-from tools.zoa_client import (
+from services.zoa_client import (
     search_contact_by_phone,
     extract_nif_from_contact_search,
 )

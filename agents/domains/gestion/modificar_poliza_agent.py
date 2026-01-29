@@ -5,24 +5,12 @@ from core.memory_schema import get_global_history
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 
-from agents.llm import get_llm
-from tools.zoa_client import create_task_activity_tool
+from core.llm import get_llm
+from tools.create_task_activity_tool import create_task_activity_tool
 from tools.end_chat_tool import end_chat_tool
 
 
-@tool
-def update_policy_tool(data: str) -> dict:
-    """Actualiza datos de una póliza en ZOA con los cambios proporcionados (JSON string)."""
-    try:
-        payload = json.loads(data)
-        return {
-            "success": True,
-            "policy_number": payload.get("policy_number"),
-            "updated_fields": list(payload.get("changes", {}).keys()),
-            "message": "Póliza actualizada correctamente"
-        }
-    except:
-        return {"error": "Invalid JSON format"}
+from tools.update_policy_tool import update_policy_tool
 
 
 def modificar_poliza_agent(payload: dict) -> dict:
