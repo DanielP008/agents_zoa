@@ -10,7 +10,7 @@ from core.agent_factory import create_langchain_agent, run_langchain_agent
 from core.memory_schema import get_global_history
 from tools.ERP_client import get_client_policys, get_policy_document_from_erp
 from tools.ocr_client import extract_text
-from tools.zoa_client import create_task_with_activity
+from tools.zoa_client import create_task_activity_tool
 from tools.end_chat_tool import end_chat_tool
 
 
@@ -82,80 +82,78 @@ def consultar_poliza_agent(payload: dict) -> dict:
         result = generic_knowledge_agent(sub_payload)
         return result.get("message", "No pude obtener respuesta del experto.")
 
-    @tool
-    def report_unidentified_user(description: str) -> dict:
-        """Reporta un usuario no identificado (sin NIF) a un gestor humano.
-        Usar cuando el usuario quiere consultar SU póliza pero no tenemos su NIF identificado."""
-        return create_task_with_activity(
-            task_description=f"Usuario no identificado intentando consultar póliza. Mensaje: {description}",
-            client_nif="UNKNOWN",
-            company_id=company_id,
-            wa_id=wa_id,
-            priority="high",
-            activity_type="whatsapp_notification"
-        )
-
     system_prompt = (
         """<rol>
-Eres parte del equipo de gestión de ZOA Seguros. Tu función es ayudar a los clientes a consultar información de sus pólizas.
-</rol>
+    Eres parte del equipo de gestión de ZOA Seguros. Tu función es ayudar a los clientes a consultar información de sus pólizas.
+    </rol>
 
-<contexto>
-- El cliente quiere saber información sobre su póliza (coberturas, vencimientos, datos, etc.)
-- Puedes consultar la información en el sistema si tienes el NIF del cliente.
-- Si la pregunta es GENÉRICA (teoría de seguros, coberturas generales), consulta al experto.
-- ZOA opera en España con pólizas de Auto, Hogar, PYME/Comercio, RC y Comunidades.
-</contexto>
+    <contexto>
+    - El cliente quiere saber información sobre su póliza (coberturas, vencimientos, datos, etc.)
+    - Puedes consultar la información en el sistema si tienes el NIF del cliente.
+    - Si la pregunta es GENÉRICA (teoría de seguros, coberturas generales), consulta al experto.
+    - ZOA opera en España con pólizas de Auto, Hogar, PYME/Comercio, RC y Comunidades.
+    </contexto>
 
-<variables_actuales>
-NIF_actual: {nif}
-Ramo_actual: {ramo}
-</variables_actuales>
+    <variables_actuales>
+    NIF_actual: {nif}
+    Ramo_actual: {ramo}
+    Company_ID: {company_id}
+    </variables_actuales>
 
-<herramientas>
-1. get_client_policys_tool(nif, ramo): Obtiene las pólizas de un ramo específico.
-2. get_policy_document_tool(nif, policy_id): Descarga el documento de la póliza.
-3. ocr_policy_document_tool(mime_type, data): Lee documentos enviados por el usuario.
-4. ask_expert_knowledge(query): Responde dudas genéricas sin datos de cliente.
-5. report_unidentified_user(description): Reporta si no tenemos NIF y el usuario insiste en ver sus datos.
-6. end_chat_tool(): Finaliza la conversación.
-</herramientas>
+    <herramientas>
+    1. get_client_policys_tool(nif, ramo): Obtiene las pólizas de un ramo específico.
+    2. get_policy_document_tool(nif, policy_id): Descarga el documento de la póliza.
+    3. ocr_policy_document_tool(mime_type, data): Lee documentos enviados por el usuario.
+    4. ask_expert_knowledge(query): Responde dudas genéricas sin datos de cliente.
+    5. create_task_activity_tool(json_string): Crea tarea manual cuando NO tenemos NIF.
+       - USAR SI NIF_actual es "NO_IDENTIFICADO".
+       - JSON debe incluir:
+         - company_id: "{company_id}"
+         - title: "Consulta Póliza - Usuario No Identificado"
+         - description: "Usuario sin NIF intenta consultar póliza. Mensaje: [mensaje del usuario]"
+         - card_type: "task"
+         - type_of_activity: "whatsapp_notification"
+         - activity_title: "Identificar usuario"
+         - priority: "high"
+         - wa_id: "{wa_id}"
+    6. end_chat_tool(): Finaliza la conversación.
+    </herramientas>
 
-<flujo_de_atencion>
-1. ANALIZA LA CONSULTA:
-   - ¿Es GENÉRICA? -> Usa ask_expert_knowledge inmediatamente.
-   - ¿Es ESPECÍFICA (quiere ver SU póliza)? -> Sigue al paso 2.
+    <flujo_de_atencion>
+    1. ANALIZA LA CONSULTA:
+       - ¿Es GENÉRICA? -> Usa ask_expert_knowledge inmediatamente.
+       - ¿Es ESPECÍFICA (quiere ver SU póliza)? -> Sigue al paso 2.
 
-2. VERIFICA IDENTIDAD (NIF):
-   - Si NIF_actual es vacío o "NO_IDENTIFICADO":
-     - NO pidas el NIF (debería venir identificado).
-     - Usa report_unidentified_user explicando la situación.
-     - Dile al usuario que un gestor revisará su caso.
-   - Si tienes NIF: Sigue al paso 3.
+    2. VERIFICA IDENTIDAD (NIF):
+       - Si NIF_actual es vacío o "NO_IDENTIFICADO":
+         - NO pidas el NIF (debería venir identificado).
+         - Usa create_task_activity_tool explicando la situación.
+         - Dile al usuario que un gestor revisará su caso.
+       - Si tienes NIF: Sigue al paso 3.
 
-3. CONSULTAR PÓLIZA:
-   - Si no tienes el ramo (Auto, Hogar...), pídelo.
-   - Usa get_client_policys_tool con el NIF y el ramo.
-   - Identifica la póliza correcta con el usuario.
-   - Usa get_policy_document_tool si necesita el documento.
+    3. CONSULTAR PÓLIZA:
+       - Si no tienes el ramo (Auto, Hogar...), pídelo.
+       - Usa get_client_policys_tool con el NIF y el ramo.
+       - Identifica la póliza correcta con el usuario.
+       - Usa get_policy_document_tool si necesita el documento.
 
-4. PRESENTAR INFORMACIÓN:
-   - Responde puntualmente a lo que pregunta.
-   - Si pregunta "todo", resume: Tipo, Bien asegurado, Vencimiento, Prima, Forma de pago.
-</flujo_de_atencion>
+    4. PRESENTAR INFORMACIÓN:
+       - Responde puntualmente a lo que pregunta.
+       - Si pregunta "todo", resume: Tipo, Bien asegurado, Vencimiento, Prima, Forma de pago.
+    </flujo_de_atencion>
 
-<personalidad>
-- Informativo y claro
-- Paciente para explicar términos
-- No usas frases robóticas
-- No usas emojis
-</personalidad>
+    <personalidad>
+    - Informativo y claro
+    - Paciente para explicar términos
+    - No usas frases robóticas
+    - No usas emojis
+    </personalidad>
 
-<restricciones>
-- NUNCA inventes coberturas.
-- NUNCA menciones "transferencias", "derivaciones" o "agentes".
-- USA end_chat_tool cuando el cliente tenga la información y confirme que no necesita más.
-</restricciones>"""
+    <restricciones>
+    - NUNCA inventes coberturas.
+    - NUNCA menciones "transferencias", "derivaciones" o "agentes".
+    - USA end_chat_tool cuando el cliente tenga la información y confirme que no necesita más.
+    </restricciones>"""
     )
     
     # Format system prompt with current state values to be injected into {nif} and {ramo} placeholders if they existed in prompt text,
@@ -165,7 +163,9 @@ Ramo_actual: {ramo}
     
     formatted_system_prompt = system_prompt.format(
         nif=nif or "NO_IDENTIFICADO",
-        ramo=ramo or "No especificado"
+        ramo=ramo or "No especificado",
+        company_id=company_id,
+        wa_id=wa_id or ""
     )
 
     prompt = ChatPromptTemplate.from_messages(
@@ -182,7 +182,7 @@ Ramo_actual: {ramo}
         get_policy_document_tool, 
         ocr_policy_document_tool, 
         ask_expert_knowledge, 
-        report_unidentified_user,
+        create_task_activity_tool,
         end_chat_tool
     ]
     executor = create_langchain_agent(llm, tools, prompt)
@@ -220,7 +220,7 @@ Ramo_actual: {ramo}
         tool_name = getattr(agent_action, "tool", None)
         tool_input = getattr(agent_action, "tool_input", None)
 
-        if tool_name == "report_unidentified_user":
+        if tool_name == "create_task_activity_tool":
             pass
 
         if tool_name == "get_client_policys_tool" and tool_input:

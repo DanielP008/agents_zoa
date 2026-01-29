@@ -7,11 +7,11 @@ from core.memory_schema import ensure_memory_shape
 
 logger = logging.getLogger(__name__)
 
-DB_HOST = "34.175.165.97"
-DB_USER = "postgres"
-DB_PASS = "8lk4vM}BpAPtXY/<"
-DB_NAME = "postgres"
-DB_PORT = "5432"
+DB_HOST = os.getenv("DB_HOST", "34.175.165.97")
+DB_USER = os.getenv("DB_USER", "postgres")
+DB_PASS = os.getenv("DB_PASS", "8lk4vM}BpAPtXY/<")
+DB_NAME = os.getenv("DB_NAME", "postgres")
+DB_PORT = os.getenv("DB_PORT", "5432")
 
 _POOL = None
 

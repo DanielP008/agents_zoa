@@ -1,7 +1,8 @@
 import os
 import requests
 import json
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List, Union
+from langchain_core.tools import tool
 
 def _get_zoa_headers() -> Dict[str, str]:
     """Return headers for ZOA API requests."""
@@ -12,16 +13,40 @@ def _get_zoa_headers() -> Dict[str, str]:
         "apiKey": api_key
     }
 
+def _make_zoa_request(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Helper to send requests to ZOA Cloud Function."""
+    zoa_endpoint = os.environ.get(
+        "ZOA_ENDPOINT_URL",
+        "https://flow-zoa-673887944015.europe-southwest1.run.app"
+    )
+    if not zoa_endpoint:
+        return {"error": "ZOA_ENDPOINT_URL not configured"}
+
+    try:
+        headers = _get_zoa_headers()
+        # Debug print can be removed in production
+        # print(f"[ZOA_CLIENT] Sending payload: {payload}")
+        
+        response = requests.post(zoa_endpoint, json=payload, headers=headers, timeout=10)
+        
+        try:
+            # print(f"[ZOA_CLIENT] Response: {response.text}")
+            return response.json()
+        except json.JSONDecodeError:
+            return {"status": response.status_code, "text": response.text}
+    except requests.exceptions.Timeout:
+        return {"error": "Request timeout"}
+    except requests.exceptions.ConnectionError as e:
+        return {"error": f"Connection failed: {str(e)}"}
+    except Exception as e:
+        return {"error": str(e)}
+
 def send_whatsapp_response(
     text: str,
     company_id: str,
     wa_id: str = None,
 ) -> dict:
     """Send a WhatsApp message through the ZOA Cloud Function."""
-    zoa_endpoint = os.environ.get("ZOA_ENDPOINT_URL", "https://flow-zoa-673887944015.europe-southwest1.run.app")
-    if not zoa_endpoint:
-        return {"error": "ZOA_ENDPOINT_URL not configured"}
-
     conversation_id = f"{company_id}_{wa_id}"
     
     payload = {
@@ -33,57 +58,20 @@ def send_whatsapp_response(
         "conversation_id": conversation_id
     }
     
-
-    try:
-        headers = _get_zoa_headers()
-        
-        response = requests.post(zoa_endpoint, json=payload, headers=headers, timeout=10)
-        
-        try:
-            response_json = response.json()
-            return response_json
-        except json.JSONDecodeError:
-            return {"status": response.status_code, "text": response.text}
-    except requests.exceptions.Timeout:
-        return {"error": "Request timeout"}
-    except requests.exceptions.ConnectionError as e:
-        return {"error": f"Connection failed: {str(e)}"}
-    except Exception as e:
-        return {"error": str(e)}
+    return _make_zoa_request(payload)
 
 def search_contact_by_phone(
     phone: str,
     company_id: str,
 ) -> Dict[str, Any]:
     """Search a contact in ZOA by phone."""
-    zoa_endpoint = os.environ.get(
-        "ZOA_ENDPOINT_URL",
-        "https://flow-zoa-673887944015.europe-southwest1.run.app"
-    )
-    if not zoa_endpoint:
-        return {"error": "ZOA_ENDPOINT_URL not configured"}
-
     payload = {
         "action": "contacts",
         "option": "search",
         "company_id": company_id,
         "phone": phone,
     }
-
-    try:
-        headers = _get_zoa_headers()
-        response = requests.post(zoa_endpoint, json=payload, headers=headers, timeout=10)
-        try:
-            print(f"[ZOA_CLIENT] ZOA API raw response: {response.json()}")
-            return response.json()
-        except json.JSONDecodeError:
-            return {"status": response.status_code, "text": response.text}
-    except requests.exceptions.Timeout:
-        return {"error": "Request timeout"}
-    except requests.exceptions.ConnectionError as e:
-        return {"error": f"Connection failed: {str(e)}"}
-    except Exception as e:
-        return {"error": str(e)}
+    return _make_zoa_request(payload)
 
 def extract_nif_from_contact_search(response: Dict[str, Any]) -> str:
     """Extract NIF from a ZOA contact search response."""
@@ -98,32 +86,12 @@ def extract_nif_from_contact_search(response: Dict[str, Any]) -> str:
 
 def create_claim(data: Dict[str, Any]) -> Dict[str, Any]:
     """Create a claim (siniestro) in ZOA."""
-    zoa_endpoint = os.environ.get(
-        "ZOA_ENDPOINT_URL",
-        "https://flow-zoa-673887944015.europe-southwest1.run.app"
-    )
-    if not zoa_endpoint:
-        return {"error": "ZOA_ENDPOINT_URL not configured"}
-    
     payload = {
         "action": "claims",
         "option": "create",
         **data
     }
-    
-    try:
-        headers = _get_zoa_headers()
-        response = requests.post(zoa_endpoint, json=payload, headers=headers, timeout=10)
-        try:
-            return response.json()
-        except json.JSONDecodeError:
-            return {"status": response.status_code, "text": response.text}
-    except requests.exceptions.Timeout:
-        return {"error": "Request timeout"}
-    except requests.exceptions.ConnectionError as e:
-        return {"error": f"Connection failed: {str(e)}"}
-    except Exception as e:
-        return {"error": str(e)}
+    return _make_zoa_request(payload)
 
 def fetch_policy(policy_number: str) -> Dict[str, Any]:
     """Fetch policy information from ZOA."""
@@ -149,13 +117,6 @@ def create_task_with_activity(
     context: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Create a task with an activity in ZOA."""
-    zoa_endpoint = os.environ.get(
-        "ZOA_ENDPOINT_URL",
-        "https://flow-zoa-673887944015.europe-southwest1.run.app"
-    )
-    if not zoa_endpoint:
-        return {"error": "ZOA_ENDPOINT_URL not configured"}
-    
     payload = {
         "action": "tasks",
         "option": "create_with_activity",
@@ -173,16 +134,115 @@ def create_task_with_activity(
     if context:
         payload["context"] = context
     
+    return _make_zoa_request(payload)
+
+def create_task_activity(
+    company_id: str,
+    title: str,
+    description: Optional[str] = None,
+    card_type: str = "opportunity",
+    amount: float = 0.0,
+    tags_name: Optional[Union[List[str], str]] = None,
+    type_of_activity: Optional[str] = None,
+    activity_title: Optional[str] = None,
+    activity_description: Optional[str] = None,
+    guests_names: Optional[Union[List[str], str]] = None,
+    activity_type: str = "sales",
+    date: Optional[str] = None,
+    start_time: Optional[str] = None,
+    duration: int = 30,
+    repeat: bool = False,
+    repetition_type: Optional[str] = None,
+    repetitions_number: Optional[int] = None,
+    end_type: str = "never",
+    end_date: Optional[str] = None,
+    phone: Optional[str] = None,
+    email: Optional[str] = None,
+    nif: Optional[str] = None,
+    mobile: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Create a card and optionally an activity in ZOA (action='cardact').
+    
+    To link to a contact, provide at least one of: phone, email, nif, mobile.
+    """
+    # Base payload with required fields and defaults
+    payload = {
+        "action": "cardact",
+        "option": "create",
+        "company_id": company_id,
+        "title": title,
+        "card_type": card_type,
+        "amount": amount,
+        "duration": duration,
+        "repeat": repeat,
+        "end_type": end_type,
+        "type": activity_type,
+    }
+    
+    # Optional fields mapping
+    optional_fields = {
+        "description": description,
+        "tags_name": tags_name,
+        "type_of_activity": type_of_activity,
+        "activity_title": activity_title,
+        "activity_description": activity_description,
+        "guests_names": guests_names,
+        "date": date,
+        "start_time": start_time,
+        "repetition_type": repetition_type,
+        "repetitions_number": repetitions_number,
+        "end_date": end_date,
+        "phone": phone,
+        "email": email,
+        "nif": nif,
+        "mobile": mobile,
+    }
+    
+    # Update payload with non-None optional fields
+    payload.update({k: v for k, v in optional_fields.items() if v is not None})
+    
+    return _make_zoa_request(payload)
+
+@tool
+def create_task_activity_tool(data: str) -> dict:
+    """
+    Creates a task/card and optionally an activity in ZOA.
+    Input should be a JSON string with the following fields:
+    - company_id: str (required)
+    - title: str (required, title of the card)
+    - description: str (optional)
+    - card_type: str (optional, default "opportunity")
+    - amount: float (optional)
+    - tags_name: List[str] or str (optional, comma separated)
+    - type_of_activity: str (optional, e.g. "llamada", "reunion". If present, creates activity)
+    - activity_title: str (optional)
+    - activity_description: str (optional)
+    - guests_names: List[str] or str (optional)
+    - activity_type: str (optional, default "sales")
+    - date: str (optional, YYYY-MM-DD)
+    - start_time: str (optional, HH:MM)
+    - duration: int (optional, minutes)
+    - repeat: bool (optional)
+    - repetition_type: str (optional)
+    - repetitions_number: int (optional)
+    - end_type: str (optional)
+    - end_date: str (optional)
+    - phone: str (optional, to link contact)
+    - email: str (optional, to link contact)
+    - nif: str (optional, to link contact)
+    - mobile: str (optional, to link contact)
+    """
     try:
-        headers = _get_zoa_headers()
-        response = requests.post(zoa_endpoint, json=payload, headers=headers, timeout=10)
-        try:
-            return response.json()
-        except json.JSONDecodeError:
-            return {"status": response.status_code, "text": response.text}
-    except requests.exceptions.Timeout:
-        return {"error": "Request timeout"}
-    except requests.exceptions.ConnectionError as e:
-        return {"error": f"Connection failed: {str(e)}"}
+        payload = json.loads(data)
+        # Validate required fields
+        if "company_id" not in payload:
+            return {"error": "company_id is required"}
+        if "title" not in payload:
+            return {"error": "title is required"}
+            
+        return create_task_activity(**payload)
+    except json.JSONDecodeError:
+        return {"error": "Invalid JSON format"}
     except Exception as e:
         return {"error": str(e)}
