@@ -1,6 +1,7 @@
 import os
 import requests
 import json
+from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List, Union
 from langchain_core.tools import tool
 
@@ -149,7 +150,16 @@ def create_task_activity(
     Create a card and optionally an activity in ZOA (action='cardact').
     
     To link to a contact, provide at least one of: phone, email, nif, mobile.
+    For 'llamada' activities, date and start_time are auto-set to now+5min if not provided.
     """
+    # Auto-calculate date and start_time for 'llamada' activities (now + 5 minutes)
+    if type_of_activity == "llamada":
+        scheduled_time = datetime.now() + timedelta(minutes=5)
+        if date is None:
+            date = scheduled_time.strftime("%Y-%m-%d")
+        if start_time is None:
+            start_time = scheduled_time.strftime("%H:%M")
+    
     # Base payload with required fields and defaults
     payload = {
         "action": "cardact",
