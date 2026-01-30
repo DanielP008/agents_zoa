@@ -15,8 +15,7 @@
 - `create_claim(data)`: Registers a new claim in the system.
 
 ### Tasks & Activities
-- `create_task_with_activity(...)`: Creates a task and an associated activity (e.g., call, meeting) in the CRM.
-- `create_task_activity(...)`: Low-level function to create cards/activities with support for all fields.
+- `create_task_activity(...)`: Creates a card and optionally an activity in the CRM. Supports all fields (title, description, type_of_activity, etc.).
 - `create_task_activity_tool`: LangChain tool wrapper for `create_task_activity`. Located in `tools/zoa/tasks.py`. Used by agents to create tasks for manual intervention.
 
 ## Configuration

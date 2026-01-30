@@ -106,36 +106,6 @@ def fetch_policy(policy_number: str) -> Dict[str, Any]:
         "valid_until": "2026-12-31"
     }
 
-def create_task_with_activity(
-    task_description: str,
-    client_nif: str,
-    company_id: str,
-    wa_id: Optional[str] = None,
-    priority: str = "normal",
-    activity_type: str = "call",
-    attachments: Optional[list] = None,
-    context: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
-    """Create a task with an activity in ZOA."""
-    payload = {
-        "action": "tasks",
-        "option": "create_with_activity",
-        "company_id": company_id,
-        "task_description": task_description,
-        "client_nif": client_nif,
-        "priority": priority,
-        "activity_type": activity_type,
-    }
-    
-    if wa_id:
-        payload["wa_id"] = wa_id
-    if attachments:
-        payload["attachments"] = attachments
-    if context:
-        payload["context"] = context
-    
-    return _make_zoa_request(payload)
-
 def create_task_activity(
     company_id: str,
     title: str,

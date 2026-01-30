@@ -13,7 +13,7 @@ def create_task_activity_tool(data: str) -> dict:
     - card_type: str (optional, default "opportunity")
     - amount: float (optional)
     - tags_name: List[str] or str (optional, comma separated)
-    - type_of_activity: str (optional, e.g. "llamada", "reunion". If present, creates activity)
+    - type_of_activity: str (optional, one of: "llamada", "reunion", "whatsapp", "email", "tarea". If present, creates activity)
     - activity_title: str (optional)
     - activity_description: str (optional)
     - guests_names: List[str] or str (optional)
@@ -31,13 +31,23 @@ def create_task_activity_tool(data: str) -> dict:
     - nif: str (optional, to link contact)
     - mobile: str (optional, to link contact)
     """
+    VALID_ACTIVITY_TYPES = ["llamada", "reunion", "whatsapp", "email", "tarea"]
+    
     try:
         payload = json.loads(data)
+        
         # Validate required fields
         if "company_id" not in payload:
             return {"error": "company_id is required"}
         if "title" not in payload:
             return {"error": "title is required"}
+        
+        # Validate type_of_activity if provided
+        type_of_activity = payload.get("type_of_activity")
+        if type_of_activity and type_of_activity not in VALID_ACTIVITY_TYPES:
+            return {
+                "error": f"type_of_activity must be one of {VALID_ACTIVITY_TYPES}, got '{type_of_activity}'"
+            }
             
         return create_task_activity(**payload)
     except json.JSONDecodeError:
