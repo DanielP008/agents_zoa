@@ -54,7 +54,9 @@ def modificar_poliza_agent(payload: dict) -> dict:
          - title: "Modificar Póliza [número]"
          - description: "Solicitud de modificación. Póliza: [número]. NIF: {nif}. Cambios solicitados: [listar cambios: campo: valor nuevo]"
          - card_type: "task"
-         - type_of_activity: "call"
+         - pipeline_name: "Principal"
+         - stage_name: "Nuevo"
+         - type_of_activity: "llamada"
          - activity_title: "Gestionar modificación"
          - activity_description: "Contactar al cliente para confirmar y aplicar cambios"
          - nif: "{nif}" (si disponible)

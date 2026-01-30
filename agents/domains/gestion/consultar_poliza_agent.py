@@ -103,9 +103,10 @@ def consultar_poliza_agent(payload: dict) -> dict:
          - title: "Consulta Póliza - Usuario No Identificado"
          - description: "Usuario sin NIF intenta consultar póliza. Mensaje: [mensaje del usuario]"
          - card_type: "task"
-         - type_of_activity: "whatsapp_notification"
+         - pipeline_name: "Principal"
+         - stage_name: "Nuevo"
+         - type_of_activity: "whatsapp"
          - activity_title: "Identificar usuario"
-         - priority: "high"
          - wa_id: "{wa_id}"
     6. end_chat_tool(): Finaliza la conversación.
     </herramientas>

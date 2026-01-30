@@ -52,7 +52,9 @@ def devolucion_agent(payload: dict) -> dict:
          - title: "Devolución - Póliza [número]"
          - description: "Solicitud de devolución. Póliza: [número]. Motivo: [motivo]. Importe: [importe]. IBAN: [iban]. NIF: {nif}"
          - card_type: "task"
-         - type_of_activity: "call"
+         - pipeline_name: "Principal"
+         - stage_name: "Nuevo"
+         - type_of_activity: "llamada"
          - activity_title: "Gestionar devolución"
          - activity_description: "Contactar al cliente para tramitar devolución"
          - nif: "{nif}" (si disponible)

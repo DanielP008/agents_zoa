@@ -59,9 +59,10 @@ def telefonos_asistencia_agent(payload: dict) -> dict:
          - title: "Solicitud Asistencia - Teléfonos no encontrados"
          - description: "Cliente solicita asistencia pero no se encontraron teléfonos en ERP."
          - card_type: "task"
-         - type_of_activity: "call"
+         - pipeline_name: "Principal"
+         - stage_name: "Nuevo"
+         - type_of_activity: "llamada"
          - activity_title: "Llamar para dar asistencia"
-         - priority: "high"
          - phone: (teléfono del cliente si lo tienes)
     3. end_chat_tool(): Finaliza la conversación.
     </herramientas>

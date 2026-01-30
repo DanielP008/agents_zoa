@@ -58,9 +58,10 @@ def consulta_estado_agent(payload: dict) -> dict:
          - title: "Consulta Estado Siniestro"
          - description: "El cliente consulta estado de siniestro y requiere atención humana: [resumen de la consulta]"
          - card_type: "task"
-         - type_of_activity: "call"
+         - pipeline_name: "Principal"
+         - stage_name: "Nuevo"
+         - type_of_activity: "llamada"
          - activity_title: "Responder consulta estado"
-         - priority: "high"
          - wa_id: "{wa_id}"
     5. ask_expert_knowledge(query): Responde dudas genéricas o teóricas sobre seguros.
     6. end_chat_tool(): Finaliza la conversación cuando el cliente tenga la información que necesitaba.

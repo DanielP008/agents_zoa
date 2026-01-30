@@ -6,19 +6,22 @@ from langchain_core.tools import tool
 
 def _get_zoa_headers() -> Dict[str, str]:
     """Return headers for ZOA API requests."""
-    api_key = os.environ.get("ZOA_API_KEY", "")
     return {
         "Content-Type": "application/json",
-        "Accept": "application/json",
-        "apiKey": api_key
     }
 
 def _make_zoa_request(payload: Dict[str, Any]) -> Dict[str, Any]:
     """Helper to send requests to ZOA Cloud Function."""
     zoa_endpoint = os.environ.get(
         "ZOA_ENDPOINT_URL",
-        "https://flow-zoa-673887944015.europe-southwest1.run.app"
+        "https://prod-flow-zoa-673887944015.europe-southwest1.run.app"
     )
+
+    # Strip quotes if present (some .env loaders include them)
+    zoa_endpoint = zoa_endpoint.strip('"').strip("'")
+    
+    print(f"[ZOA_CLIENT] Using endpoint: {zoa_endpoint}")
+
     if not zoa_endpoint:
         return {"error": "ZOA_ENDPOINT_URL not configured"}
 
@@ -27,7 +30,7 @@ def _make_zoa_request(payload: Dict[str, Any]) -> Dict[str, Any]:
         # Debug print can be removed in production
         # print(f"[ZOA_CLIENT] Sending payload: {payload}")
         
-        response = requests.post(zoa_endpoint, json=payload, headers=headers, timeout=10)
+        response = requests.post(zoa_endpoint, headers=headers, data=json.dumps(payload), timeout=10)
         
         try:
             # print(f"[ZOA_CLIENT] Response: {response.text}")
@@ -130,6 +133,8 @@ def create_task_activity(
     email: Optional[str] = None,
     nif: Optional[str] = None,
     mobile: Optional[str] = None,
+    pipeline_name: Optional[str] = None,
+    stage_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Create a card and optionally an activity in ZOA (action='cardact').
@@ -167,10 +172,23 @@ def create_task_activity(
         "email": email,
         "nif": nif,
         "mobile": mobile,
+        "pipeline_name": pipeline_name,
+        "stage_name": stage_name,
     }
     
     # Update payload with non-None optional fields
     payload.update({k: v for k, v in optional_fields.items() if v is not None})
     
-    return _make_zoa_request(payload)
+    print("=" * 80)
+    print("[ZOA_CLIENT] create_task_activity - PAYLOAD COMPLETO:")
+    print(json.dumps(payload, indent=2, ensure_ascii=False))
+    print("=" * 80)
+    
+    result = _make_zoa_request(payload)
+    
+    print("[ZOA_CLIENT] create_task_activity - RESPUESTA DEL BACKEND:")
+    print(json.dumps(result, indent=2, ensure_ascii=False))
+    print("=" * 80)
+    
+    return result
 
