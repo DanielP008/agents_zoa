@@ -27,12 +27,22 @@ def process_message(payload: dict) -> dict:
     
     wa_id = payload.get("wa_id")
     mensaje = payload.get("mensaje")
-    company_id = payload.get("phone_number_id")
+    phone_number_id = payload.get("phone_number_id")
     
-    safe_company_id = company_id or "default"
-    session = session_manager.get_session(wa_id, safe_company_id)
+    # company_id for ZOA (CRM/Tasks) is the phone_number_id (e.g. 521783407682043)
+    zoa_company_id = phone_number_id
+    
+    # company_id for ERP is {phone_number_id}_{wa_id}
+    erp_company_id = f"{phone_number_id}_{wa_id}" if phone_number_id and wa_id else phone_number_id
+    
+    safe_session_company_id = phone_number_id or "default"
+    session = session_manager.get_session(wa_id, safe_session_company_id)
     target_agent = session.get("target_agent", "receptionist_agent")
     memory = ensure_memory_shape(session.get("agent_memory", {}))
+
+    # Add both IDs to the payload for use by agents and tools
+    payload["zoa_company_id"] = zoa_company_id
+    payload["erp_company_id"] = erp_company_id
 
     attachments = _extract_attachments(payload)
     if attachments:
@@ -52,18 +62,18 @@ def process_message(payload: dict) -> dict:
     nif_lookup_failed = global_mem.get("nif_lookup_failed", False)
     
     
-    if not nif_value and not nif_lookup_failed and wa_id and company_id:
-        contact_response = search_contact_by_phone(wa_id, company_id)
+    if not nif_value and not nif_lookup_failed and wa_id and zoa_company_id:
+        contact_response = search_contact_by_phone(wa_id, zoa_company_id)
         nif_value = extract_nif_from_contact_search(contact_response)
     
     if nif_value:
         memory = update_global(memory, nif=nif_value, nif_lookup_failed=False)
         session["agent_memory"] = memory
-        session_manager.update_agent_memory(wa_id, memory, safe_company_id)
-    elif not nif_lookup_failed and wa_id and company_id:
+        session_manager.update_agent_memory(wa_id, memory, safe_session_company_id)
+    elif not nif_lookup_failed and wa_id and zoa_company_id:
         memory = update_global(memory, nif_lookup_failed=True)
         session["agent_memory"] = memory
-        session_manager.update_agent_memory(wa_id, memory, safe_company_id)
+        session_manager.update_agent_memory(wa_id, memory, safe_session_company_id)
     
     memory = append_turn(
         memory,
@@ -89,10 +99,10 @@ def process_message(payload: dict) -> dict:
         agent_message = response.get("message")
 
         if action == "end_chat":
-            deleted = session_manager.delete_session(wa_id, safe_company_id)
+            deleted = session_manager.delete_session(wa_id, safe_session_company_id)
             
             if not deleted:
-                logger.warning(f"Failed to delete session for wa_id: {wa_id}, company_id: {safe_company_id}")
+                logger.warning(f"Failed to delete session for wa_id: {wa_id}, company_id: {safe_session_company_id}")
 
             return {
                 "type": "text",
@@ -133,8 +143,8 @@ def process_message(payload: dict) -> dict:
             )
             session["agent_memory"] = memory
             
-            session_manager.set_target_agent(wa_id, new_target, new_domain, safe_company_id)
-            session_manager.update_agent_memory(wa_id, memory, safe_company_id)
+            session_manager.set_target_agent(wa_id, new_target, new_domain, safe_session_company_id)
+            session_manager.update_agent_memory(wa_id, memory, safe_session_company_id)
             
             target_agent = new_target
             continue
@@ -149,15 +159,15 @@ def process_message(payload: dict) -> dict:
         should_send_message = True
     
         
-    if should_send_message and company_id:
+    if should_send_message and phone_number_id:
         
         whatsapp_result = send_whatsapp_response(
             text=agent_message,
-            company_id=company_id,
+            company_id=phone_number_id,
             wa_id=wa_id
         )
         
-    elif should_send_message and not company_id:
+    elif should_send_message and not phone_number_id:
         pass
 
     if action == "ask":
@@ -177,7 +187,7 @@ def process_message(payload: dict) -> dict:
             last_action=action,
             last_domain=session.get("domain"),
         )
-        session_manager.update_agent_memory(wa_id, memory, safe_company_id)
+        session_manager.update_agent_memory(wa_id, memory, safe_session_company_id)
         result = {
             "type": "text",
             "message": agent_message,
@@ -201,7 +211,7 @@ def process_message(payload: dict) -> dict:
                 "agent": target_agent
             }
         
-        session_manager.set_target_agent(wa_id, new_target, new_domain, safe_company_id)
+        session_manager.set_target_agent(wa_id, new_target, new_domain, safe_session_company_id)
         if agent_message:
             memory = append_turn(
                 memory,
@@ -218,7 +228,7 @@ def process_message(payload: dict) -> dict:
             last_action=action,
             last_domain=new_domain,
         )
-        session_manager.update_agent_memory(wa_id, memory, safe_company_id)
+        session_manager.update_agent_memory(wa_id, memory, safe_session_company_id)
         
         result = {
             "type": "transition", 
@@ -228,7 +238,7 @@ def process_message(payload: dict) -> dict:
         return result
             
     if action == "finish":
-        session_manager.set_target_agent(wa_id, "receptionist_agent", None, safe_company_id)
+        session_manager.set_target_agent(wa_id, "receptionist_agent", None, safe_session_company_id)
         
         if agent_message:
             memory = append_turn(
@@ -247,7 +257,7 @@ def process_message(payload: dict) -> dict:
             last_domain=session.get("domain"),
             consultation_completed=True,
         )
-        session_manager.update_agent_memory(wa_id, memory, safe_company_id)
+        session_manager.update_agent_memory(wa_id, memory, safe_session_company_id)
         
         result = {
             "type": "text", 

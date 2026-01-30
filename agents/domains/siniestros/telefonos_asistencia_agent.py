@@ -14,12 +14,13 @@ def telefonos_asistencia_agent(payload: dict) -> dict:
     session = payload.get("session", {})
     memory = session.get("agent_memory", {})
     history = get_global_history(memory)
-    company_id = payload.get("phone_number_id") or session.get("company_id", "")
+    zoa_company_id = payload.get("zoa_company_id") or session.get("company_id", "")
+    erp_company_id = payload.get("erp_company_id") or zoa_company_id
     wa_id = payload.get("wa_id")
     global_mem = memory.get("global", {})
     nif_value = global_mem.get("nif")
 
-    get_assistance_phones = get_assistance_phones_tool_factory(nif_value, company_id)
+    get_assistance_phones = get_assistance_phones_tool_factory(nif_value, erp_company_id)
 
     system_prompt = (
         """<rol>
@@ -36,6 +37,7 @@ def telefonos_asistencia_agent(payload: dict) -> dict:
     <variables_actuales>
     NIF_actual: {nif}
     Company_ID: {company_id}
+    Phone_Cliente: {phone}
     </variables_actuales>
     
     <ramos_validos>
@@ -54,7 +56,7 @@ def telefonos_asistencia_agent(payload: dict) -> dict:
     2. create_task_activity_tool(json_string): Crea una tarea y/o actividad en el CRM.
        - Usar SI NO obtenemos teléfonos de la API (get_assistance_phones devuelve lista vacía o error).
        - Usar SI NO encontramos datos del cliente.
-       - Parámetros clave para el JSON:
+       - Parámetros OBLIGATORIOS para el JSON:
          - company_id: "{company_id}"
          - title: "Solicitud Asistencia - Teléfonos no encontrados"
          - description: "Cliente solicita asistencia pero no se encontraron teléfonos en ERP."
@@ -63,7 +65,8 @@ def telefonos_asistencia_agent(payload: dict) -> dict:
          - stage_name: "Nuevo"
          - type_of_activity: "llamada"
          - activity_title: "Llamar para dar asistencia"
-         - phone: (teléfono del cliente si lo tienes)
+         - phone: "{phone}" (OBLIGATORIO - usa este valor exacto)
+       # TODO: Cambiar a usar 'nif' en lugar de 'phone' cuando el backend de ZOA soporte identificación por NIF
     3. end_chat_tool(): Finaliza la conversación.
     </herramientas>
 
@@ -104,7 +107,8 @@ def telefonos_asistencia_agent(payload: dict) -> dict:
     
     formatted_system_prompt = system_prompt.format(
         nif=nif_value or "NO_IDENTIFICADO",
-        company_id=company_id
+        company_id=zoa_company_id,
+        phone=wa_id or ""
     )
 
     prompt = ChatPromptTemplate.from_messages(
