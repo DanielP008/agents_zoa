@@ -136,7 +136,6 @@ class SessionManager:
     def delete_session(self, user_id: str, company_id: str) -> bool:
         """Delete a session from the database."""
         session_id = self._get_composite_id(user_id, company_id)
-        print(f"[DB] Attempting to delete session: session_id={session_id}, user_id={user_id}, company_id={company_id}")
         
         query = text("DELETE FROM sessions WHERE session_id = :sid")
         try:
@@ -144,10 +143,8 @@ class SessionManager:
                 result = conn.execute(query, {"sid": session_id})
                 conn.commit()
                 deleted = result.rowcount > 0
-                print(f"[DB] Session deletion result: session_id={session_id}, deleted={deleted}, rowcount={result.rowcount}")
                 logger.info(f"Session deletion: session_id={session_id}, deleted={deleted}, rowcount={result.rowcount}")
                 return deleted
         except Exception as e:
-            print(f"[DB] ERROR deleting session: {e}")
             logger.error(f"DB Delete Error: {e}")
             return False

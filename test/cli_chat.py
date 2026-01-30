@@ -10,10 +10,10 @@ def main():
     print("Escribe 'quit' o 'exit' para salir.\n")
 
     url = "http://localhost:8080"
-    user_id = "34615790764"
-    company_id = "606338959237848"
+    user_id = "+34777666999"
+    company_id = "521783407682043"
     user_name = "Juan Pérez"
-    user_nif = "27464443M"  # NIF hardcodeado para testing
+    user_nif = "27464443M"
     conversation_id = f"{company_id}_{user_id}"
 
     print(f"Session ID: {conversation_id}")

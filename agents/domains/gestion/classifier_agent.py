@@ -141,9 +141,6 @@ Responde SOLO en JSON válido:
     
     chain = prompt | structured_llm
 
-    print(f"\n[CLASSIFIER GESTION DEBUG] user_text: {user_text}")
-    print(f"[CLASSIFIER GESTION DEBUG] last_route: {last_route}")
-    
     result = safe_structured_invoke(
         chain,
         {
@@ -158,10 +155,5 @@ Responde SOLO en JSON válido:
         ),
         error_context="classifier_gestion_decision"
     )
-    
-    print(f"[CLASSIFIER GESTION DEBUG] result: {result}")
-    print(f"[CLASSIFIER GESTION DEBUG] result.route: {result.route}")
-    print(f"[CLASSIFIER GESTION DEBUG] result.needs_more_info: {result.needs_more_info}")
-    print(f"[CLASSIFIER GESTION DEBUG] result.question: {result.question}")
     
     return result

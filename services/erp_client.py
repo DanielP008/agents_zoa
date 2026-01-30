@@ -65,7 +65,6 @@ class ERPClient:
             "nif": nif,
             "lines": ramo  # 'lines' corresponds to 'ramo' in the cloud function
         }
-        print(f"[ERP] get_client_policies_with_phones payload: {payload}")
 
         try:
             response = self._make_request(payload)

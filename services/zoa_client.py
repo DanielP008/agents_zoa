@@ -6,8 +6,11 @@ from langchain_core.tools import tool
 
 def _get_zoa_headers() -> Dict[str, str]:
     """Return headers for ZOA API requests."""
+    api_key = os.environ.get("ZOA_API_KEY", "")
     return {
         "Content-Type": "application/json",
+        "Accept": "application/json",
+        "apiKey": api_key
     }
 
 def _make_zoa_request(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -20,28 +23,34 @@ def _make_zoa_request(payload: Dict[str, Any]) -> Dict[str, Any]:
     # Strip quotes if present (some .env loaders include them)
     zoa_endpoint = zoa_endpoint.strip('"').strip("'")
     
-    print(f"[ZOA_CLIENT] Using endpoint: {zoa_endpoint}")
-
     if not zoa_endpoint:
         return {"error": "ZOA_ENDPOINT_URL not configured"}
 
     try:
         headers = _get_zoa_headers()
-        # Debug print can be removed in production
-        # print(f"[ZOA_CLIENT] Sending payload: {payload}")
+        print(f"\n[ZOA_CLIENT] --- NUEVA PETICIÓN ---")
+        print(f"[ZOA_CLIENT] URL: {zoa_endpoint}")
+        print(f"[ZOA_CLIENT] Headers: {json.dumps(headers, indent=2)}")
+        print(f"[ZOA_CLIENT] Payload: {json.dumps(payload, indent=2, ensure_ascii=False)}")
         
         response = requests.post(zoa_endpoint, headers=headers, data=json.dumps(payload), timeout=10)
         
+        print(f"[ZOA_CLIENT] Status Code: {response.status_code}")
         try:
-            # print(f"[ZOA_CLIENT] Response: {response.text}")
-            return response.json()
+            res_json = response.json()
+            print(f"[ZOA_CLIENT] Response JSON: {json.dumps(res_json, indent=2, ensure_ascii=False)}")
+            return res_json
         except json.JSONDecodeError:
+            print(f"[ZOA_CLIENT] Response Text (not JSON): {response.text}")
             return {"status": response.status_code, "text": response.text}
     except requests.exceptions.Timeout:
+        print(f"[ZOA_CLIENT] ERROR: Timeout")
         return {"error": "Request timeout"}
     except requests.exceptions.ConnectionError as e:
+        print(f"[ZOA_CLIENT] ERROR: Connection Error: {e}")
         return {"error": f"Connection failed: {str(e)}"}
     except Exception as e:
+        print(f"[ZOA_CLIENT] ERROR: Unexpected: {e}")
         return {"error": str(e)}
 
 def send_whatsapp_response(
@@ -179,16 +188,7 @@ def create_task_activity(
     # Update payload with non-None optional fields
     payload.update({k: v for k, v in optional_fields.items() if v is not None})
     
-    print("=" * 80)
-    print("[ZOA_CLIENT] create_task_activity - PAYLOAD COMPLETO:")
-    print(json.dumps(payload, indent=2, ensure_ascii=False))
-    print("=" * 80)
-    
     result = _make_zoa_request(payload)
-    
-    print("[ZOA_CLIENT] create_task_activity - RESPUESTA DEL BACKEND:")
-    print(json.dumps(result, indent=2, ensure_ascii=False))
-    print("=" * 80)
     
     return result
 
