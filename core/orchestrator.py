@@ -61,19 +61,33 @@ def process_message(payload: dict) -> dict:
     nif_value = global_mem.get("nif")
     nif_lookup_failed = global_mem.get("nif_lookup_failed", False)
     
+    print(f"\n[NIF DEBUG] === INICIO FLUJO NIF ===")
+    print(f"[NIF DEBUG] wa_id: {wa_id}")
+    print(f"[NIF DEBUG] zoa_company_id: {zoa_company_id}")
+    print(f"[NIF DEBUG] nif_value en memoria: {nif_value}")
+    print(f"[NIF DEBUG] nif_lookup_failed: {nif_lookup_failed}")
     
     if not nif_value and not nif_lookup_failed and wa_id and zoa_company_id:
+        print(f"[NIF DEBUG] Buscando contacto por teléfono...")
         contact_response = search_contact_by_phone(wa_id, zoa_company_id)
+        print(f"[NIF DEBUG] Respuesta de search_contact_by_phone: {contact_response}")
         nif_value = extract_nif_from_contact_search(contact_response)
+        print(f"[NIF DEBUG] NIF extraído: {nif_value}")
+    else:
+        print(f"[NIF DEBUG] No se busca contacto (ya tenemos NIF o lookup falló anteriormente)")
     
     if nif_value:
+        print(f"[NIF DEBUG] Guardando NIF en memoria: {nif_value}")
         memory = update_global(memory, nif=nif_value, nif_lookup_failed=False)
         session["agent_memory"] = memory
         session_manager.update_agent_memory(wa_id, memory, safe_session_company_id)
     elif not nif_lookup_failed and wa_id and zoa_company_id:
+        print(f"[NIF DEBUG] No se encontró NIF, marcando lookup como fallido")
         memory = update_global(memory, nif_lookup_failed=True)
         session["agent_memory"] = memory
         session_manager.update_agent_memory(wa_id, memory, safe_session_company_id)
+    
+    print(f"[NIF DEBUG] === FIN FLUJO NIF === nif_final: {nif_value}\n")
     
     memory = append_turn(
         memory,

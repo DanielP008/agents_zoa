@@ -29,29 +29,17 @@ def _make_zoa_request(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     try:
         headers = _get_zoa_headers()
-        print(f"\n[ZOA_CLIENT] --- NUEVA PETICIÓN ---")
-        print(f"[ZOA_CLIENT] URL: {zoa_endpoint}")
-        print(f"[ZOA_CLIENT] Headers: {json.dumps(headers, indent=2)}")
-        print(f"[ZOA_CLIENT] Payload: {json.dumps(payload, indent=2, ensure_ascii=False)}")
-        
         response = requests.post(zoa_endpoint, headers=headers, data=json.dumps(payload), timeout=10)
         
-        print(f"[ZOA_CLIENT] Status Code: {response.status_code}")
         try:
-            res_json = response.json()
-            print(f"[ZOA_CLIENT] Response JSON: {json.dumps(res_json, indent=2, ensure_ascii=False)}")
-            return res_json
+            return response.json()
         except json.JSONDecodeError:
-            print(f"[ZOA_CLIENT] Response Text (not JSON): {response.text}")
             return {"status": response.status_code, "text": response.text}
     except requests.exceptions.Timeout:
-        print(f"[ZOA_CLIENT] ERROR: Timeout")
         return {"error": "Request timeout"}
     except requests.exceptions.ConnectionError as e:
-        print(f"[ZOA_CLIENT] ERROR: Connection Error: {e}")
         return {"error": f"Connection failed: {str(e)}"}
     except Exception as e:
-        print(f"[ZOA_CLIENT] ERROR: Unexpected: {e}")
         return {"error": str(e)}
 
 def send_whatsapp_response(
