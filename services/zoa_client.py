@@ -1,78 +1,14 @@
-import os
-import requests
-import json
+"""ZOA client with backward-compatible function wrappers."""
+
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List, Union
-from langchain_core.tools import tool
 
-def _get_zoa_headers() -> Dict[str, str]:
-    """Return headers for ZOA API requests."""
-    api_key = os.environ.get("ZOA_API_KEY", "")
-    return {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        "apiKey": api_key
-    }
+from services.interfaces.zoa_interfaces import (
+    ContactsInterface,
+    ConversationsInterface,
+    CardActionsInterface,
+)
 
-def _make_zoa_request(payload: Dict[str, Any]) -> Dict[str, Any]:
-    """Helper to send requests to ZOA Cloud Function."""
-    zoa_endpoint = os.environ.get(
-        "ZOA_ENDPOINT_URL",
-        "https://prod-flow-zoa-673887944015.europe-southwest1.run.app"
-    )
-
-    # Strip quotes if present (some .env loaders include them)
-    zoa_endpoint = zoa_endpoint.strip('"').strip("'")
-    
-    if not zoa_endpoint:
-        return {"error": "ZOA_ENDPOINT_URL not configured"}
-
-    try:
-        headers = _get_zoa_headers()
-        response = requests.post(zoa_endpoint, headers=headers, data=json.dumps(payload), timeout=10)
-        
-        try:
-            return response.json()
-        except json.JSONDecodeError:
-            return {"status": response.status_code, "text": response.text}
-    except requests.exceptions.Timeout:
-        return {"error": "Request timeout"}
-    except requests.exceptions.ConnectionError as e:
-        return {"error": f"Connection failed: {str(e)}"}
-    except Exception as e:
-        return {"error": str(e)}
-
-def send_whatsapp_response(
-    text: str,
-    company_id: str,
-    wa_id: str = None,
-) -> dict:
-    """Send a WhatsApp message through the ZOA Cloud Function."""
-    conversation_id = f"{company_id}_{wa_id}"
-    
-    payload = {
-        "action": "conversations",
-        "option": "send",
-        "company_id": company_id,
-        "type": "text",
-        "text": text,
-        "conversation_id": conversation_id
-    }
-    
-    return _make_zoa_request(payload)
-
-def search_contact_by_phone(
-    phone: str,
-    company_id: str,
-) -> Dict[str, Any]:
-    """Search a contact in ZOA by phone."""
-    payload = {
-        "action": "contacts",
-        "option": "search",
-        "company_id": company_id,
-        "phone": phone,
-    }
-    return _make_zoa_request(payload)
 
 def extract_nif_from_contact_search(response: Dict[str, Any]) -> str:
     """Extract NIF from a ZOA contact search response."""
@@ -85,17 +21,45 @@ def extract_nif_from_contact_search(response: Dict[str, Any]) -> str:
         return data.get("nif", "") or ""
     return response.get("nif", "") or ""
 
-def create_claim(data: Dict[str, Any]) -> Dict[str, Any]:
-    """Create a claim (siniestro) in ZOA."""
-    payload = {
-        "action": "claims",
-        "option": "create",
-        **data
-    }
-    return _make_zoa_request(payload)
+
+def send_whatsapp_response(
+    text: str,
+    company_id: str,
+    wa_id: str = None,
+) -> dict:
+    """Send a WhatsApp message through ZOA."""
+    conversation_id = f"{company_id}_{wa_id}"
+    
+    interface = ConversationsInterface()
+    result, _ = interface.execute(
+        company_id=company_id,
+        option="send",
+        request_data={
+            "type": "text",
+            "text": text,
+            "conversation_id": conversation_id
+        }
+    )
+    return result
+
+
+def search_contact_by_phone(
+    phone: str,
+    company_id: str,
+) -> Dict[str, Any]:
+    """Search a contact in ZOA by phone."""
+    interface = ContactsInterface()
+    result, _ = interface.execute(
+        company_id=company_id,
+        option="search",
+        request_data={"phone": phone}
+    )
+    return result
+
 
 def fetch_policy(policy_number: str) -> Dict[str, Any]:
     """Fetch policy information from ZOA."""
+    # TODO: Implement with real ZOA interface when available
     if policy_number == "not_found":
         return {"error": "Policy not found"}
     return {
@@ -106,6 +70,7 @@ def fetch_policy(policy_number: str) -> Dict[str, Any]:
         "coverage": "Todo Riesgo",
         "valid_until": "2026-12-31"
     }
+
 
 def create_task_activity(
     company_id: str,
@@ -148,11 +113,8 @@ def create_task_activity(
         if start_time is None:
             start_time = scheduled_time.strftime("%H:%M")
     
-    # Base payload with required fields and defaults
-    payload = {
-        "action": "cardact",
-        "option": "create",
-        "company_id": company_id,
+    # Build request data with required fields and defaults
+    request_data = {
         "title": title,
         "card_type": card_type,
         "amount": amount,
@@ -183,10 +145,13 @@ def create_task_activity(
         "stage_name": stage_name,
     }
     
-    # Update payload with non-None optional fields
-    payload.update({k: v for k, v in optional_fields.items() if v is not None})
+    # Update with non-None optional fields
+    request_data.update({k: v for k, v in optional_fields.items() if v is not None})
     
-    result = _make_zoa_request(payload)
-    
+    interface = CardActionsInterface()
+    result, _ = interface.execute(
+        company_id=company_id,
+        option="create",
+        request_data=request_data
+    )
     return result
-

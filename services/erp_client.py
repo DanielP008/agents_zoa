@@ -1,56 +1,24 @@
-"""ERP client for the eBroker cloud function."""
+"""ERP client with backward-compatible function wrappers."""
 
-import os
-import requests
-import json
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
+
+from services.interfaces.erp_interfaces import (
+    ERPBaseInterface,
+    ERPClientError,
+    CustomerInterface,
+    PoliciesInterface,
+    ReceiptsInterface,
+    ClaimsInterface,
+    RefundsInterface,
+)
 
 
-class ERPClientError(Exception):
-    """ERP client error."""
-    pass
+# =============================================================================
+# Legacy ERPClient (backward compatibility)
+# =============================================================================
 
-
-class ERPClient:
-    """Client for the eBroker cloud function."""
-
-    def __init__(self, company_id: str):
-        """Initialize the ERP client with a company identifier."""
-        self.endpoint_url = os.environ.get(
-            "ERP_ENDPOINT_URL",
-            "https://ebroker-api-673887944015.europe-southwest1.run.app"
-        )
-        self.company_id = company_id
-        self.timeout = int(os.environ.get("ERP_TIMEOUT", "30"))
-
-    def _make_request(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        """Make a POST request to the ERP cloud function."""
-        if not self.endpoint_url:
-            raise ERPClientError("ERP_ENDPOINT_URL not configured")
-
-        try:
-            headers = {"Content-Type": "application/json"}
-            response = requests.post(
-                self.endpoint_url,
-                json=payload,
-                headers=headers,
-                timeout=self.timeout
-            )
-            response.raise_for_status()
-
-            try:
-                return response.json()
-            except json.JSONDecodeError:
-                return {"status": response.status_code, "text": response.text}
-
-        except requests.exceptions.Timeout:
-            raise ERPClientError("Request timeout - ERP service took too long to respond")
-        except requests.exceptions.ConnectionError as e:
-            raise ERPClientError(f"Connection failed: {str(e)}")
-        except requests.exceptions.HTTPError as e:
-            raise ERPClientError(f"HTTP error: {str(e)}")
-        except Exception as e:
-            raise ERPClientError(f"Unexpected error: {str(e)}")
+class ERPClient(ERPBaseInterface):
+    """Legacy client maintaining backward compatibility."""
 
     def get_client_policies_with_phones(
         self,
@@ -58,172 +26,98 @@ class ERPClient:
         ramo: Optional[str] = None
     ) -> Dict[str, Any]:
         """Get active policies with assistance phones for a specific category (ramo)."""
-        payload = {
-            "company_id": self.company_id,
-            "option": "get_policies",
-            "nif": nif,
-            "lines": ramo  # 'lines' corresponds to 'ramo' in the cloud function
-        }
+        interface = PoliciesInterface(self.company_id)
+        result, status = interface.get_policies(nif, lines=ramo)
 
-        try:
-            response = self._make_request(payload)
-
-            if isinstance(response, list):
-                return {
-                    "success": True,
-                    "policies": response
-                }
-
-            if isinstance(response, dict) and "error" in response:
-                return {
-                    "success": False,
-                    "error": response.get("error"),
-                    "policies": []
-                }
-
-            return {
-                "success": True,
-                "policies": response if response else []
-            }
-
-        except ERPClientError as e:
+        if status != 200 or "error" in result:
             return {
                 "success": False,
-                "error": str(e),
+                "error": result.get("error", "Unknown error"),
                 "policies": []
             }
 
-    def get_client_details(
-        self,
-        nif: str
-    ) -> Dict[str, Any]:
-        """Get client details from the ERP."""
-        payload = {
-            "company_id": self.company_id,
-            "option": "detalle_cliente",
-            "nif": nif
-        }
+        if isinstance(result, list):
+            return {"success": True, "policies": result}
 
-        try:
-            response = self._make_request(payload)
-            return {
-                "success": True,
-                "client": response
-            }
-        except ERPClientError as e:
+        return {"success": True, "policies": result if result else []}
+
+    def get_client_details(self, nif: str) -> Dict[str, Any]:
+        """Get client details from the ERP."""
+        interface = CustomerInterface(self.company_id)
+        result, status = interface.get_details(nif)
+
+        if status != 200 or "error" in result:
             return {
                 "success": False,
-                "error": str(e),
+                "error": result.get("error", "Unknown error"),
                 "client": None
             }
 
-    def get_client_claims_status(
-        self,
-        nif: str
-    ) -> Dict[str, Any]:
+        return {"success": True, "client": result}
+
+    def get_client_claims_status(self, nif: str) -> Dict[str, Any]:
         """Get a client's claims status."""
-        payload = {
-            "company_id": self.company_id,
-            "option": "estado_siniestros",
-            "nif": nif
-        }
+        interface = ClaimsInterface(self.company_id)
+        result, status = interface.get_status(nif)
 
-        try:
-            response = self._make_request(payload)
-
-            if isinstance(response, list):
-                return {
-                    "success": True,
-                    "claims": response
-                }
-
-            return {
-                "success": True,
-                "claims": response if response else []
-            }
-
-        except ERPClientError as e:
+        if status != 200 or "error" in result:
             return {
                 "success": False,
-                "error": str(e),
+                "error": result.get("error", "Unknown error"),
                 "claims": []
             }
 
-    def get_policy_document(
-        self,
-        nif: str,
-        num_poliza: str
-    ) -> Dict[str, Any]:
-        """Get a policy document from the ERP."""
-        payload = {
-            "company_id": self.company_id,
-            "option": "documento_polizas",
-            "nif": nif,
-            "num_poliza": num_poliza
-        }
+        if isinstance(result, list):
+            return {"success": True, "claims": result}
 
-        try:
-            response = self._make_request(payload)
-            return {
-                "success": True,
-                "documents": response if response else []
-            }
-        except ERPClientError as e:
+        return {"success": True, "claims": result if result else []}
+
+    def get_policy_document(self, nif: str, num_poliza: str) -> Dict[str, Any]:
+        """Get a policy document from the ERP."""
+        interface = PoliciesInterface(self.company_id)
+        result, status = interface.get_document(nif, num_poliza)
+
+        if status != 200 or "error" in result:
             return {
                 "success": False,
-                "error": str(e),
+                "error": result.get("error", "Unknown error"),
                 "documents": []
             }
 
-    def get_receipt_document(
-        self,
-        nif: str,
-        num_poliza: str
-    ) -> Dict[str, Any]:
-        """Get the most recent receipt document for a policy."""
-        payload = {
-            "company_id": self.company_id,
-            "option": "documento_recibo",
-            "nif": nif,
-            "num_poliza": num_poliza
-        }
+        return {"success": True, "documents": result if result else []}
 
-        try:
-            response = self._make_request(payload)
-            return {
-                "success": True,
-                "receipt": response if response else {}
-            }
-        except ERPClientError as e:
+    def get_receipt_document(self, nif: str, num_poliza: str) -> Dict[str, Any]:
+        """Get the most recent receipt document for a policy."""
+        interface = ReceiptsInterface(self.company_id)
+        result, status = interface.get_document(nif, num_poliza)
+
+        if status != 200 or "error" in result:
             return {
                 "success": False,
-                "error": str(e),
+                "error": result.get("error", "Unknown error"),
                 "receipt": {}
             }
 
-    def get_bank_info_for_refund(
-        self,
-        num_poliza: str
-    ) -> Dict[str, Any]:
-        """Get bank account information for a refund."""
-        payload = {
-            "company_id": self.company_id,
-            "option": "info_banco_devolucion",
-            "num_poliza": num_poliza
-        }
+        return {"success": True, "receipt": result if result else {}}
 
-        try:
-            response = self._make_request(payload)
-            return {
-                "success": True,
-                "account_number": response
-            }
-        except ERPClientError as e:
+    def get_bank_info_for_refund(self, num_poliza: str) -> Dict[str, Any]:
+        """Get bank account information for a refund."""
+        interface = RefundsInterface(self.company_id)
+        result, status = interface.get_bank_info(num_poliza)
+
+        if status != 200 or "error" in result:
             return {
                 "success": False,
-                "error": str(e),
+                "error": result.get("error", "Unknown error"),
                 "account_number": None
             }
+
+        return {"success": True, "account_number": result}
+
+
+# =============================================================================
+# Backward-compatible function wrappers
+# =============================================================================
 
 def get_assistance_phones_from_erp(
     nif: str,
@@ -252,7 +146,7 @@ def get_claims_status_from_erp(
     client = ERPClient(company_id)
     return client.get_client_claims_status(nif)
 
-## TO-DO: RE DO WHEN THIS FUNCTION IS CREATED BY GUILLEM
+
 def get_client_policys(
     nif: str,
     ramo: str,
@@ -282,33 +176,24 @@ def get_claims_from_erp(
     company_id: str,
     phone: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Fetch claims (siniestros) for a NIF and ramo/line from ERP.
-    Returns { success, claims: [{ id_claim, riesgo, date }] }."""
-    client = ERPClient(company_id)
-    payload: Dict[str, Any] = {
-        "company_id": company_id,
-        "option": "get_claims",
-        "nif": nif,
-        "lines": line,
-    }
-    if phone is not None:
-        payload["phone"] = phone
-    try:
-        response = client._make_request(payload)
-        if isinstance(response, dict) and response.get("error"):
-            return {"success": False, "error": response.get("error"), "claims": []}
-        if not isinstance(response, list):
-            return {"success": True, "claims": []}
-        claims = []
-        for c in response:
-            claims.append({
-                "id_claim": str(c.get("id", c.get("id_claim", ""))),
-                "riesgo": c.get("risk", c.get("riesgo", "")),
-                "date": c.get("opening_date", c.get("date", "")),
-            })
-        return {"success": True, "claims": claims}
-    except ERPClientError as e:
-        return {"success": False, "error": str(e), "claims": []}
+    """Fetch claims (siniestros) for a NIF and ramo/line from ERP."""
+    interface = ClaimsInterface(company_id)
+    result, status = interface.get_claims(nif, lines=line, phone=phone)
+
+    if status != 200 or (isinstance(result, dict) and result.get("error")):
+        return {"success": False, "error": result.get("error", "Unknown error"), "claims": []}
+
+    if not isinstance(result, list):
+        return {"success": True, "claims": []}
+
+    claims = []
+    for c in result:
+        claims.append({
+            "id_claim": str(c.get("id", c.get("id_claim", ""))),
+            "riesgo": c.get("risk", c.get("riesgo", "")),
+            "date": c.get("opening_date", c.get("date", "")),
+        })
+    return {"success": True, "claims": claims}
 
 
 def get_status_claim_from_erp(
@@ -316,19 +201,13 @@ def get_status_claim_from_erp(
     company_id: str
 ) -> Dict[str, Any]:
     """Fetch status of a specific claim by id_claim from ERP."""
-    client = ERPClient(company_id)
-    payload = {
-        "company_id": company_id,
-        "option": "get_status_claims",
-        "id_siniestro": id_claim,
-    }
-    try:
-        response = client._make_request(payload)
-        if isinstance(response, dict) and response.get("error"):
-            return {"success": False, "error": response.get("error"), "status": None}
-        status = None
-        if isinstance(response, dict):
-            status = response.get("status") or response.get("Status")
-        return {"success": True, "status": status, "raw": response}
-    except ERPClientError as e:
-        return {"success": False, "error": str(e), "status": None}
+    interface = ClaimsInterface(company_id)
+    result, status = interface.get_claim_status(id_claim)
+
+    if status != 200 or (isinstance(result, dict) and result.get("error")):
+        return {"success": False, "error": result.get("error", "Unknown error"), "status": None}
+
+    claim_status = None
+    if isinstance(result, dict):
+        claim_status = result.get("status") or result.get("Status")
+    return {"success": True, "status": claim_status, "raw": result}

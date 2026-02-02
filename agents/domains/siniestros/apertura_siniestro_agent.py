@@ -7,7 +7,6 @@ from langchain_core.tools import tool
 
 from core.llm import get_llm
 from tools.zoa.tasks import create_task_activity_tool
-from tools.zoa.claims import create_claim_tool
 from tools.communication.end_chat_tool import end_chat_tool
 
 def apertura_siniestro_agent(payload: dict) -> dict:
@@ -79,9 +78,8 @@ def apertura_siniestro_agent(payload: dict) -> dict:
     </datos_por_tipo_de_poliza>
 
     <herramientas>
-    1. create_claim_tool(data): Registra el siniestro en el sistema con todos los datos recopilados en formato JSON.
-    2. create_task_activity_tool(json_string): Crea una tarea para el gestor con la información recopilada.
-       - USAR SIEMPRE al finalizar la recopilación de datos, después o en lugar de create_claim_tool si se requiere intervención manual.
+    1. create_task_activity_tool(json_string): Crea una tarea para el gestor con la información recopilada.
+       - USAR SIEMPRE al finalizar la recopilación de datos.
        - JSON debe incluir:
          - company_id: "{company_id}"
          - title: "Apertura Siniestro - [Tipo]"
@@ -92,7 +90,7 @@ def apertura_siniestro_agent(payload: dict) -> dict:
          - type_of_activity: "llamada"
          - activity_title: "Gestionar apertura siniestro"
          - activity_description: "Contactar cliente para finalizar apertura."
-    3. end_chat_tool(): Finaliza la conversación. Usar SOLO cuando el siniestro esté registrado Y el cliente confirme que no necesita nada más.
+    2. end_chat_tool(): Finaliza la conversación. Usar SOLO cuando la tarea esté creada Y el cliente confirme que no necesita nada más.
     </herramientas>
 
     <flujo_de_atencion>
@@ -108,7 +106,7 @@ def apertura_siniestro_agent(payload: dict) -> dict:
 
     6. REGISTRAR EL SINIESTRO:
        - Usa create_task_activity_tool con TODA la información recopilada en la descripción.
-       - (Opcional) Usa create_claim_tool si el sistema lo requiere, pero asegúrate de crear la tarea.
+       - Un gestor humano abrirá el parte oficialmente cuando revise la tarea.
 
     7. INFORMAR próximos pasos:
        - "Un gestor revisará tu parte y se pondrá en contacto contigo en las próximas 24-48 horas."
@@ -143,7 +141,7 @@ def apertura_siniestro_agent(payload: dict) -> dict:
     )
 
     llm = get_llm()
-    tools = [create_claim_tool, create_task_activity_tool, end_chat_tool]
+    tools = [create_task_activity_tool, end_chat_tool]
     executor = create_langchain_agent(llm, tools, prompt)
 
     result = run_langchain_agent(executor, user_text)
