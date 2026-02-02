@@ -49,10 +49,14 @@ def run_langchain_agent(
     invoke_data.update(invoke_kwargs)
 
     result = agent_executor.invoke(invoke_data)
+    
+    logger.info(f"[AGENT_FACTORY] Agent result keys: {result.keys()}")
+    logger.info(f"[AGENT_FACTORY] Agent output: {result.get('output', '')[:100]}...")
 
     intermediate_steps = result.get("intermediate_steps", [])
+    logger.info(f"[AGENT_FACTORY] Number of intermediate steps: {len(intermediate_steps)}")
     
-    for step in intermediate_steps:
+    for i, step in enumerate(intermediate_steps):
         try:
             if isinstance(step, tuple) and len(step) >= 2:
                 agent_action, tool_result = step[0], step[1]
@@ -76,16 +80,18 @@ def run_langchain_agent(
                     if 'action' in tool_result and tool_result.get('action') == 'end_chat':
                         tool_name = 'end_chat_tool'
                 
+                logger.info(f"[AGENT_FACTORY] Step {i}: tool_name={tool_name}, tool_result_type={type(tool_result)}")
+                
                 if tool_name == 'end_chat_tool':
                     message = tool_result.get("message", "Conversación finalizada.") if isinstance(tool_result, dict) else "Conversación finalizada."
-                    logger.info(f"end_chat_tool detected! Returning action='end_chat' with message: {message}")
+                    logger.info(f"[AGENT_FACTORY] end_chat_tool detected! Returning action='end_chat' with message: {message}")
                     return {
                         "output": message,
                         "action": "end_chat",
                         "tool_used": "end_chat_tool"
                     }
         except Exception as e:
-            logger.warning(f"Error checking intermediate step for end_chat_tool: {e}")
+            logger.warning(f"[AGENT_FACTORY] Error checking intermediate step for end_chat_tool: {e}")
             continue
 
     return result

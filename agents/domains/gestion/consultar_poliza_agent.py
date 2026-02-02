@@ -11,8 +11,8 @@ from core.memory_schema import get_global_history
 from tools.zoa.tasks import create_task_activity_tool
 from tools.communication.end_chat_tool import end_chat_tool
 from tools.erp.policy_tools import (
-    get_client_policys_tool_factory,
-    get_policy_document_tool_factory,
+    get_client_policys_tool,
+    get_policy_document_tool,
     ocr_policy_document_tool
 )
 
@@ -59,9 +59,6 @@ def consultar_poliza_agent(payload: dict) -> dict:
     policy_id = state.get("policy_id")
     policies = state.get("policies")
 
-    get_client_policys_tool = get_client_policys_tool_factory(company_id)
-    get_policy_document_tool = get_policy_document_tool_factory(company_id)
-
     @tool
     def ask_expert_knowledge(query: str) -> str:
         """Consulta al agente experto en seguros para responder dudas GENÉRICAS.
@@ -92,8 +89,10 @@ def consultar_poliza_agent(payload: dict) -> dict:
     </variables_actuales>
 
     <herramientas>
-    1. get_client_policys_tool(nif, ramo): Obtiene las pólizas de un ramo específico.
-    2. get_policy_document_tool(nif, policy_id): Descarga el documento de la póliza.
+    1. get_client_policys_tool(nif, ramo, company_id): Obtiene las pólizas de un ramo específico.
+       - IMPORTANTE: Siempre usa company_id="{company_id}"
+    2. get_policy_document_tool(nif, policy_id, company_id): Descarga el documento de la póliza.
+       - IMPORTANTE: Siempre usa company_id="{company_id}"
     3. ocr_policy_document_tool(mime_type, data): Lee documentos enviados por el usuario.
     4. ask_expert_knowledge(query): Responde dudas genéricas sin datos de cliente.
     5. create_task_activity_tool(json_string): Crea tarea manual cuando NO tenemos NIF.

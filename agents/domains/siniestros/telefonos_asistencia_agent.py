@@ -7,7 +7,7 @@ from langchain_core.tools import tool
 from core.llm import get_llm
 from tools.communication.end_chat_tool import end_chat_tool
 from tools.zoa.tasks import create_task_activity_tool
-from tools.erp.assistance_tools import get_assistance_phones_tool_factory
+from tools.erp.assistance_tools import get_assistance_phones
 
 def telefonos_asistencia_agent(payload: dict) -> dict:
     user_text = payload.get("mensaje", "")
@@ -19,8 +19,6 @@ def telefonos_asistencia_agent(payload: dict) -> dict:
     wa_id = payload.get("wa_id")
     global_mem = memory.get("global", {})
     nif_value = global_mem.get("nif")
-
-    get_assistance_phones = get_assistance_phones_tool_factory(nif_value, erp_company_id)
 
     system_prompt = (
         """<rol>
@@ -52,7 +50,11 @@ def telefonos_asistencia_agent(payload: dict) -> dict:
     </ramos_validos>
 
     <herramientas>
-    1. get_assistance_phones(nif, ramo): Obtiene los teléfonos de asistencia asociados al cliente para un ramo específico. Requiere NIF y RAMO.
+    1. get_assistance_phones(nif, ramo, company_id): Obtiene los teléfonos de asistencia asociados al cliente para un ramo específico. 
+       - IMPORTANTE: Usa estos valores para los parámetros:
+         - nif: "{nif}" (el NIF actual del cliente)
+         - ramo: El ramo que identifiques de la conversación
+         - company_id: "{company_id}" (usa este valor exacto)
     2. create_task_activity_tool(json_string): Crea una tarea y/o actividad en el CRM.
        - Usar SI NO obtenemos teléfonos de la API (get_assistance_phones devuelve lista vacía o error).
        - Usar SI NO encontramos datos del cliente.
@@ -71,10 +73,10 @@ def telefonos_asistencia_agent(payload: dict) -> dict:
     </herramientas>
 
     <flujo_de_atencion>
-    1. IDENTIFICAR RAMO y NIF:
+    1. IDENTIFICAR RAMO:
        - Si no sabes de qué seguro se trata (Auto, Hogar, etc.), pregunta al cliente.
        - Clasifica la respuesta en uno de los <ramos_validos>.
-       - Llama a get_assistance_phones with the NIF actual and the RAMO identified.
+       - Llama a get_assistance_phones con: nif="{nif}", ramo=<el identificado>, company_id="{company_id}".
        
     2. ANALIZAR RESPUESTA:
        - ¿No hay pólizas/teléfonos? -> Usa create_task_activity_tool para que un humano le llame. Informa al cliente que un gestor le llamará enseguida. Cierra con end_chat_tool.
@@ -107,7 +109,7 @@ def telefonos_asistencia_agent(payload: dict) -> dict:
     
     formatted_system_prompt = system_prompt.format(
         nif=nif_value or "NO_IDENTIFICADO",
-        company_id=zoa_company_id,
+        company_id=erp_company_id,
         phone=wa_id or ""
     )
 
@@ -130,7 +132,12 @@ def telefonos_asistencia_agent(payload: dict) -> dict:
     output_text = result.get("output", "")
     action = result.get("action", "ask")
 
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"[TELEFONOS_AGENT] Result: action={action}, output={output_text[:100]}...")
+
     if action == "end_chat":
+        logger.info(f"[TELEFONOS_AGENT] Returning end_chat action")
         return {"action": "end_chat", "message": output_text}
 
     return {"action": action, "message": output_text}

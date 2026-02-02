@@ -11,7 +11,7 @@ def main():
 
     url = "http://localhost:8080"
     user_id = "+34777666999"
-    company_id = "521783407682043"
+    company_id = "606338959237848" # ZOA => 521783407682043
     user_name = "Juan Pérez"
     user_nif = "27464443M"
     conversation_id = f"{company_id}_{user_id}"
@@ -50,6 +50,8 @@ def main():
             
             if isinstance(agent_response, dict):
                 agent = agent_response.get("agent")
+                status = agent_response.get("status")
+                session_deleted = agent_response.get("session_deleted", False)
                 next_agent = agent_response.get("next_agent")
                 response_type = agent_response.get("type", "unknown")
                 
@@ -61,6 +63,19 @@ def main():
                     print(f"AGENTE ACTUAL: unknown (tipo: {response_type})")
                 
                 message = agent_response.get("message", str(agent_response))
+                
+                # Check if conversation ended
+                if status == "completed":
+                    print(f"Agente: {message}")
+                    print("\n" + "="*50)
+                    print("🔒 CONVERSACIÓN FINALIZADA")
+                    if session_deleted:
+                        print("✓ Sesión eliminada de PostgreSQL")
+                    else:
+                        print("⚠️ Sesión NO fue eliminada")
+                    print("="*50 + "\n")
+                    print("La conversación ha terminado. Saliendo...")
+                    break
             else:
                 print(f"AGENTE ACTUAL: unknown")
                 message = str(agent_response)
