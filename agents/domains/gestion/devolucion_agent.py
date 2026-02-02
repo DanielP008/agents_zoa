@@ -57,7 +57,6 @@ def devolucion_agent(payload: dict) -> dict:
          - type_of_activity: "llamada"
          - activity_title: "Gestionar devolución"
          - activity_description: "Contactar al cliente para tramitar devolución"
-         - nif: "{nif}" (si disponible)
          - phone: (teléfono del cliente si disponible)
     2. end_chat_tool(): Finaliza la conversación cuando la solicitud esté registrada y el cliente no necesite nada más.
     </herramientas>

@@ -14,7 +14,7 @@ class ERPClientError(Exception):
 class ERPClient:
     """Client for the eBroker cloud function."""
 
-    def __init__(self, company_id: str = ""):
+    def __init__(self, company_id: str):
         """Initialize the ERP client with a company identifier."""
         self.endpoint_url = os.environ.get(
             "ERP_ENDPOINT_URL",
@@ -55,12 +55,11 @@ class ERPClient:
     def get_client_policies_with_phones(
         self,
         nif: str,
-        ramo: Optional[str] = None,
-        company_id: Optional[str] = None
+        ramo: Optional[str] = None
     ) -> Dict[str, Any]:
         """Get active policies with assistance phones for a specific category (ramo)."""
         payload = {
-            "company_id": company_id or self.company_id,
+            "company_id": self.company_id,
             "option": "get_policies",
             "nif": nif,
             "lines": ramo  # 'lines' corresponds to 'ramo' in the cloud function
@@ -96,12 +95,11 @@ class ERPClient:
 
     def get_client_details(
         self,
-        nif: str,
-        company_id: Optional[str] = None
+        nif: str
     ) -> Dict[str, Any]:
         """Get client details from the ERP."""
         payload = {
-            "company_id": company_id or self.company_id,
+            "company_id": self.company_id,
             "option": "detalle_cliente",
             "nif": nif
         }
@@ -121,12 +119,11 @@ class ERPClient:
 
     def get_client_claims_status(
         self,
-        nif: str,
-        company_id: Optional[str] = None
+        nif: str
     ) -> Dict[str, Any]:
         """Get a client's claims status."""
         payload = {
-            "company_id": company_id or self.company_id,
+            "company_id": self.company_id,
             "option": "estado_siniestros",
             "nif": nif
         }
@@ -155,12 +152,11 @@ class ERPClient:
     def get_policy_document(
         self,
         nif: str,
-        num_poliza: str,
-        company_id: Optional[str] = None
+        num_poliza: str
     ) -> Dict[str, Any]:
         """Get a policy document from the ERP."""
         payload = {
-            "company_id": company_id or self.company_id,
+            "company_id": self.company_id,
             "option": "documento_polizas",
             "nif": nif,
             "num_poliza": num_poliza
@@ -182,12 +178,11 @@ class ERPClient:
     def get_receipt_document(
         self,
         nif: str,
-        num_poliza: str,
-        company_id: Optional[str] = None
+        num_poliza: str
     ) -> Dict[str, Any]:
         """Get the most recent receipt document for a policy."""
         payload = {
-            "company_id": company_id or self.company_id,
+            "company_id": self.company_id,
             "option": "documento_recibo",
             "nif": nif,
             "num_poliza": num_poliza
@@ -208,12 +203,11 @@ class ERPClient:
 
     def get_bank_info_for_refund(
         self,
-        num_poliza: str,
-        company_id: Optional[str] = None
+        num_poliza: str
     ) -> Dict[str, Any]:
         """Get bank account information for a refund."""
         payload = {
-            "company_id": company_id or self.company_id,
+            "company_id": self.company_id,
             "option": "info_banco_devolucion",
             "num_poliza": num_poliza
         }
@@ -234,38 +228,38 @@ class ERPClient:
 def get_assistance_phones_from_erp(
     nif: str,
     ramo: str,
-    company_id: str = ""
+    company_id: str
 ) -> Dict[str, Any]:
     """Fetch assistance phone numbers for active policies."""
-    client = ERPClient(company_id=company_id)
+    client = ERPClient(company_id)
     return client.get_client_policies_with_phones(nif, ramo=ramo)
 
 
 def get_client_info_from_erp(
     nif: str,
-    company_id: str = ""
+    company_id: str
 ) -> Dict[str, Any]:
     """Fetch client details from the ERP."""
-    client = ERPClient(company_id=company_id)
+    client = ERPClient(company_id)
     return client.get_client_details(nif)
 
 
 def get_claims_status_from_erp(
     nif: str,
-    company_id: str = ""
+    company_id: str
 ) -> Dict[str, Any]:
     """Fetch claims status for a client."""
-    client = ERPClient(company_id=company_id)
+    client = ERPClient(company_id)
     return client.get_client_claims_status(nif)
 
 ## TO-DO: RE DO WHEN THIS FUNCTION IS CREATED BY GUILLEM
 def get_client_policys(
     nif: str,
     ramo: str,
-    company_id: str = ""
+    company_id: str
 ) -> Dict[str, Any]:
     """Fetch client policies for the provided ramo."""
-    client = ERPClient(company_id=company_id)
+    client = ERPClient(company_id)
     result = client.get_client_policies_with_phones(nif)
     if not result.get("success"):
         return result
@@ -275,24 +269,24 @@ def get_client_policys(
 def get_policy_document_from_erp(
     nif: str,
     policy_number: str,
-    company_id: str = ""
+    company_id: str
 ) -> Dict[str, Any]:
     """Fetch a policy document from ERP by policy number."""
-    client = ERPClient(company_id=company_id)
+    client = ERPClient(company_id)
     return client.get_policy_document(nif, policy_number)
 
 
 def get_claims_from_erp(
     nif: str,
     line: str,
-    company_id: str = "",
+    company_id: str,
     phone: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Fetch claims (siniestros) for a NIF and ramo/line from ERP.
     Returns { success, claims: [{ id_claim, riesgo, date }] }."""
-    client = ERPClient(company_id=company_id)
+    client = ERPClient(company_id)
     payload: Dict[str, Any] = {
-        "company_id": company_id or client.company_id,
+        "company_id": company_id,
         "option": "get_claims",
         "nif": nif,
         "lines": line,
@@ -319,12 +313,12 @@ def get_claims_from_erp(
 
 def get_status_claim_from_erp(
     id_claim: str,
-    company_id: str = "",
+    company_id: str
 ) -> Dict[str, Any]:
     """Fetch status of a specific claim by id_claim from ERP."""
-    client = ERPClient(company_id=company_id)
+    client = ERPClient(company_id)
     payload = {
-        "company_id": company_id or client.company_id,
+        "company_id": company_id,
         "option": "get_status_claims",
         "id_siniestro": id_claim,
     }

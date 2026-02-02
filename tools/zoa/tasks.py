@@ -28,7 +28,6 @@ def create_task_activity_tool(data: str) -> dict:
     - end_date: str (optional)
     - phone: str (optional, to link contact)
     - email: str (optional, to link contact)
-    - nif: str (optional, to link contact)
     - mobile: str (optional, to link contact)
     """
     VALID_ACTIVITY_TYPES = ["llamada", "reunion", "whatsapp", "email", "tarea"]

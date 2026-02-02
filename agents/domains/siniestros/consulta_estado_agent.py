@@ -16,7 +16,7 @@ def consulta_estado_agent(payload: dict) -> dict:
     session = payload.get("session", {})
     memory = session.get("agent_memory", {})
     history = get_global_history(memory)
-    company_id = session.get("company_id", "default_company")
+    company_id = payload.get("erp_company_id") or payload.get("phone_number_id", "")
     wa_id = payload.get("wa_id")
 
     @tool
@@ -48,8 +48,10 @@ def consulta_estado_agent(payload: dict) -> dict:
     </variables_actuales>
 
     <herramientas>
-    1. get_claims_tool(company_id, nif, ramo, phone): Obtiene los siniestros del cliente para un ramo (Auto, Hogar, etc.). Devuelve lista con id_claim, riesgo y fecha.
-    2. get_status_claims_tool(company_id, id_claim): Obtiene el estado de un siniestro concreto por id_claim.
+    1. get_claims_tool(nif, ramo, company_id, phone): Obtiene los siniestros del cliente para un ramo (Auto, Hogar, etc.). Devuelve lista con id_claim, riesgo y fecha.
+       - IMPORTANTE: Siempre usa company_id="{company_id}"
+    2. get_status_claims_tool(id_claim, company_id): Obtiene el estado de un siniestro concreto por id_claim.
+       - IMPORTANTE: Siempre usa company_id="{company_id}"
     3. process_document(data): Procesa un documento enviado por el cliente (PDF/Imagen) para extraer información en formato JSON. Requiere un JSON string con 'mime_type' y 'b64_data'.
     4. create_task_activity_tool(json_string): Crea una tarea para que un gestor atienda una consulta específica.
        - USAR cuando la consulta es muy específica (datos personales sensibles, importes exactos) y no puedes responder automáticamente.
@@ -78,7 +80,7 @@ def consulta_estado_agent(payload: dict) -> dict:
        - Si tienes identificador (Matrícula, Dirección, Nombre), úsalo.
 
     3. CONSULTAR en el sistema:
-       - Usa get_claims_tool(company_id, nif, ramo) para listar los siniestros del cliente; luego get_status_claims_tool(company_id, id_claim) para obtener el estado.
+       - Usa get_claims_tool(nif, ramo, company_id="{company_id}") para listar los siniestros del cliente; luego get_status_claims_tool(id_claim, company_id="{company_id}") para obtener el estado.
 
     4. INFORMAR de forma clara:
        - Estado actual, última actualización, próximos pasos.

@@ -59,7 +59,6 @@ def modificar_poliza_agent(payload: dict) -> dict:
          - type_of_activity: "llamada"
          - activity_title: "Gestionar modificación"
          - activity_description: "Contactar al cliente para confirmar y aplicar cambios"
-         - nif: "{nif}" (si disponible)
          - phone: (teléfono del cliente si disponible)
     2. end_chat_tool(): Finaliza la conversación cuando los cambios estén registrados.
     </herramientas>

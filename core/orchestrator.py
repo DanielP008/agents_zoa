@@ -33,7 +33,7 @@ def process_message(payload: dict) -> dict:
     zoa_company_id = phone_number_id
     
     # company_id for ERP is {phone_number_id}_{wa_id}
-    erp_company_id = f"{phone_number_id}_{wa_id}" if phone_number_id and wa_id else phone_number_id
+    erp_company_id = phone_number_id
     
     safe_session_company_id = phone_number_id or "default"
     session = session_manager.get_session(wa_id, safe_session_company_id)

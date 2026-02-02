@@ -48,7 +48,7 @@ def consultar_poliza_agent(payload: dict) -> dict:
     memory = session.get("agent_memory", {})
     global_mem = memory.get("global", {})
     nif = global_mem.get("nif")
-    company_id = payload.get("phone_number_id") or session.get("company_id", "")
+    company_id = payload.get("erp_company_id") or payload.get("phone_number_id", "")
     
     # Check if we have WA ID to report
     wa_id = payload.get("wa_id")

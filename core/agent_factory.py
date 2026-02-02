@@ -80,18 +80,38 @@ def run_langchain_agent(
                     if 'action' in tool_result and tool_result.get('action') == 'end_chat':
                         tool_name = 'end_chat_tool'
                 
-                logger.info(f"[AGENT_FACTORY] Step {i}: tool_name={tool_name}, tool_result_type={type(tool_result)}")
+                logger.info(f"[AGENT_FACTORY] Step {i}: tool_name={tool_name}, tool_result={tool_result}")
                 
                 if tool_name == 'end_chat_tool':
                     message = tool_result.get("message", "Conversación finalizada.") if isinstance(tool_result, dict) else "Conversación finalizada."
-                    logger.info(f"[AGENT_FACTORY] end_chat_tool detected! Returning action='end_chat' with message: {message}")
+                    logger.info(f"[AGENT_FACTORY] ✓ end_chat_tool detected! Returning action='end_chat'")
                     return {
                         "output": message,
                         "action": "end_chat",
                         "tool_used": "end_chat_tool"
                     }
+                
+                # Additional check: if tool_result itself contains action: end_chat
+                if isinstance(tool_result, dict) and tool_result.get('action') == 'end_chat':
+                    message = tool_result.get("message", "Conversación finalizada.")
+                    logger.info(f"[AGENT_FACTORY] ✓ end_chat detected in tool_result! Returning action='end_chat'")
+                    return {
+                        "output": message,
+                        "action": "end_chat",
+                        "tool_used": "detected_from_result"
+                    }
         except Exception as e:
             logger.warning(f"[AGENT_FACTORY] Error checking intermediate step for end_chat_tool: {e}")
             continue
 
+    # Final check: if output contains the exact end_chat message
+    output = result.get("output", "")
+    if "Fue un placer ayudarte" in output and "excelente día" in output:
+        logger.info(f"[AGENT_FACTORY] ✓ Detected end_chat by message pattern in final output")
+        return {
+            "output": output,
+            "action": "end_chat",
+            "tool_used": "detected_by_pattern"
+        }
+    
     return result

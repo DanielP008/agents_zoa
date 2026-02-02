@@ -92,7 +92,6 @@ def apertura_siniestro_agent(payload: dict) -> dict:
          - type_of_activity: "llamada"
          - activity_title: "Gestionar apertura siniestro"
          - activity_description: "Contactar cliente para finalizar apertura."
-         - client_nif: (si lo tenemos)
     3. end_chat_tool(): Finaliza la conversación. Usar SOLO cuando el siniestro esté registrado Y el cliente confirme que no necesita nada más.
     </herramientas>
 

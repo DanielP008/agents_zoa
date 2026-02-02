@@ -79,8 +79,8 @@ def telefonos_asistencia_agent(payload: dict) -> dict:
        - Llama a get_assistance_phones con: nif="{nif}", ramo=<el identificado>, company_id="{company_id}".
        
     2. ANALIZAR RESPUESTA:
-       - ¿No hay pólizas/teléfonos? -> Usa create_task_activity_tool para que un humano le llame. Informa al cliente que un gestor le llamará enseguida. Cierra con end_chat_tool.
-       - ¿Hay teléfonos? -> Da los números de asistencia encontrados. Cierra con end_chat_tool.
+       - ¿No hay pólizas/teléfonos? -> Usa create_task_activity_tool para que un humano le llame. Informa al cliente que un gestor le llamará enseguida. Luego EJECUTA end_chat_tool.
+       - ¿Hay teléfonos? -> Da los números de asistencia encontrados. Luego EJECUTA end_chat_tool.
 
     3. EMERGENCIA ACTIVA:
        - Sé muy directo y rápido.
@@ -103,7 +103,8 @@ def telefonos_asistencia_agent(payload: dict) -> dict:
     - Solo proporcionas teléfonos de asistencia.
     - NUNCA inventes números.
     - NUNCA menciones "transferencias" o "agentes".
-    - USA end_chat_tool cuando el cliente tenga el número o se haya creado la tarea de llamada.
+    - CRÍTICO: Después de dar la información, tu ÚLTIMA ACCIÓN debe ser EJECUTAR end_chat_tool(). No termines tu respuesta sin ejecutar esta herramienta.
+    - Si ya diste los teléfonos o creaste la tarea, el SIGUIENTE paso es llamar a end_chat_tool().
     </restricciones>"""
     )
     
