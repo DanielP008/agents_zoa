@@ -1,0 +1,127 @@
+# REGLAS ESTRICTAS PARA AGENTES DE IA
+
+## ⛔ PROHIBICIONES ABSOLUTAS
+
+### 1. NUNCA CREAR ARCHIVOS .md SIN SOLICITUD EXPLÍCITA
+❌ PROHIBIDO crear archivos como:
+- CAMBIOS_*.md
+- README_*.md
+- GUIA_*.md
+- DOCUMENTACION_*.md
+- *_best_practices.md
+- cualquier archivo .md que no esté explícitamente solicitado
+
+✅ PERMITIDO crear .md SOLO SI:
+- El usuario dice explícitamente "crea un archivo .md"
+- El usuario dice "documenta esto en un archivo"
+- El usuario pide específicamente un README o guía
+
+### 2. NUNCA CREAR DOCUMENTACIÓN NO SOLICITADA
+❌ NO HAGAS ESTO:
+```python
+# ❌ MAL - Crear documentación sin que la pidan
+Write("CAMBIOS.md", "# Resumen de cambios...")
+Write("GUIA_USO.md", "# Cómo usar esto...")
+```
+
+✅ HAZ ESTO:
+```python
+# ✅ BIEN - Solo código, comentarios concisos si son necesarios
+def my_function():
+    """Brief docstring explaining what it does."""
+    return result
+```
+
+### 3. NO SEAS PROLÍFICO - SÉ CONCISO
+❌ NO responses largas explicando cada detalle
+✅ SÍ responses directas y al grano
+❌ NO crear múltiples archivos de "resumen"
+✅ SÍ modificar solo los archivos necesarios
+
+## 🎯 COMPORTAMIENTO ESPERADO
+
+### Cuando hagas cambios:
+1. Modifica solo los archivos necesarios
+2. Agrega logging si es relevante
+3. Responde con un resumen BREVE (2-3 líneas) de lo que hiciste
+4. NO crees archivos de documentación
+5. NO escribas ensayos sobre los cambios
+
+### Ejemplo de respuesta CORRECTA:
+```
+✅ Corregí el receptionist_agent para usar action="end_chat"
+✅ Simplifiqué las tool factories a tools directos
+✅ Agregué logging en orchestrator
+```
+
+### Ejemplo de respuesta INCORRECTA:
+```
+❌ He realizado múltiples mejoras al sistema...
+❌ Creé documentación completa en z_docs/...
+❌ [10 párrafos explicando cada cambio]
+❌ [Creación de 5 archivos .md]
+```
+
+## 📝 REGLAS DE CÓDIGO
+
+### Al modificar código:
+- Usa nombres descriptivos de variables
+- Agrega docstrings cuando sea necesario
+- Comenta solo lo complejo o no obvio
+- NO documentes lo obvio
+- NO crees archivos separados de "mejores prácticas"
+
+### Al crear tests:
+- Crea archivos de test SOLO si el usuario lo pide
+- Si creas tests, que sean funcionales, no ejemplos
+
+## 🚫 LISTA DE VERIFICACIÓN ANTES DE CADA RESPUESTA
+
+Antes de enviar tu respuesta, pregúntate:
+- [ ] ¿Estoy creando archivos .md que no me pidieron? → ELIMÍNALOS
+- [ ] ¿Estoy siendo demasiado verboso? → RESUME
+- [ ] ¿Estoy creando "documentación auxiliar"? → NO LO HAGAS
+- [ ] ¿El usuario pidió explícitamente esto? → SI NO, NO LO HAGAS
+
+## ⚖️ FILOSOFÍA
+
+**EL CÓDIGO ES LA DOCUMENTACIÓN**
+- Código claro > Documentación externa
+- Nombres descriptivos > Comentarios largos
+- Tests funcionales > Ejemplos en .md
+- Modificaciones mínimas > Refactors completos no solicitados
+
+**MENOS ES MÁS**
+- 1 archivo modificado > 5 archivos nuevos
+- 3 líneas de respuesta > 3 párrafos de explicación
+- Hacer lo que piden > Hacer lo que "crees" que necesitan
+
+## 🎓 EJEMPLOS DE VIOLACIONES COMUNES
+
+### ❌ VIOLACIÓN #1: Crear documentación "útil"
+```
+Usuario: "Corrige el bug del receptionist"
+Agente: [Corrige el bug] + [Crea CAMBIOS.md] + [Crea GUIA_FLUJO.md]
+```
+
+### ✅ CORRECTO:
+```
+Usuario: "Corrige el bug del receptionist"
+Agente: [Corrige el bug] + "✅ Corregido receptionist_agent.py"
+```
+
+### ❌ VIOLACIÓN #2: Ser demasiado "servicial"
+```
+Usuario: "Simplifica las tool factories"
+Agente: [Simplifica] + [Crea best_practices.md] + [Crea ejemplos.md] + [Actualiza z_docs/]
+```
+
+### ✅ CORRECTO:
+```
+Usuario: "Simplifica las tool factories"
+Agente: [Simplifica] + "✅ Eliminadas factories, tools ahora son directos"
+```
+
+---
+
+**RECUERDA: SI NO TE LO PIDIERON EXPLÍCITAMENTE, NO LO HAGAS.**
