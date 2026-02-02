@@ -113,16 +113,20 @@ def process_message(payload: dict) -> dict:
         agent_message = response.get("message")
 
         if action == "end_chat":
+            logger.info(f"end_chat action triggered. Cleaning up session for wa_id: {wa_id}, company_id: {safe_session_company_id}")
             deleted = session_manager.delete_session(wa_id, safe_session_company_id)
             
-            if not deleted:
-                logger.warning(f"Failed to delete session for wa_id: {wa_id}, company_id: {safe_session_company_id}")
+            if deleted:
+                logger.info(f"Session successfully deleted for wa_id: {wa_id}, company_id: {safe_session_company_id}")
+            else:
+                logger.warning(f"Failed to delete session for wa_id: {wa_id}, company_id: {safe_session_company_id} - Session may not exist")
 
             return {
                 "type": "text",
                 "message": agent_message,
                 "agent": "receptionist_agent",
-                "status": "completed"
+                "status": "completed",
+                "session_deleted": deleted
             }
 
         if action == "route" and not agent_message:

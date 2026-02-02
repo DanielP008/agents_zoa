@@ -82,12 +82,8 @@ def receptionist_agent(payload: dict) -> dict:
     is_closure = any(phrase in user_text_lower for phrase in closure_phrases)
     
     if consultation_completed and is_closure and len(user_text_lower) < 30:
-        from core.db import SessionManager
-        session_manager = SessionManager()
-        session_manager.delete_session(wa_id, company_id)
-        
         return {
-            "action": "finish",
+            "action": "end_chat",
             "message": "¡Perfecto! Fue un placer ayudarte. Si necesitas algo más en el futuro, aquí estaré. ¡Que tengas un excelente día! 😊"
         }
 
