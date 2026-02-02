@@ -166,7 +166,7 @@ RESPONSABILIDAD CIVIL:
 - USA end_chat_tool solo cuando TODO esté completo y el cliente esté satisfecho
 </restricciones>"""
 
-    llm = get_llm()
+    llm = get_llm(model_name="gemini-3-flash-preview")
     tools = [create_task_activity_tool, end_chat_tool]
     
     agent = create_langchain_agent(llm, tools, system_prompt)
