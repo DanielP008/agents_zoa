@@ -7,7 +7,7 @@ from core.llm import get_llm
 from agents.domains.common.generic_knowledge_agent import generic_knowledge_agent
 from tools.communication.end_chat_tool import end_chat_tool
 from tools.zoa.tasks import create_task_activity_tool
-from tools.erp.claim_tools import get_claims_tool, get_status_claims_tool
+from tools.erp.erp_tools import get_claims_tool, get_status_claims_tool
 from tools.document_ai.ocr_tools import process_document
 
 

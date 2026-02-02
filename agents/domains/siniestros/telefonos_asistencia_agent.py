@@ -7,7 +7,7 @@ from langchain_core.tools import tool
 from core.llm import get_llm
 from tools.communication.end_chat_tool import end_chat_tool
 from tools.zoa.tasks import create_task_activity_tool
-from tools.erp.assistance_tools import get_assistance_phones
+from tools.erp.erp_tools import get_assistance_phones
 
 def telefonos_asistencia_agent(payload: dict) -> dict:
     user_text = payload.get("mensaje", "")
