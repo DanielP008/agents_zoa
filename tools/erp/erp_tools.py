@@ -1,11 +1,10 @@
 """All ERP tools consolidated in one file."""
-from langchain_core.tools import tool
+from langchain.tools import tool
 from services.erp_client import (
     get_assistance_phones_from_erp,
     get_client_policys,
     get_policy_document_from_erp,
     get_claims_from_erp,
-    get_status_claim_from_erp
 )
 from tools.document_ai.ocr_tools import document_to_json
 
@@ -88,7 +87,7 @@ def ocr_policy_document_tool(mime_type: str, data: str) -> dict:
 @tool
 def get_claims_tool(nif: str, ramo: str, company_id: str, phone: str = "") -> dict:
     """
-    Obtiene todos los siniestros de un cliente por NIF y ramo (línea).
+    Obtiene todos los siniestros de un cliente por NIF y ramo (línea), incluyendo su estado.
     
     Args:
         nif: NIF/DNI del cliente
@@ -97,21 +96,6 @@ def get_claims_tool(nif: str, ramo: str, company_id: str, phone: str = "") -> di
         phone: Teléfono del cliente (opcional)
     
     Returns:
-        dict con lista de siniestros: id_claim, riesgo (matrícula/dirección/nombre) y fecha
+        dict con lista de siniestros: id_claim, riesgo, fecha y status
     """
     return get_claims_from_erp(nif=nif, line=ramo, company_id=company_id, phone=phone or None)
-
-
-@tool
-def get_status_claims_tool(id_claim: str, company_id: str) -> dict:
-    """
-    Obtiene el estado de un siniestro concreto por su id_claim.
-    
-    Args:
-        id_claim: ID del siniestro
-        company_id: ID de la compañía (se obtiene automáticamente del contexto)
-    
-    Returns:
-        dict con el estado detallado del siniestro
-    """
-    return get_status_claim_from_erp(id_claim=id_claim, company_id=company_id)

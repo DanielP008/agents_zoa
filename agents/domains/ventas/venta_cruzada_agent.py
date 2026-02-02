@@ -1,9 +1,6 @@
-import json
-
+"""Venta cruzada agent for LangChain 1.x."""
 from core.agent_factory import create_langchain_agent, run_langchain_agent
 from core.memory_schema import get_global_history
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.tools import tool
 
 from core.llm import get_llm
 from tools.communication.end_chat_tool import end_chat_tool
@@ -16,8 +13,7 @@ def venta_cruzada_agent(payload: dict) -> dict:
     memory = session.get("agent_memory", {})
     history = get_global_history(memory)
 
-    system_prompt = (
-        """<rol>
+    system_prompt = """<rol>
 Eres parte del equipo comercial de ZOA Seguros. Tu función es ayudar a clientes existentes a mejorar sus coberturas o contratar productos complementarios.
 </rol>
 
@@ -94,21 +90,13 @@ PRODUCTOS COMPLEMENTARIOS:
 - Si el cliente no está interesado, agradece y cierra amablemente
 - USA end_chat_tool cuando se registre la oferta O el cliente no quiera continuar
 </restricciones>"""
-    )
-
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", system_prompt),
-            *history,
-            ("human", "{user_text}"),
-        ]
-    )
 
     llm = get_llm()
     tools = [get_customer_policies_tool, create_cross_sell_offer_tool, end_chat_tool]
-    executor = create_langchain_agent(llm, tools, prompt)
-
-    result = run_langchain_agent(executor, user_text)
+    
+    agent = create_langchain_agent(llm, tools, system_prompt)
+    result = run_langchain_agent(agent, user_text, history)
+    
     output_text = result.get("output", "")
     action = result.get("action", "ask")
 

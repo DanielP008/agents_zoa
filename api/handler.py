@@ -9,8 +9,10 @@ def handle_whatsapp(request):
     """Handle incoming ZOA Buffer System messages."""
     
     data = request.get_json(silent=True) or {}
+    mensaje = data.get("mensaje", "").strip()
     
-    if data.get("mensaje", "").strip() == "BORRAR_POSTGRESS_INFO":
+    # Handle session reset with "___"
+    if mensaje == "___":
         return handle_session_reset(data)
     
     response = process_message(data)
@@ -22,18 +24,17 @@ def handle_whatsapp(request):
     )
 
 def handle_session_reset(data):
-    mensaje = data.get("mensaje", "").strip()
-    if mensaje == "BORRAR_POSTGRESS_INFO":
-        wa_id = data.get("wa_id")
-        company_id = data.get("phone_number_id") or "default"
-        
-        session_manager = SessionManager()
-        deleted = session_manager.delete_session(wa_id, company_id)
-        
-        status = "deleted" if deleted else "not_found"
-        
-        return (
-            json.dumps({"status": "ok", "action": "session_reset", "result": status}, ensure_ascii=False),
-            200,
-            {"Content-Type": "application/json"},
-        )
+    """Reset user session in database."""
+    wa_id = data.get("wa_id")
+    company_id = data.get("phone_number_id") or "default"
+    
+    session_manager = SessionManager()
+    deleted = session_manager.delete_session(wa_id, company_id)
+    
+    status = "deleted" if deleted else "not_found"
+    
+    return (
+        json.dumps({"status": "ok", "action": "session_reset", "result": status}, ensure_ascii=False),
+        200,
+        {"Content-Type": "application/json"},
+    )

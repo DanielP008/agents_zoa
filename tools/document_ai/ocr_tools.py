@@ -3,7 +3,7 @@ import json
 from typing import Dict, Any, Optional
 from langchain_core.messages import HumanMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.tools import tool
+from langchain.tools import tool
 
 def _get_ocr_model() -> ChatGoogleGenerativeAI:
     """Return the configured Gemini model instance for OCR."""

@@ -176,7 +176,7 @@ def get_claims_from_erp(
     company_id: str,
     phone: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Fetch claims (siniestros) for a NIF and ramo/line from ERP."""
+    """Fetch claims (siniestros) for a NIF and ramo/line from ERP. Includes status."""
     interface = ClaimsInterface(company_id)
     result, status = interface.get_claims(nif, lines=line, phone=phone)
 
@@ -192,22 +192,6 @@ def get_claims_from_erp(
             "id_claim": str(c.get("id", c.get("id_claim", ""))),
             "riesgo": c.get("risk", c.get("riesgo", "")),
             "date": c.get("opening_date", c.get("date", "")),
+            "status": c.get("status", ""),
         })
     return {"success": True, "claims": claims}
-
-
-def get_status_claim_from_erp(
-    id_claim: str,
-    company_id: str
-) -> Dict[str, Any]:
-    """Fetch status of a specific claim by id_claim from ERP."""
-    interface = ClaimsInterface(company_id)
-    result, status = interface.get_claim_status(id_claim)
-
-    if status != 200 or (isinstance(result, dict) and result.get("error")):
-        return {"success": False, "error": result.get("error", "Unknown error"), "status": None}
-
-    claim_status = None
-    if isinstance(result, dict):
-        claim_status = result.get("status") or result.get("Status")
-    return {"success": True, "status": claim_status, "raw": result}

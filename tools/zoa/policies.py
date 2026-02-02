@@ -1,4 +1,4 @@
-from langchain_core.tools import tool
+from langchain.tools import tool
 from services.zoa_client import fetch_policy
 
 @tool

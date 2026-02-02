@@ -1,117 +1,161 @@
-"""Centralized LangChain agent creation and execution."""
+"""Centralized LangChain 1.x agent creation and execution."""
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
-from langchain.agents.agent import AgentExecutor
-from langchain.agents.tool_calling_agent.base import create_tool_calling_agent
-from langchain_core.language_models import BaseLanguageModel
-from langchain_core.prompts import BasePromptTemplate, ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.tools import BaseTool
+from langchain.agents import create_agent, AgentState
+from langchain.tools import BaseTool
+from langchain.messages import HumanMessage, AIMessage, SystemMessage
 
 logger = logging.getLogger(__name__)
 
 
-def create_langchain_agent(
-    llm: BaseLanguageModel,
-    tools: List[BaseTool],
-    prompt: BasePromptTemplate,
-    user_input_key: str = "user_text",
-    verbose: bool = False,
-    **executor_kwargs
-) -> AgentExecutor:
-    """Create a LangChain tool-calling agent."""
-    prompt_variables = prompt.input_variables
-    if "agent_scratchpad" not in prompt_variables:
-        if isinstance(prompt, ChatPromptTemplate):
-            messages = list(prompt.messages)
-            messages.append(MessagesPlaceholder(variable_name="agent_scratchpad"))
-            prompt = ChatPromptTemplate.from_messages(messages)
-        else:
-            logger.warning("Prompt does not have agent_scratchpad and is not ChatPromptTemplate. LangChain may fail.")
+def _extract_text_from_content(content: Any) -> str:
+    """
+    Extract text from LangChain 1.x content which can be:
+    - A simple string
+    - A list of content blocks (new format with 'type' and 'text' keys)
+    """
+    if isinstance(content, str):
+        return content
     
-    agent = create_tool_calling_agent(llm, tools, prompt)
-    return AgentExecutor(
-        agent=agent,
+    if isinstance(content, list):
+        # New LangChain 1.x content blocks format
+        text_parts = []
+        for block in content:
+            if isinstance(block, dict):
+                if block.get("type") == "text":
+                    text_parts.append(block.get("text", ""))
+                elif "text" in block:
+                    text_parts.append(block["text"])
+            elif isinstance(block, str):
+                text_parts.append(block)
+        return " ".join(text_parts).strip()
+    
+    return str(content) if content else ""
+
+
+def create_langchain_agent(
+    llm: Any,
+    tools: List[BaseTool],
+    system_prompt: str,
+    **agent_kwargs
+):
+    """
+    Create a LangChain 1.x agent.
+    
+    Args:
+        llm: Language model (ChatGoogleGenerativeAI instance or model string)
+        tools: List of tools available to the agent
+        system_prompt: System prompt string for the agent
+        **agent_kwargs: Additional arguments for create_agent
+    
+    Returns:
+        A LangChain agent instance
+    """
+    if hasattr(llm, 'model'):
+        model = llm
+    else:
+        model = llm
+    
+    agent = create_agent(
+        model=model,
         tools=tools,
-        verbose=verbose,
-        **executor_kwargs
+        system_prompt=system_prompt,
+        **agent_kwargs
     )
+    
+    return agent
 
 
 def run_langchain_agent(
-    agent_executor: AgentExecutor,
+    agent,
     user_text: str,
-    user_input_key: str = "user_text",
+    history: Optional[List] = None,
     **invoke_kwargs
 ) -> Dict[str, Any]:
-    """Execute a LangChain agent with standardized input handling."""
-    invoke_data = {user_input_key: user_text}
-    invoke_data.update(invoke_kwargs)
-
-    result = agent_executor.invoke(invoke_data)
+    """
+    Execute a LangChain 1.x agent with standardized input handling.
     
-    logger.info(f"[AGENT_FACTORY] Agent result keys: {result.keys()}")
-    logger.info(f"[AGENT_FACTORY] Agent output: {result.get('output', '')[:100]}...")
-
-    intermediate_steps = result.get("intermediate_steps", [])
-    logger.info(f"[AGENT_FACTORY] Number of intermediate steps: {len(intermediate_steps)}")
+    Args:
+        agent: The LangChain agent to execute
+        user_text: User's input text
+        history: Optional conversation history as list of message tuples
+        **invoke_kwargs: Additional arguments for invoke
     
-    for i, step in enumerate(intermediate_steps):
-        try:
-            if isinstance(step, tuple) and len(step) >= 2:
-                agent_action, tool_result = step[0], step[1]
-                
-                tool_name = None
-                
-                if hasattr(agent_action, 'tool'):
-                    tool_name = agent_action.tool
-                
-                if not tool_name and hasattr(agent_action, 'tool_input'):
-                    tool_input = agent_action.tool_input
-                    if isinstance(tool_input, dict) and 'tool' in tool_input:
-                        tool_name = tool_input['tool']
-                
-                if not tool_name:
-                    action_str = str(agent_action)
-                    if 'end_chat_tool' in action_str.lower():
-                        tool_name = 'end_chat_tool'
-                
-                if not tool_name and isinstance(tool_result, dict):
-                    if 'action' in tool_result and tool_result.get('action') == 'end_chat':
-                        tool_name = 'end_chat_tool'
-                
-                logger.info(f"[AGENT_FACTORY] Step {i}: tool_name={tool_name}, tool_result={tool_result}")
-                
-                if tool_name == 'end_chat_tool':
-                    message = tool_result.get("message", "Conversación finalizada.") if isinstance(tool_result, dict) else "Conversación finalizada."
-                    logger.info(f"[AGENT_FACTORY] ✓ end_chat_tool detected! Returning action='end_chat'")
-                    return {
-                        "output": message,
-                        "action": "end_chat",
-                        "tool_used": "end_chat_tool"
-                    }
-                
-                # Additional check: if tool_result itself contains action: end_chat
-                if isinstance(tool_result, dict) and tool_result.get('action') == 'end_chat':
-                    message = tool_result.get("message", "Conversación finalizada.")
-                    logger.info(f"[AGENT_FACTORY] ✓ end_chat detected in tool_result! Returning action='end_chat'")
-                    return {
-                        "output": message,
-                        "action": "end_chat",
-                        "tool_used": "detected_from_result"
-                    }
-        except Exception as e:
-            logger.warning(f"[AGENT_FACTORY] Error checking intermediate step for end_chat_tool: {e}")
-            continue
-
-    # Final check: if output contains the exact end_chat message
-    output = result.get("output", "")
-    if "Fue un placer ayudarte" in output and "excelente día" in output:
-        logger.info(f"[AGENT_FACTORY] ✓ Detected end_chat by message pattern in final output")
+    Returns:
+        Dict with 'output' and 'action' keys
+    """
+    # Build messages from history
+    messages = []
+    
+    if history:
+        for msg_type, content in history:
+            if msg_type == "human":
+                messages.append({"role": "user", "content": content})
+            elif msg_type == "ai":
+                messages.append({"role": "assistant", "content": content})
+    
+    # Add current user message
+    messages.append({"role": "user", "content": user_text})
+    
+    # Invoke agent
+    try:
+        result = agent.invoke({"messages": messages}, **invoke_kwargs)
+        
+        logger.info(f"[AGENT_FACTORY] Agent result type: {type(result)}")
+        
+        # Extract output from result
+        output = ""
+        if isinstance(result, dict):
+            # New format: result contains messages
+            result_messages = result.get("messages", [])
+            if result_messages:
+                last_message = result_messages[-1]
+                if hasattr(last_message, 'content'):
+                    # Handle both string and content blocks format
+                    output = _extract_text_from_content(last_message.content)
+                elif isinstance(last_message, dict):
+                    raw_content = last_message.get("content", "")
+                    output = _extract_text_from_content(raw_content)
+            else:
+                output = result.get("output", str(result))
+        elif hasattr(result, 'content'):
+            output = _extract_text_from_content(result.content)
+        else:
+            output = str(result)
+        
+        logger.info(f"[AGENT_FACTORY] Agent output: {output[:100]}...")
+        
+        # Check for end_chat pattern in the result
+        action = "ask"
+        
+        # Check if any tool returned end_chat action
+        if isinstance(result, dict):
+            for msg in result.get("messages", []):
+                if hasattr(msg, 'tool_calls'):
+                    for tool_call in (msg.tool_calls or []):
+                        if tool_call.get("name") == "end_chat_tool":
+                            action = "end_chat"
+                            break
+                # Check tool messages for end_chat
+                if hasattr(msg, 'content'):
+                    msg_text = _extract_text_from_content(msg.content)
+                    if '"action": "end_chat"' in msg_text:
+                        action = "end_chat"
+        
+        # Final check: if output contains the exact end_chat message patterns
+        if isinstance(output, str) and "Fue un placer ayudarte" in output and "excelente día" in output:
+            logger.info(f"[AGENT_FACTORY] Detected end_chat by message pattern")
+            action = "end_chat"
+        
+        if action == "end_chat":
+            logger.info(f"[AGENT_FACTORY] ✓ end_chat detected!")
+        
         return {
             "output": output,
-            "action": "end_chat",
-            "tool_used": "detected_by_pattern"
+            "action": action
         }
-    
-    return result
+        
+    except Exception as e:
+        logger.error(f"[AGENT_FACTORY] Error invoking agent: {e}")
+        raise

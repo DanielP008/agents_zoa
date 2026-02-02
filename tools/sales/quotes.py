@@ -1,5 +1,5 @@
 import json
-from langchain_core.tools import tool
+from langchain.tools import tool
 
 @tool
 def create_quote_tool(data: str) -> dict:

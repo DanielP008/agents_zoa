@@ -26,7 +26,6 @@ from services.interfaces.erp_interfaces import (
     ReceiptDocRequest,
     BankInfoRequest,
     RenewalsRequest,
-    ClaimStatusRequest,
     # Interfaces
     ERPBaseInterface,
     CustomerInterface,
@@ -61,7 +60,6 @@ __all__ = [
     "ReceiptDocRequest",
     "BankInfoRequest",
     "RenewalsRequest",
-    "ClaimStatusRequest",
     # ERP Interfaces
     "ERPBaseInterface",
     "CustomerInterface",

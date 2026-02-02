@@ -52,8 +52,6 @@ class RenewalsRequest(BaseRequest):
     frequency: Optional[int]   # Opcional: Días de rango
 
 
-class ClaimStatusRequest(BaseRequest):
-    id_siniestro: int  # Obligatorio
 
 
 # =============================================================================
@@ -224,11 +222,6 @@ class ClaimsInterface(ERPBaseInterface):
             return {"error": "El campo 'nif' es obligatorio."}, 400
         return self.execute("estado_siniestros", {"nif": nif})
     
-    def get_claim_status(self, id_siniestro: str) -> Tuple[Dict[str, Any], int]:
-        """Get status of a specific claim. option='get_status_claims'"""
-        if not id_siniestro:
-            return {"error": "El campo 'id_siniestro' es obligatorio."}, 400
-        return self.execute("get_status_claims", {"id_siniestro": id_siniestro})
 
 
 class RefundsInterface(ERPBaseInterface):
