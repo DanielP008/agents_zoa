@@ -79,7 +79,6 @@ class ZoaBaseInterface:
         if request_data is None:
             request_data = {}
 
-        # 1. Validate required fields
         if not company_id:
             return {"error": "El campo 'company_id' es obligatorio."}, 400
         
@@ -89,12 +88,10 @@ class ZoaBaseInterface:
         if not self.action_name:
             return {"error": "Error interno: 'action' no definido en la clase."}, 500
 
-        # 2. Enrich request data with required fields
         request_data['company_id'] = company_id
         request_data['option'] = option
         request_data['action'] = self.action_name
 
-        # 3. Execute request
         try:
             result = _make_zoa_request(request_data)
             status = 200 if "error" not in result else 400
@@ -103,85 +100,26 @@ class ZoaBaseInterface:
             return {"error": f"Error interno ejecutando '{self.action_name}/{option}': {str(e)}"}, 500
 
 
+# =============================================================================
+# Active Interfaces (currently used in the codebase)
+# =============================================================================
+
 class ContactsInterface(ZoaBaseInterface):
-    """Interface for contacts operations."""
+    """Interface for contacts operations. Used for searching contacts by phone."""
     def __init__(self):
         super().__init__()
         self.action_name = "contacts"
 
 
-class UsersInterface(ZoaBaseInterface):
-    """Interface for users operations."""
-    def __init__(self):
-        super().__init__()
-        self.action_name = "users"
-
-
-class CardsInterface(ZoaBaseInterface):
-    """Interface for cards operations."""
-    def __init__(self):
-        super().__init__()
-        self.action_name = "cards"
-
-
-class CardActionsInterface(ZoaBaseInterface):
-    """Interface for card+activity operations."""
-    def __init__(self):
-        super().__init__()
-        self.action_name = "cardact"
-
-
-class ActivitiesInterface(ZoaBaseInterface):
-    """Interface for activities operations."""
-    def __init__(self):
-        super().__init__()
-        self.action_name = "activities"
-
-
-class DepartmentsInterface(ZoaBaseInterface):
-    """Interface for departments operations."""
-    def __init__(self):
-        super().__init__()
-        self.action_name = "departments"
-
-
-class TagsInterface(ZoaBaseInterface):
-    """Interface for tags operations."""
-    def __init__(self):
-        super().__init__()
-        self.action_name = "tags"
-
-
-class ReadAllInterface(ZoaBaseInterface):
-    """Interface for readall operations."""
-    def __init__(self):
-        super().__init__()
-        self.action_name = "readall"
-
-
-class EmailInterface(ZoaBaseInterface):
-    """Interface for email operations."""
-    def __init__(self):
-        super().__init__()
-        self.action_name = "email_module"
-
-
 class ConversationsInterface(ZoaBaseInterface):
-    """Interface for conversations operations."""
+    """Interface for conversations operations. Used for sending WhatsApp messages."""
     def __init__(self):
         super().__init__()
         self.action_name = "conversations"
 
 
-class NotesInterface(ZoaBaseInterface):
-    """Interface for notes operations."""
+class CardActionsInterface(ZoaBaseInterface):
+    """Interface for card+activity operations. Used for creating tasks/opportunities."""
     def __init__(self):
         super().__init__()
-        self.action_name = "notes"
-
-
-class SchedulerInterface(ZoaBaseInterface):
-    """Interface for scheduler operations."""
-    def __init__(self):
-        super().__init__()
-        self.action_name = "scheduler"
+        self.action_name = "cardact"
