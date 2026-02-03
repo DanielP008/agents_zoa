@@ -15,6 +15,8 @@ def consulta_estado_agent(payload: dict) -> dict:
     user_text = payload.get("mensaje", "")
     session = payload.get("session", {})
     memory = session.get("agent_memory", {})
+    global_mem = memory.get("global", {})
+    nif = global_mem.get("nif")
     history = get_global_history(memory)
     company_id = payload.get("erp_company_id") or payload.get("phone_number_id", "")
     wa_id = payload.get("wa_id")
@@ -43,12 +45,13 @@ Eres parte del equipo de siniestros de ZOA Seguros. Tu función es informar a lo
 </contexto>
 
 <variables_actuales>
+NIF_actual: {nif or 'NO_IDENTIFICADO'}
 Company_ID: {company_id}
 </variables_actuales>
 
 <herramientas>
-1. get_claims_tool(nif, ramo, company_id, phone): Obtiene los siniestros del cliente para un ramo (Auto, Hogar, etc.) con su estado incluido.
-   - Devuelve lista con: id_claim, riesgo, fecha y status.
+1. get_claims_tool(nif, company_id): Obtiene TODOS los siniestros del cliente con su estado.
+   - Devuelve lista con: id_claim, riesgo (risk), date (opening_date), status.
    - IMPORTANTE: Siempre usa company_id="{company_id}"
 2. process_document(data): Procesa un documento enviado por el cliente (PDF/Imagen) para extraer información en formato JSON. Requiere un JSON string con 'mime_type' y 'b64_data'.
 3. create_task_activity_tool(json_string): Crea una tarea para que un gestor atienda una consulta específica.
@@ -73,12 +76,12 @@ Company_ID: {company_id}
    - ¿Es ESPECÍFICA (sobre SU caso)? -> Sigue al paso 2.
 
 2. IDENTIFICAR el siniestro:
-   - Pide el número de póliza o el número de expediente/siniestro.
-   - Si envía foto, usa process_document.
-   - Si tienes identificador (Matrícula, Dirección, Nombre), úsalo.
+   - Si tienes NIF_actual, usa get_claims_tool para listar todos sus siniestros.
+   - Si envía foto, usa process_document para extraer información.
+   - Si tienes identificador (Matrícula, Dirección, Nombre), úsalo para filtrar resultados.
 
 3. CONSULTAR en el sistema:
-   - Usa get_claims_tool(nif, ramo, company_id="{company_id}") para obtener los siniestros del cliente con su estado.
+   - Usa get_claims_tool(nif, company_id="{company_id}") para obtener los siniestros del cliente con su estado.
 
 4. INFORMAR de forma clara:
    - Estado actual, última actualización, próximos pasos.

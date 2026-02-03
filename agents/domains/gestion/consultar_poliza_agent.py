@@ -12,7 +12,6 @@ from tools.communication.end_chat_tool import end_chat_tool
 from tools.erp.erp_tools import (
     get_client_policys_tool,
     get_policy_document_tool,
-    ocr_policy_document_tool
 )
 
 
@@ -88,11 +87,13 @@ Company_ID: {company_id}
 <herramientas>
 1. get_client_policys_tool(nif, ramo, company_id): Obtiene las pólizas de un ramo específico.
    - IMPORTANTE: Siempre usa company_id="{company_id}"
-2. get_policy_document_tool(nif, policy_id, company_id): Descarga el documento de la póliza.
+   - Devuelve: number (número de póliza), company_name, risk, phones
+2. get_policy_document_tool(policy_id, company_id): Obtiene el documento de la póliza y devuelve la información estructurada.
    - IMPORTANTE: Siempre usa company_id="{company_id}"
-3. ocr_policy_document_tool(mime_type, data): Lee documentos enviados por el usuario.
-4. ask_expert_knowledge(query): Responde dudas genéricas sin datos de cliente.
-5. create_task_activity_tool(json_string): Crea tarea manual cuando NO tenemos NIF.
+   - Solo necesita el número de póliza (policy_id), no el NIF.
+   - Devuelve JSON con todos los datos de la póliza (coberturas, fechas, primas, etc.)
+3. ask_expert_knowledge(query): Responde dudas genéricas sin datos de cliente.
+4. create_task_activity_tool(json_string): Crea tarea manual cuando NO tenemos NIF.
    - USAR SI NIF_actual es "NO_IDENTIFICADO".
    - JSON debe incluir:
      - company_id: "{company_id}"
@@ -104,7 +105,7 @@ Company_ID: {company_id}
      - type_of_activity: "whatsapp"
      - activity_title: "Identificar usuario"
      - wa_id: "{wa_id or ''}"
-6. end_chat_tool(): Finaliza la conversación.
+5. end_chat_tool(): Finaliza la conversación.
 </herramientas>
 
 <flujo_de_atencion>
@@ -147,7 +148,6 @@ Company_ID: {company_id}
     tools = [
         get_client_policys_tool, 
         get_policy_document_tool, 
-        ocr_policy_document_tool, 
         ask_expert_knowledge, 
         create_task_activity_tool,
         end_chat_tool
