@@ -11,8 +11,8 @@ def handle_whatsapp(request):
     data = request.get_json(silent=True) or {}
     mensaje = data.get("mensaje", "").strip()
     
-    # Handle session reset with "___"
-    if mensaje == "___":
+    # Handle session reset with "BORRAR TODO"
+    if mensaje == "BORRAR TODO":
         return handle_session_reset(data)
     
     response = process_message(data)

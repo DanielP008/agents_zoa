@@ -397,7 +397,7 @@ curl -X POST http://localhost:8080 \
   -H "Content-Type: application/json" \
   -d '{
     "wa_id": "5491155551234",
-    "mensaje": "BORRAR_POSTGRESS_INFO",
+    "mensaje": "BORRAR TODO",
     "phone_number_id": "company_123"
   }'
 ```
