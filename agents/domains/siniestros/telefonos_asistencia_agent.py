@@ -87,7 +87,7 @@ Phone_Cliente: {wa_id or ''}
    
    **CASO B - NO hay teléfonos o error:**
    - INMEDIATAMENTE llama a create_task_activity_tool con los datos requeridos.
-   - Informa al cliente: "Voy a pedir que un compañero te llame ahora mismo para darte el número correcto."
+   - Informa al cliente: "No he encontrado el teléfono en nuestra base de datos, pero voy a pedir que un compañero te llame ahora mismo para darte el número correcto."
    - INMEDIATAMENTE después ejecuta end_chat_tool().
 
 4. EMERGENCIA ACTIVA:

@@ -133,26 +133,44 @@ def run_langchain_agent(
         if isinstance(result, dict):
             # Prefer the ToolMessage content if end_chat_tool was called.
             end_chat_tool_message_text: Optional[str] = None
-            for msg in result.get("messages", []):
-                # ToolMessage path (most reliable)
+            ai_message_text: Optional[str] = None
+            
+            for i, msg in enumerate(result.get("messages", [])):
+                # Check for AIMessage that calls the tool
+                if hasattr(msg, 'tool_calls'):
+                    for tool_call in (msg.tool_calls or []):
+                        if tool_call.get("name") == "end_chat_tool":
+                            action = "end_chat"
+                            # Capture the text content of this AIMessage if it exists
+                            if hasattr(msg, 'content') and msg.content:
+                                ai_message_text = _extract_text_from_content(msg.content)
+                            break
+                
+                # ToolMessage path (most reliable for action confirmation)
                 if isinstance(msg, ToolMessage) and getattr(msg, "name", None) == "end_chat_tool":
                     end_chat_tool_message_text = _extract_text_from_content(msg.content)
                     action = "end_chat"
                     continue
 
-                if hasattr(msg, 'tool_calls'):
-                    for tool_call in (msg.tool_calls or []):
-                        if tool_call.get("name") == "end_chat_tool":
-                            action = "end_chat"
-                            break
-                # Check tool messages for end_chat
+                # Check tool messages for end_chat pattern manually
                 if hasattr(msg, 'content'):
                     msg_text = _extract_text_from_content(msg.content)
                     if '"action": "end_chat"' in msg_text:
                         action = "end_chat"
 
-            if end_chat_tool_message_text:
-                output = end_chat_tool_message_text
+            # DECISION LOGIC FOR OUTPUT:
+            # 1. If both AI message and Tool output exist, combine them.
+            # 2. If only one exists, use that one.
+            if action == "end_chat":
+                parts = []
+                if ai_message_text and ai_message_text.strip():
+                    parts.append(ai_message_text.strip())
+                if end_chat_tool_message_text and end_chat_tool_message_text.strip():
+                    parts.append(end_chat_tool_message_text.strip())
+                
+                if parts:
+                    output = "\n\n".join(parts)
+                    logger.info(f"[AGENT_FACTORY] Combined output for end_chat: {output[:50]}...")
         
         # Final check: if output contains the exact end_chat message patterns
         if isinstance(output, str) and "Fue un placer ayudarte" in output and "excelente día" in output:
