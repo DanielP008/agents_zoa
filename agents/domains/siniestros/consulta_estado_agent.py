@@ -18,7 +18,7 @@ def consulta_estado_agent(payload: dict) -> dict:
     global_mem = memory.get("global", {})
     nif = global_mem.get("nif")
     history = get_global_history(memory)
-    company_id = payload.get("erp_company_id") or payload.get("phone_number_id", "")
+    company_id = payload.get("company_id")
     wa_id = payload.get("wa_id")
 
     @tool

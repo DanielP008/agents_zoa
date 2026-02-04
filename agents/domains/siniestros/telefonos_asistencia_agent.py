@@ -16,8 +16,7 @@ def telefonos_asistencia_agent(payload: dict) -> dict:
    session = payload.get("session", {})
    memory = session.get("agent_memory", {})
    history = get_global_history(memory)
-   zoa_company_id = payload.get("zoa_company_id") or session.get("company_id", "")
-   erp_company_id = payload.get("erp_company_id") or zoa_company_id
+   company_id = payload.get("company_id") or session.get("company_id", "")
    wa_id = payload.get("wa_id")
    global_mem = memory.get("global", {})
    nif_value = global_mem.get("nif") or "NO_IDENTIFICADO"
@@ -35,7 +34,7 @@ Eres parte del equipo de atención de ZOA Seguros. Tu función es proporcionar l
 
 <variables_actuales>
 NIF_actual: {nif_value}
-Company_ID: {erp_company_id}
+Company_ID: {company_id}
 Phone_Cliente: {wa_id or ''}
 </variables_actuales>
 
@@ -55,12 +54,12 @@ Phone_Cliente: {wa_id or ''}
    - IMPORTANTE: Usa estos valores para los parámetros:
      - nif: "{nif_value}" (el NIF actual del cliente)
      - ramo: El ramo que identifiques de la conversación
-     - company_id: "{erp_company_id}" (usa este valor exacto)
+     - company_id: "{company_id}" (usa este valor exacto)
 
 2. create_task_activity_tool(json_string): Crea una tarea y/o actividad en el CRM.
    - USAR AUTOMÁTICAMENTE SI get_assistance_phones devuelve lista vacía o error.
    - Parámetros OBLIGATORIOS para el JSON:
-     - company_id: "{erp_company_id}"
+     - company_id: "{company_id}"
      - title: "Solicitud Asistencia - Teléfonos no encontrados"
      - description: "Cliente solicita asistencia pero no se encontraron teléfonos en ERP. NIF: {nif_value}, Ramo: [el ramo identificado]"
      - card_type: "opportunity"
@@ -79,7 +78,7 @@ Phone_Cliente: {wa_id or ''}
    - Clasifica la respuesta en uno de los <ramos_validos>.
 
 2. INTENTAR OBTENER TELÉFONOS:
-   - Llama a get_assistance_phones con: nif="{nif_value}", ramo=<el identificado>, company_id="{erp_company_id}".
+   - Llama a get_assistance_phones con: nif="{nif_value}", ramo=<el identificado>, company_id="{company_id}".
 
 3. ANALIZAR RESPUESTA Y ACTUAR AUTOMÁTICAMENTE:
    **CASO A - Teléfonos encontrados:**

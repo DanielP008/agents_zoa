@@ -101,23 +101,6 @@ def receptionist_agent(payload: dict) -> dict:
     has_assistant_messages = any(role == "ai" for role, _ in history)
     is_first_interaction = not has_assistant_messages
 
-    if not nif_value:
-        detected_nif = _extract_nif_from_text(user_text)
-        if detected_nif:
-            nif_value = detected_nif
-            memory_patch = _build_nif_memory_patch(detected_nif)
-        elif not is_first_interaction:
-            return {
-                "action": "ask",
-                "message": "Para continuar, necesito tu NIF, DNI, NIE o CIF. ¿Podés indicármelo?"
-            }
-    
-    if payload.get("ask_nif") and not nif_value:
-        return {
-            "action": "ask",
-            "message": "Para continuar, necesito tu NIF, DNI, NIE o CIF. ¿Podés indicármelo?"
-        }
-
     active_domains_map = {
         k: v.get("receptionist_label", k.capitalize())
         for k, v in _ROUTES_CONFIG["domains"].items()
@@ -127,9 +110,9 @@ def receptionist_agent(payload: dict) -> dict:
 
     greeting_instruction = ""
     if is_first_interaction:
-        greeting_instruction = "Esta es la PRIMERA interacción. DEBES presentarte brevemente como Sofía, recepcionista virtual de ZOA Seguros."
+        greeting_instruction = "Esta es la PRIMERA interacción después del welcome del orchestrator. Preséntate brevemente y ve al grano para clasificar su consulta."
     else:
-        greeting_instruction = "Esta NO es la primera interacción. NO te vuelvas a presentar. Ve directo al grano o pide la información que falta."
+        greeting_instruction = "Esta NO es la primera interacción. NO te vuelvas a presentar. Ve directo al grano."
     
     consultation_context = ""
     if consultation_completed:
@@ -303,23 +286,17 @@ Responde SIEMPRE en JSON válido:
         classifier_agent = domain_config.get("classifier")
         
         if classifier_agent:
-            response = {
+            return {
                 "action": "route",
                 "next_agent": classifier_agent,
                 "domain": domain,
                 "message": None
             }
-            if memory_patch:
-                response["memory"] = memory_patch
-            return response
     
     if not message:
         message = f"Disculpa, no entendí bien. ¿Tu consulta es sobre {available_domains_str}?"
 
-    response = {
+    return {
         "action": "ask",
         "message": message
     }
-    if memory_patch:
-        response["memory"] = memory_patch
-    return response

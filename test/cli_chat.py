@@ -13,12 +13,11 @@ def main():
     user_id = "+34777666999"
     company_id = "606338959237848"      # ZOA => 521783407682043        ERP -> 606338959237848
     user_name = "Juan Pérez"
-    user_nif = "27464443M"              # ZOA => 23940602V              ERP => 27464443M
+    #user_nif = "27464443M"              # ZOA => 23940602V              ERP => 27464443M
     conversation_id = f"{company_id}_{user_id}"
 
     print(f"Session ID: {conversation_id}")
     print(f"User ID (wa_id): {user_id}")
-    print(f"User NIF: {user_nif}\n")
 
     while True:
         try:
@@ -38,7 +37,6 @@ def main():
             "mensaje": user_input,
             "phone_number_id": company_id,
             "name": user_name,
-            "nif": user_nif,  # Enviar NIF en el payload
         }
 
         try:
