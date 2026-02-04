@@ -87,7 +87,7 @@ Phone_Cliente: {wa_id or ''}
    
    **CASO B - NO hay teléfonos o error:**
    - INMEDIATAMENTE llama a create_task_activity_tool con los datos requeridos.
-   - Informa al cliente: "No he encontrado ninguna póliza asignada a tu numero de telefono, ni DNI en nuestra base de dato. Voy a pedir que un compañero te llame el dia de mañana para darte asistencia con tu caso particular."
+   - Informa al cliente: "No he encontrado ninguna póliza asignada a tu numero de telefono, ni DNI en nuestra base de datos. Voy a pedir que un compañero te llame el dia de mañana para darte asistencia con tu caso particular."
    - INMEDIATAMENTE después ejecuta end_chat_tool().
 
 4. EMERGENCIA ACTIVA:
