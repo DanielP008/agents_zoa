@@ -2,8 +2,8 @@
 from langchain.tools import tool
 
 
-@tool
-def end_chat_tool() -> dict:
+@tool(return_direct=True)
+def end_chat_tool() -> str:
     """
     Finaliza la conversación y limpia la sesión del usuario.
     
@@ -17,8 +17,5 @@ def end_chat_tool() -> dict:
     - La sesión y toda la información almacenada en PostgreSQL se eliminará automáticamente
     - El usuario deberá iniciar una nueva conversación para futuras consultas
     """
-    return {
-        "action": "end_chat",
-        "message": "¡Perfecto! Fue un placer ayudarte. Si necesitas algo más en el futuro, aquí estaré. ¡Que tengas un excelente día! 😊",
-        "cleanup_session": True
-    }
+    # return_direct=True ensures the agent loop stops immediately after this tool runs.
+    return "¡Perfecto! Fue un placer ayudarte. Si necesitas algo más en el futuro, aquí estaré. ¡Que tengas un excelente día!"

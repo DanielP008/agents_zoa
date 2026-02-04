@@ -116,7 +116,7 @@ def create_task_activity(
     # Build request data with required fields and defaults
     request_data = {
         "title": title,
-        "card_type": card_type,
+        #"card_type": card_type,        # TODO: Add card_type back when ZOA supports it
         "amount": amount,
         "duration": duration,
         "repeat": repeat,

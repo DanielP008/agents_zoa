@@ -52,7 +52,7 @@ def process_message(payload: dict) -> dict:
             payload["mensaje"] = mensaje
 
     # Handle NIF lookup and welcome message
-    memory, nif_value, should_continue = _handle_nif_and_welcome(
+    memory, nif_value, should_continue, generated_message = _handle_nif_and_welcome(
         memory, 
         mensaje, 
         wa_id, 
@@ -65,7 +65,7 @@ def process_message(payload: dict) -> dict:
     if not should_continue:
         return {
             "type": "text",
-            "message": memory.get("global", {}).get("last_message", ""),
+            "message": generated_message or memory.get("global", {}).get("last_message", ""),
             "agent": "orchestrator"
         }
     
@@ -316,12 +316,12 @@ def _handle_nif_and_welcome(
     mensaje: str,
     wa_id: str,
     company_id: str
-) -> tuple[dict, str, bool]:
+) -> tuple[dict, str, bool, str | None]:
     """
     Handle NIF lookup and welcome message logic.
     
     Returns:
-        tuple: (updated_memory, nif_value, should_continue)
+        tuple: (updated_memory, nif_value, should_continue, generated_message)
                should_continue=False means orchestrator needs to return early with a message
     """
     global_mem = memory.get("global", {})
@@ -341,11 +341,15 @@ def _handle_nif_and_welcome(
         
         # 1.2: Try CRM/ZOA lookup if still no NIF
         if not nif_value and wa_id and company_id:
-            logger.info(f"[NIF_HANDLER] Attempting ZOA CRM lookup")
-            contact_response = search_contact_by_phone(wa_id, company_id)
-            nif_value = extract_nif_from_contact_search(contact_response)
-            logger.info(f"[NIF_HANDLER] ZOA lookup result: {nif_value}")
-        
+            logger.info(f"[NIF_HANDLER] Attempting ZOA CRM lookup for wa_id={wa_id}, company_id={company_id}")
+            try:
+                contact_response = search_contact_by_phone(wa_id, company_id)
+                logger.info(f"[NIF_HANDLER] Raw contact response: {contact_response}")
+                nif_value = extract_nif_from_contact_search(contact_response)
+                logger.info(f"[NIF_HANDLER] Extracted NIF from contact: {nif_value}")
+            except Exception as e:
+                logger.error(f"[NIF_HANDLER] Error during contact lookup: {e}", exc_info=True)
+            
         # 1.3: Save NIF or mark lookup as failed
         if nif_value:
             logger.info(f"[NIF_HANDLER] NIF found: {nif_value}")
@@ -393,7 +397,7 @@ def _handle_nif_and_welcome(
                 wa_id=wa_id
             )
         
-        return memory, nif_value, False  # Don't continue, return early
+        return memory, nif_value, False, welcome_message  # Don't continue, return early
     
     # STEP 3: If we still don't have NIF after welcome, ask for it
     if not nif_value:
@@ -405,7 +409,7 @@ def _handle_nif_and_welcome(
             memory = update_global(memory, nif=nif_value, nif_lookup_failed=False)
             session_manager.update_agent_memory(wa_id, memory, company_id)
             logger.info(f"[NIF_HANDLER] NIF captured from user message: {nif_value}")
-            return memory, nif_value, True  # Continue with normal flow
+            return memory, nif_value, True, None  # Continue with normal flow
         else:
             # Still no NIF - ask for it
             logger.info(f"[NIF_HANDLER] No NIF available - requesting from user")
@@ -437,8 +441,8 @@ def _handle_nif_and_welcome(
                     wa_id=wa_id
                 )
             
-            return memory, nif_value, False  # Don't continue, return early
+            return memory, nif_value, False, nif_request_message  # Don't continue, return early
     
     # STEP 4: We have NIF, continue with normal flow
     logger.info(f"[NIF_HANDLER] NIF available: {nif_value} - proceeding to agents")
-    return memory, nif_value, True
+    return memory, nif_value, True, None

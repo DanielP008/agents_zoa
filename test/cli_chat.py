@@ -44,6 +44,13 @@ def main():
             response.raise_for_status()
             
             data = response.json()
+            
+            # Special handling for session reset
+            if data.get("action") == "session_reset":
+                print(f"SISTEMA: Sesión reiniciada ({data.get('result')})")
+                print("="*50 + "\n")
+                continue
+
             agent_response = data.get("response", {})
             
             if isinstance(agent_response, dict):

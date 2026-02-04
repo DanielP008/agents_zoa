@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from langchain.agents import create_agent, AgentState
 from langchain.tools import BaseTool
-from langchain.messages import HumanMessage, AIMessage, SystemMessage
+from langchain.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +131,15 @@ def run_langchain_agent(
         
         # Check if any tool returned end_chat action
         if isinstance(result, dict):
+            # Prefer the ToolMessage content if end_chat_tool was called.
+            end_chat_tool_message_text: Optional[str] = None
             for msg in result.get("messages", []):
+                # ToolMessage path (most reliable)
+                if isinstance(msg, ToolMessage) and getattr(msg, "name", None) == "end_chat_tool":
+                    end_chat_tool_message_text = _extract_text_from_content(msg.content)
+                    action = "end_chat"
+                    continue
+
                 if hasattr(msg, 'tool_calls'):
                     for tool_call in (msg.tool_calls or []):
                         if tool_call.get("name") == "end_chat_tool":
@@ -142,6 +150,9 @@ def run_langchain_agent(
                     msg_text = _extract_text_from_content(msg.content)
                     if '"action": "end_chat"' in msg_text:
                         action = "end_chat"
+
+            if end_chat_tool_message_text:
+                output = end_chat_tool_message_text
         
         # Final check: if output contains the exact end_chat message patterns
         if isinstance(output, str) and "Fue un placer ayudarte" in output and "excelente día" in output:
