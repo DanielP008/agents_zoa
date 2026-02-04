@@ -20,3 +20,5 @@ venv/
 
 # logs
 *.log
+
+*streamlit_app.py
