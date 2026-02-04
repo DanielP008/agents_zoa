@@ -90,7 +90,11 @@ class ZoaBaseInterface:
 
         request_data['company_id'] = company_id
         request_data['option'] = option
-        request_data['action'] = self.action_name
+        request_data['action'] = self.action_name or request_data.get('action') # Ensure action is passed
+        
+        # Validation for action
+        if not request_data.get('action'):
+             return {"error": "Error interno: 'action' no definido en la clase ni en request_data."}, 500
 
         try:
             result = _make_zoa_request(request_data)
