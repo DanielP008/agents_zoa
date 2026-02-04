@@ -105,9 +105,9 @@ def create_task_activity(
     To link to a contact, provide at least one of: phone, email, nif, mobile.
     For 'llamada' activities, date and start_time are auto-set to now+5min if not provided.
     """
-    # Auto-calculate date and start_time for 'llamada' activities (now + 5 minutes)
+    # Auto-calculate date and start_time for 'llamada' activities (now + 1 day)
     if type_of_activity == "llamada":
-        scheduled_time = datetime.now() + timedelta(minutes=5)
+        scheduled_time = datetime.now() + timedelta(days=1)
         if date is None:
             date = scheduled_time.strftime("%Y-%m-%d")
         if start_time is None:
