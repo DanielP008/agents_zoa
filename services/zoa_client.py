@@ -142,7 +142,7 @@ def create_task_activity(
         "nif": nif,
         "mobile": mobile,
         "pipeline_name": pipeline_name,
-        "stage_name": stage_name,
+        #"stage_name": stage_name, # switch to Nuevo
     }
     
     # Update with non-None optional fields

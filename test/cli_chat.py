@@ -11,7 +11,7 @@ def main():
 
     url = "http://localhost:8080"
     user_id = "+541133831705"
-    company_id = "606338959237848"      # ZOA => 521783407682043        ERP -> 606338959237848
+    company_id = "521783407682043"       # ZOA => 521783407682043        ERP -> 606338959237848
     user_name = "Juan Arano"
     #user_nif = "27464443M"              # ZOA => 23940602V              ERP => 27464443M
     conversation_id = f"{company_id}_{user_id}"

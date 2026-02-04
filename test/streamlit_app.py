@@ -14,9 +14,9 @@ st.set_page_config(
 
 # Constants
 API_URL = "http://localhost:8080"
-DEFAULT_USER_ID = "+34777666999"
-DEFAULT_COMPANY_ID = "606338959237848"
-DEFAULT_USER_NAME = "Juan Pérez"
+DEFAULT_USER_ID = "+541133831705"
+DEFAULT_COMPANY_ID = "521783407682043"
+DEFAULT_USER_NAME = "Juan Arano"
 
 # --- SESSION STATE INITIALIZATION ---
 if "messages" not in st.session_state:
