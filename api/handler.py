@@ -1,7 +1,17 @@
 import json
+import logging
+import sys
 from core.orchestrator import process_message
 from core.db import SessionManager
 from core.tracing import setup_tracing
+
+# Configure logging to stdout
+logging.basicConfig(
+    stream=sys.stdout, 
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 setup_tracing()
 
