@@ -1,5 +1,6 @@
 """ZOA client with backward-compatible function wrappers."""
 
+import re
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List, Union
 
@@ -105,6 +106,57 @@ def create_task_activity(
     To link to a contact, provide at least one of: phone, email, nif, mobile.
     For 'llamada' activities, date and start_time are auto-set to now+5min if not provided.
     """
+    # tags_name must always include "<Dominio>-<Ramo>" (e.g. "Siniestros-Hogar")
+    text_low = f"{title}\n{description or ''}".lower()
+    if any(k in text_low for k in ("siniestro", "asistencia", "grua", "grúa", "carretera")):
+        domain_tag = "Siniestros"
+    elif any(k in text_low for k in ("póliza", "poliza", "devolución", "devolucion", "modificar", "modificación", "iban")):
+        domain_tag = "Gestion"
+    elif any(k in text_low for k in ("venta", "cotización", "cotizacion", "contratar", "presupuesto")):
+        domain_tag = "Ventas"
+    else:
+        domain_tag = "General"
+
+    ramo_text = f"{title}\n{description or ''}"
+    ramo_match = re.search(
+        r"(?i)\b(?:ramo|tipo de póliza|tipo de poliza)\s*:\s*([^\n\r,;]+)",
+        ramo_text,
+    )
+    ramo_candidate = (ramo_match.group(1) if ramo_match else "").strip().strip("[]()").strip()
+    ramo_search = ramo_candidate.lower() if ramo_candidate else text_low
+
+    if "responsabilidad civil" in ramo_search or re.search(r"\brc\b", ramo_search):
+        ramo_tag = "RC"
+    elif "hogar" in ramo_search:
+        ramo_tag = "Hogar"
+    elif any(k in ramo_search for k in ("auto", "coche", "vehiculo", "vehículo")):
+        ramo_tag = "Auto"
+    elif "transport" in ramo_search:
+        ramo_tag = "Transportes"
+    elif "accident" in ramo_search:
+        ramo_tag = "Accidentes"
+    elif "comunidad" in ramo_search:
+        ramo_tag = "Comunidades"
+    elif "pyme" in ramo_search and "comerc" in ramo_search:
+        ramo_tag = "Pyme/Comercio"
+    elif "pyme" in ramo_search:
+        ramo_tag = "Pyme"
+    elif "comerc" in ramo_search:
+        ramo_tag = "Comercios"
+    else:
+        ramo_tag = (ramo_candidate[:1].upper() + ramo_candidate[1:]) if ramo_candidate else "General"
+
+    required_tag = f"{domain_tag}-{ramo_tag}"
+    if isinstance(tags_name, list):
+        if not any(str(t).strip().lower() == required_tag.lower() for t in tags_name):
+            tags_name = [*tags_name, required_tag]
+    elif isinstance(tags_name, str) and tags_name.strip():
+        existing = [t.strip().lower() for t in tags_name.split(",") if t.strip()]
+        if required_tag.lower() not in existing:
+            tags_name = f"{tags_name},{required_tag}"
+    else:
+        tags_name = required_tag
+
     # Auto-calculate date and start_time for 'llamada' activities (now + 1 day)
     if type_of_activity == "llamada":
         scheduled_time = datetime.now() + timedelta(days=1)
