@@ -1,11 +1,10 @@
 """Modificar poliza agent for LangChain 1.x."""
 from core.agent_factory import create_langchain_agent, run_langchain_agent
 from core.memory_schema import get_global_history
-
 from core.llm import get_llm
 from tools.zoa.tasks import create_task_activity_tool
 from tools.communication.end_chat_tool import end_chat_tool
-
+from tools.erp.erp_tools import get_client_policys_tool
 
 def modificar_poliza_agent(payload: dict) -> dict:
     user_text = payload.get("mensaje", "")
@@ -44,7 +43,10 @@ Company_ID: {company_id}
 </modificaciones_permitidas>
 
 <herramientas>
-1. create_task_activity_tool(json_string): Crea una tarea + actividad para que el gestor realice la modificación.
+1. get_client_policys_tool(nif, ramo, company_id): Obtiene las pólizas de un ramo específico.
+   - IMPORTANTE: Siempre usa company_id="{company_id}"
+   - Devuelve: number (número de póliza), company_name, risk, phones
+2. create_task_activity_tool(json_string): Crea una tarea + actividad para que el gestor realice la modificación.
    - JSON debe incluir:
      - company_id: "{company_id}"
      - title: "Modificar Póliza [número]"
@@ -56,7 +58,7 @@ Company_ID: {company_id}
      - activity_title: "Gestionar modificación"
      - activity_description: "Contactar al cliente para confirmar y aplicar cambios"
      - phone: "{wa_id or ''}"
-2. end_chat_tool(): Finaliza la conversación cuando los cambios estén registrados.
+3. end_chat_tool(): Finaliza la conversación cuando los cambios estén registrados.
 </herramientas>
 
 <flujo_de_atencion>
@@ -115,7 +117,7 @@ Company_ID: {company_id}
 </restricciones>"""
 
     llm = get_llm()
-    tools = [create_task_activity_tool, end_chat_tool]
+    tools = [create_task_activity_tool, end_chat_tool, get_client_policys_tool]
     
     agent = create_langchain_agent(llm, tools, system_prompt)
     result = run_langchain_agent(agent, user_text, history)
