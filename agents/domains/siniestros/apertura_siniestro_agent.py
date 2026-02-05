@@ -88,7 +88,8 @@ PYME/COMERCIO:
 - ¿Ha causado daños a bienes de clientes?
 
 RESPONSABILIDAD CIVIL:
-- Nombre completo, teléfono y correo de la persona que reclama
+- Nombre completo, teléfono y correo de la persona que reclama **SE DEBE DE PEDIR AL CLIENTE DE FORMA OBLIGATORIA**
+- Fecha, hora y lugar del siniestro
 - ¿Qué daño ha causado a un tercero? (material, lesiones personales, perjuicio económico)
 - ¿Hay denuncias interpuestas?
 - ¿Hay testigos?
