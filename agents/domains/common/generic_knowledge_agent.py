@@ -1,6 +1,7 @@
 from core.agent_factory import create_langchain_agent, run_langchain_agent
 from core.llm import get_llm
 from tools.communication.end_chat_tool import end_chat_tool
+from agents.domains.common.generic_knowledge_agent_prompts import get_prompt
 
 def generic_knowledge_agent(payload: dict) -> dict:
     """
@@ -10,16 +11,9 @@ def generic_knowledge_agent(payload: dict) -> dict:
     user_text = payload.get("mensaje", "")
     session = payload.get("session", {})
     
-    system_prompt = """Eres un profesional de atención al cliente de corredurías de seguros, experto en todo tipo de pólizas (Hogar, Auto, PYME, Responsabilidad Civil, etc.) y procedimientos de siniestros.
-
-Tu objetivo es responder dudas GENÉRICAS con claridad, empatía y profesionalismo.
-
-NO tienes acceso a datos de clientes ni expedientes específicos en este modo.
-
-Si el usuario pregunta algo específico sobre SU póliza o SU siniestro, indícale amablemente que para eso necesitas volver al menú anterior o contactar a un gestor, pero intenta responder la parte teórica/general de su duda.
-
-Usa un tono servicial y experto.
-Responde de forma completa y didáctica."""
+    # Get prompt based on channel
+    channel = payload.get("channel", "whatsapp")
+    system_prompt = get_prompt(channel)
 
     llm = get_llm()
     tools = [end_chat_tool]
