@@ -4,6 +4,7 @@ from core.memory_schema import get_global_history
 
 from core.llm import get_llm
 from tools.communication.end_chat_tool import end_chat_tool
+from tools.communication.redirect_to_receptionist_tool import redirect_to_receptionist_tool
 from tools.sales.cross_sell import get_customer_policies_tool, create_cross_sell_offer_tool
 from agents.domains.ventas.venta_cruzada_agent_prompts import get_prompt
 
@@ -18,21 +19,33 @@ def venta_cruzada_agent(payload: dict) -> dict:
     system_prompt = get_prompt(channel)
 
     llm = get_llm()
-    tools = [get_customer_policies_tool, create_cross_sell_offer_tool, end_chat_tool]
+    tools = [get_customer_policies_tool, create_cross_sell_offer_tool, end_chat_tool, redirect_to_receptionist_tool]
     
     agent = create_langchain_agent(llm, tools, system_prompt)
     result = run_langchain_agent(agent, user_text, history)
     
     output_text = result.get("output", "")
     action = result.get("action", "ask")
+    tool_calls = result.get("tool_calls")
+
+    # Check if redirect to receptionist was triggered
+    if "__REDIRECT_TO_RECEPTIONIST__" in output_text:
+        return {
+            "action": "route",
+            "next_agent": "receptionist_agent",
+            "message": "",
+            "tool_calls": tool_calls
+        }
 
     if action == "end_chat":
         return {
             "action": "end_chat",
-            "message": output_text
+            "message": output_text,
+            "tool_calls": tool_calls
         }
 
     return {
         "action": action,
-        "message": output_text
+        "message": output_text,
+        "tool_calls": tool_calls
     }

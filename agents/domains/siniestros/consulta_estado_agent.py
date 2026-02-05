@@ -6,6 +6,7 @@ from langchain.tools import tool
 from core.llm import get_llm
 from agents.domains.common.generic_knowledge_agent import generic_knowledge_agent
 from tools.communication.end_chat_tool import end_chat_tool
+from tools.communication.redirect_to_receptionist_tool import redirect_to_receptionist_tool
 from tools.zoa.tasks import create_task_activity_tool
 from tools.erp.erp_tools import get_claims_tool
 from tools.document_ai.ocr_tools import process_document
@@ -47,6 +48,7 @@ def consulta_estado_agent(payload: dict) -> dict:
         get_claims_tool,
         process_document,
         end_chat_tool,
+        redirect_to_receptionist_tool,
         create_task_activity_tool,
         ask_expert_knowledge,
     ]
@@ -56,14 +58,26 @@ def consulta_estado_agent(payload: dict) -> dict:
     
     output_text = result.get("output", "")
     action = result.get("action", "ask")
+    tool_calls = result.get("tool_calls")
+
+    # Check if redirect to receptionist was triggered
+    if "__REDIRECT_TO_RECEPTIONIST__" in output_text:
+        return {
+            "action": "route",
+            "next_agent": "receptionist_agent",
+            "message": "",
+            "tool_calls": tool_calls
+        }
 
     if action == "end_chat":
         return {
             "action": "end_chat",
-            "message": output_text
+            "message": output_text,
+            "tool_calls": tool_calls
         }
 
     return {
         "action": action,
-        "message": output_text
+        "message": output_text,
+        "tool_calls": tool_calls
     }

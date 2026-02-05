@@ -29,7 +29,8 @@ def build_agent_allowlist(routes_config: dict) -> dict:
         specialists = domain.get("specialists", [])
         if classifier:
             allowlist[classifier] = specialists
+        # Allow specialists to route back to receptionist_agent
         for specialist in specialists:
-            allowlist.setdefault(specialist, [])
+            allowlist.setdefault(specialist, ["receptionist_agent"])
 
     return allowlist

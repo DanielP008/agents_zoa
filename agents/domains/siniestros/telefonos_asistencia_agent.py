@@ -5,6 +5,7 @@ from core.agent_factory import create_langchain_agent, run_langchain_agent
 from core.memory_schema import get_global_history
 from core.llm import get_llm
 from tools.communication.end_chat_tool import end_chat_tool
+from tools.communication.redirect_to_receptionist_tool import redirect_to_receptionist_tool
 from tools.zoa.tasks import create_task_activity_tool
 from tools.erp.erp_tools import get_assistance_phones
 from agents.domains.siniestros.telefonos_asistencia_agent_prompts import get_prompt
@@ -30,18 +31,23 @@ def telefonos_asistencia_agent(payload: dict) -> dict:
    )
 
    llm = get_llm()
-   tools = [get_assistance_phones, create_task_activity_tool, end_chat_tool]
+   tools = [get_assistance_phones, create_task_activity_tool, end_chat_tool, redirect_to_receptionist_tool]
    
    agent = create_langchain_agent(llm, tools, system_prompt)
    result = run_langchain_agent(agent, user_text, history)
    
    output_text = result.get("output", "")
    action = result.get("action", "ask")
+   tool_calls = result.get("tool_calls")
 
    logger.info(f"[TELEFONOS_AGENT] Result: action={action}, output={output_text[:100]}...")
 
+   # Check if redirect to receptionist was triggered
+   if "__REDIRECT_TO_RECEPTIONIST__" in output_text:
+      return {"action": "route", "next_agent": "receptionist_agent", "message": "", "tool_calls": tool_calls}
+
    if action == "end_chat":
       logger.info(f"[TELEFONOS_AGENT] Returning end_chat action")
-      return {"action": "end_chat", "message": output_text}
+      return {"action": "end_chat", "message": output_text, "tool_calls": tool_calls}
 
-   return {"action": action, "message": output_text}
+   return {"action": action, "message": output_text, "tool_calls": tool_calls}
