@@ -147,6 +147,7 @@ RESPONSABILIDAD CIVIL:
 7. PREGUNTAR si necesita algo más.
 
 8. Si confirma que no necesita más, EJECUTA end_chat_tool.
+   - IMPORTANTE: Si ya creaste la tarea en el paso 6, NO la vuelvas a crear. Simplemente despídete y usa end_chat_tool.
 </flujo_de_atencion_CRITICO>
 
 <personalidad>
@@ -165,6 +166,7 @@ RESPONSABILIDAD CIVIL:
 - Si el cliente pregunta sobre cobertura específica, indica que el gestor lo confirmará
 - Si el cliente tiene una emergencia activa (heridos, coche en medio de la vía), prioriza indicar que llame a emergencias (112) y luego continúa con el parte
 - USA end_chat_tool solo cuando TODO esté completo y el cliente esté satisfecho
+- NO dupliques la creación de la tarea/actividad si ya la creaste anteriormente en la conversación
 </restricciones>"""
 
     llm = get_llm(model_name="gemini-3-flash-preview")
