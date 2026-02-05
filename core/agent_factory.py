@@ -122,6 +122,7 @@ def run_langchain_agent(
         
         # Check for end_chat pattern in the result
         action = "ask"
+        tool_calls_executed = []  # Track all tool calls made during this turn
         
         # Check if any tool returned end_chat action
         if isinstance(result, dict):
@@ -133,12 +134,17 @@ def run_langchain_agent(
                 # Check for AIMessage that calls the tool
                 if hasattr(msg, 'tool_calls'):
                     for tool_call in (msg.tool_calls or []):
+                        # Track all tool calls
+                        tool_calls_executed.append({
+                            "name": tool_call.get("name"),
+                            "args": tool_call.get("args", {})
+                        })
+                        
                         if tool_call.get("name") == "end_chat_tool":
                             action = "end_chat"
                             # Capture the text content of this AIMessage if it exists
                             if hasattr(msg, 'content') and msg.content:
                                 ai_message_text = _extract_text_from_content(msg.content)
-                            break
                 
                 # ToolMessage path (most reliable for action confirmation)
                 if isinstance(msg, ToolMessage) and getattr(msg, "name", None) == "end_chat_tool":
@@ -166,6 +172,10 @@ def run_langchain_agent(
                     output = "\n\n".join(parts)
                     logger.info(f"[AGENT_FACTORY] Combined output for end_chat: {output[:50]}...")
         
+        # Log tool calls if any
+        if tool_calls_executed:
+            logger.info(f"[AGENT_FACTORY] Tool calls executed: {[tc['name'] for tc in tool_calls_executed]}")
+        
         # Final check: if output contains the exact end_chat message patterns
         if isinstance(output, str) and "Fue un placer ayudarte" in output and "excelente día" in output:
             logger.info(f"[AGENT_FACTORY] Detected end_chat by message pattern")
@@ -176,7 +186,8 @@ def run_langchain_agent(
         
         return {
             "output": output,
-            "action": action
+            "action": action,
+            "tool_calls": tool_calls_executed if tool_calls_executed else None
         }
         
     except Exception as e:

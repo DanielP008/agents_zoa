@@ -94,6 +94,7 @@ def process_message(payload: dict) -> dict:
         
         action = response.get("action")
         agent_message = response.get("message")
+        tool_calls = response.get("tool_calls")
 
         if action == "end_chat":
             logger.info(f"[ORCHESTRATOR] end_chat action triggered. Cleaning up session for wa_id: {wa_id}")
@@ -179,6 +180,7 @@ def process_message(payload: dict) -> dict:
                 agent=target_agent,
                 domain=session.get("domain"),
                 action=action,
+                tool_calls=tool_calls,
             )
         memory = apply_memory_patch(memory, response.get("memory", {}))
         memory = update_global(
@@ -220,6 +222,7 @@ def process_message(payload: dict) -> dict:
                 agent=target_agent,
                 domain=new_domain,
                 action=action,
+                tool_calls=tool_calls,
             )
         memory = apply_memory_patch(memory, response.get("memory", {}))
         memory = update_global(
@@ -248,6 +251,7 @@ def process_message(payload: dict) -> dict:
                 agent=target_agent,
                 domain=session.get("domain"),
                 action=action,
+                tool_calls=tool_calls,
             )
         
         memory = update_global(

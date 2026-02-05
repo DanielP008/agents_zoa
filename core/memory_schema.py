@@ -53,18 +53,20 @@ def append_turn(
     agent: Optional[str],
     domain: Optional[str],
     action: Optional[str],
+    tool_calls: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     memory = ensure_memory_shape(memory)
-    memory["conversation_history"].append(
-        {
-            "role": role,
-            "text": text,
-            "timestamp": _utc_now(),
-            "agent": agent,
-            "domain": domain,
-            "action": action,
-        }
-    )
+    turn = {
+        "role": role,
+        "text": text,
+        "timestamp": _utc_now(),
+        "agent": agent,
+        "domain": domain,
+        "action": action,
+    }
+    if tool_calls:
+        turn["tool_calls"] = tool_calls
+    memory["conversation_history"].append(turn)
     memory["metadata"]["updated_at"] = _utc_now()
     return memory
 
