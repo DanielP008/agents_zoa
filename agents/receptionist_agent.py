@@ -9,17 +9,16 @@ from core.llm import get_llm
 from core.memory_schema import get_global_history
 from core.llm_utils import safe_structured_invoke
 from core.config import get_routes_path
+from core.decision_schemas import ReceptionistDecision
 
 _ROUTES_PATH = get_routes_path()
 
 with open(_ROUTES_PATH, "r") as f:
     _ROUTES_CONFIG = json.load(f)
-    # Solo dominios con enabled !== false (por defecto true)
     _VALID_DOMAINS = set(
         k for k, v in _ROUTES_CONFIG["domains"].items()
         if v.get("enabled", True)
     )
-
 
 def _extract_nif_from_text(text: str) -> str:
     if not text:
@@ -35,27 +34,8 @@ def _extract_nif_from_text(text: str) -> str:
             return match.group(0).upper()
     return ""
 
-
 def _build_nif_memory_patch(nif: str) -> dict:
     return {"global": {"nif": nif, "nif_lookup_failed": False}}
-
-
-class ReceptionistDecision(BaseModel):
-    domain: str | None = Field(
-        default=None,
-        description="El dominio detectado (siniestros, gestion, ventas) si está claro, o null si no."
-    )
-    message: str | None = Field(
-        default=None,
-        description="Respuesta natural al usuario si no se detecta dominio o se requiere más información."
-    )
-    confidence: float | None = Field(
-        default=0.0,
-        description="Nivel de confianza de la clasificación (0.0 a 1.0).",
-        ge=0.0,
-        le=1.0
-    )
-
 
 def receptionist_agent(payload: dict) -> dict:
     session = payload.get("session", {})

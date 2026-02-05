@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from core.llm import get_llm
 from core.memory_schema import get_agent_memory, get_global_history
 from core.llm_utils import safe_structured_invoke
+from core.decision_schemas import ClassificationDecision
 
 from core.config import get_routes_path
 
@@ -19,25 +20,6 @@ with open(_ROUTES_PATH, "r") as f:
         _VALID_ROUTES = _ROUTES_CONFIG["domains"]["siniestros"]["specialists"]
     except KeyError:
         _VALID_ROUTES = []
-
-class ClassificationDecision(BaseModel):
-    """Decision model for the classifier agent."""
-    route: str = Field(
-        default="classifier_siniestros_agent",
-        description=f"The target agent to route to. Must be one of: {', '.join(_VALID_ROUTES)}. If unsure, select the most likely one but set needs_more_info to True."
-    )
-    confidence: float = Field(
-        default=0.0,
-        description="Confidence score between 0.0 and 1.0."
-    )
-    needs_more_info: bool = Field(
-        default=True,
-        description="Set to True if you need to ask the user a clarifying question before routing. Set to False if you are confident."
-    )
-    question: str = Field(
-        default="",
-        description="The question to ask the user if needs_more_info is True. Otherwise, an empty string or polite closing."
-    )
 
 def classifier_siniestros_agent(payload: dict) -> dict:
     decision = classify_message(payload)
