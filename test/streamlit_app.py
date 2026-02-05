@@ -2,7 +2,12 @@ import streamlit as st
 import requests
 import uuid
 import json
+import os
+from dotenv import load_dotenv
 from datetime import datetime
+
+# Load env variables
+load_dotenv()
 
 # --- CONFIGURATION ---
 st.set_page_config(
@@ -14,7 +19,7 @@ st.set_page_config(
 
 # Constants
 API_URL = "http://localhost:8080" # Local
-DEFAULT_USER_ID = "+541133831705"
+DEFAULT_USER_ID = os.getenv("TEST_PHONE_NUMBER", "+34000000000")
 DEFAULT_COMPANY_ID = "521783407682043"
 DEFAULT_USER_NAME = "Daniel Pulgar"
 
