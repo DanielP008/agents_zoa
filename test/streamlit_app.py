@@ -13,7 +13,8 @@ st.set_page_config(
 )
 
 # Constants
-API_URL = "http://localhost:8080"
+#API_URL = "http://localhost:8080" # Local
+API_URL = "https://flow-zoa-673887944015.europe-southwest1.run.app"
 DEFAULT_USER_ID = "+541133831705"
 DEFAULT_COMPANY_ID = "521783407682043"
 DEFAULT_USER_NAME = "Juan Arano"
