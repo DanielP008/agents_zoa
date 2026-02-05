@@ -11,7 +11,6 @@ from services.ocr_service import extract_policy_data
 
 logger = logging.getLogger(__name__)
 
-
 # ============================================================================
 # ASSISTANCE TOOLS
 # ============================================================================
@@ -31,7 +30,6 @@ def get_assistance_phones(nif: str, ramo: str, company_id: str) -> dict:
     """
     return get_assistance_phones_from_erp(nif=nif, ramo=ramo, company_id=company_id)
 
-
 # ============================================================================
 # POLICY TOOLS
 # ============================================================================
@@ -50,7 +48,6 @@ def get_client_policys_tool(nif: str, ramo: str, company_id: str) -> dict:
         dict con las pólizas del cliente (number, company_name, risk, phones)
     """
     return get_client_policys(nif, ramo, company_id)
-
 
 @tool
 def get_policy_document_tool(policy_id: str, company_id: str) -> dict:
@@ -118,7 +115,6 @@ def get_policy_document_tool(policy_id: str, company_id: str) -> dict:
         "description": doc.get("description"),
         "data": ocr_result.get("data", {})
     }
-
 
 # ============================================================================
 # CLAIM TOOLS

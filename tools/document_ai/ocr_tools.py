@@ -4,7 +4,6 @@ import json
 from langchain.tools import tool
 from services.ocr_service import extract_document_data
 
-
 @tool
 def process_document(data: str) -> dict:
     """

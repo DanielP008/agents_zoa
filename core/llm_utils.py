@@ -6,7 +6,6 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar('T')
 
-
 def safe_structured_invoke(
     chain: Any,
     inputs: Dict[str, Any],
@@ -28,7 +27,6 @@ def safe_structured_invoke(
         logger.error(f"Structured output error{context_msg}: {e}")
         return fallback_factory()
 
-
 def safe_llm_invoke(
     chain_callable: Callable,
     inputs: Dict[str, Any],
@@ -45,7 +43,6 @@ def safe_llm_invoke(
             logger.error(f"LLM Error{context_msg}: {e}")
             logger.debug(f"LLM Input{context_msg}: {inputs}")
         return fallback
-
 
 def parse_llm_json_response(
     raw_response: Any,
@@ -94,7 +91,6 @@ def parse_llm_json_response(
         logger.error(f"Failed to parse LLM JSON response: {e}")
         logger.debug(f"Raw content: {content[:200]}...")
         return fallback or {}
-
 
 def create_llm_retry_decorator(
     max_retries: int = 3,

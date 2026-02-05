@@ -14,7 +14,6 @@ from tools.erp.erp_tools import (
     get_policy_document_tool,
 )
 
-
 RAMO_OPTIONS = [
     "hogar",
     "auto",
@@ -22,7 +21,6 @@ RAMO_OPTIONS = [
     "responsabilidad civil",
     "comunidades vecinos",
 ]
-
 
 def _get_state(memory: Dict[str, Any]) -> Dict[str, Any]:
     return (
@@ -32,13 +30,11 @@ def _get_state(memory: Dict[str, Any]) -> Dict[str, Any]:
         or {}
     )
 
-
 def _state_patch(memory: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
     domain_data = memory.get("domains", {}).get("gestion", {}) or {}
     current = domain_data.get("consultar_poliza", {}) or {}
     new_state = {**current, **updates}
     return {"domains": {"gestion": {**domain_data, "consultar_poliza": new_state}}}
-
 
 def consultar_poliza_agent(payload: dict) -> dict:
     user_text = (payload.get("mensaje") or "").strip()

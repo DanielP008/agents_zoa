@@ -1,7 +1,6 @@
 import os
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-
 def get_llm(model_name: str = None):
     """
     Get a configured LLM instance.

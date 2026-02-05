@@ -6,7 +6,6 @@ from core.llm import get_llm
 from tools.communication.end_chat_tool import end_chat_tool
 from tools.sales.cross_sell import get_customer_policies_tool, create_cross_sell_offer_tool
 
-
 def venta_cruzada_agent(payload: dict) -> dict:
     user_text = payload.get("mensaje", "")
     session = payload.get("session", {})

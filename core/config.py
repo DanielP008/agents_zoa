@@ -2,7 +2,6 @@
 import pathlib
 from typing import Optional
 
-
 def get_project_root() -> pathlib.Path:
     """Get the project root directory."""
     current_dir = pathlib.Path(__file__).parent

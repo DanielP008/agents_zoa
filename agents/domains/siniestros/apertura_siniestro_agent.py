@@ -5,8 +5,6 @@ from core.memory_schema import get_global_history
 from core.llm import get_llm
 from tools.zoa.tasks import create_task_activity_tool
 from tools.communication.end_chat_tool import end_chat_tool
-
-
 def apertura_siniestro_agent(payload: dict) -> dict:
     user_text = payload.get("mensaje", "")
     session = payload.get("session", {})

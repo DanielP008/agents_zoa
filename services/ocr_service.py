@@ -10,7 +10,6 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 
 logger = logging.getLogger(__name__)
 
-
 def _get_ocr_model() -> ChatGoogleGenerativeAI:
     """Return the configured Gemini model instance for OCR."""
     api_key = os.environ.get("GEMINI_API_KEY", "")
@@ -24,7 +23,6 @@ def _get_ocr_model() -> ChatGoogleGenerativeAI:
         google_api_key=api_key,
         temperature=0.0
     )
-
 
 def extract_document_data(
     mime_type: str, 
@@ -101,7 +99,6 @@ def extract_document_data(
             "error": str(e),
             "status": "failed"
         }
-
 
 def extract_policy_data(mime_type: str, b64_data: str) -> Dict[str, Any]:
     """

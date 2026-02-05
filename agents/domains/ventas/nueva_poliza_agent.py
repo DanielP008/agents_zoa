@@ -6,7 +6,6 @@ from core.llm import get_llm
 from tools.communication.end_chat_tool import end_chat_tool
 from tools.sales.quotes import create_quote_tool, create_new_policy_tool
 
-
 def nueva_poliza_agent(payload: dict) -> dict:
     user_text = payload.get("mensaje", "")
     session = payload.get("session", {})

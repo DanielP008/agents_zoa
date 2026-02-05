@@ -10,7 +10,6 @@ from tools.erp.erp_tools import get_assistance_phones
 
 logger = logging.getLogger(__name__)
 
-
 def telefonos_asistencia_agent(payload: dict) -> dict:
    user_text = payload.get("mensaje", "")
    session = payload.get("session", {})
