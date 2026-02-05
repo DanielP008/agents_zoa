@@ -188,7 +188,7 @@ def create_task_activity(
         "email": email,
         "nif": nif,
         "mobile": mobile,
-        "pipeline_name": pipeline_name,
+        "pipeline_name": "Revisiones"
         #"stage_name": stage_name, # switch to Nuevo
     }
     

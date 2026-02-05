@@ -1,10 +1,13 @@
 """Devolucion agent for LangChain 1.x."""
 from core.agent_factory import create_langchain_agent, run_langchain_agent
 from core.memory_schema import get_global_history
-
 from core.llm import get_llm
 from tools.communication.end_chat_tool import end_chat_tool
 from tools.zoa.tasks import create_task_activity_tool
+from tools.erp.erp_tools import (
+    get_client_policys_tool,
+    get_policy_document_tool,
+)
 
 def devolucion_agent(payload: dict) -> dict:
    user_text = payload.get("mensaje", "")
@@ -41,7 +44,14 @@ Company_ID: {company_id}
 </datos_necesarios>
 
 <herramientas>
-1. create_task_activity_tool(json_string): Crea una tarea + actividad para que el gestor tramite la devolución.
+1. get_client_policys_tool(nif, ramo, company_id): Obtiene las pólizas de un ramo específico.
+   - IMPORTANTE: Siempre usa company_id="{company_id}"
+   - Devuelve: number (número de póliza), company_name, risk, phones
+2. get_policy_document_tool(policy_id, company_id): Obtiene el documento de la póliza y devuelve la información estructurada.
+   - IMPORTANTE: Siempre usa company_id="{company_id}"
+   - Solo necesita el número de póliza (policy_id), no el NIF.
+   - Devuelve JSON con todos los datos de la póliza (coberturas, fechas, primas, etc.)
+3. create_task_activity_tool(json_string): Crea una tarea + actividad para que el gestor tramite la devolución.
    - JSON debe incluir:
      - company_id: "{company_id}"
      - title: "Devolución - Póliza [número]"
@@ -53,7 +63,7 @@ Company_ID: {company_id}
      - activity_title: "Gestionar devolución"
      - activity_description: "Contactar al cliente para tramitar devolución"
      - phone: "{wa_id or ''}"
-2. end_chat_tool(): Finaliza la conversación cuando la solicitud esté registrada y el cliente no necesite nada más.
+4. end_chat_tool(): Finaliza la conversación cuando la solicitud esté registrada y el cliente no necesite nada más.
 </herramientas>
 
 <flujo_de_atencion>
@@ -80,12 +90,18 @@ Company_ID: {company_id}
    - IBAN para la devolución
    - No hagas una lista de preguntas, ve una por una
 
-4. CONFIRMAR antes de registrar:
+4. CONSULTAR PÓLIZA:
+   - Si no tienes el ramo (Auto, Hogar...), pídelo.
+   - Usa get_client_policys_tool con el NIF y el ramo.
+   - Identifica la póliza correcta con el usuario.
+   - Usa get_policy_document_tool si necesita el documento.
+
+5  . CONFIRMAR antes de registrar:
    - Resume: "Perfecto, registro la solicitud de devolución de [importe] a la cuenta terminada en [últimos 4 dígitos del IBAN]. ¿Es correcto?"
 
-5. REGISTRAR con create_task_activity_tool, incluyendo todos los datos recopilados en la description.
+6. REGISTRAR con create_task_activity_tool, incluyendo todos los datos recopilados en la description.
 
-6. INFORMAR próximos pasos:
+7. INFORMAR próximos pasos:
    - "Solicitud registrada. Un gestor se pondrá en contacto contigo para tramitarla."
 </flujo_de_atencion>
 
@@ -104,7 +120,7 @@ Company_ID: {company_id}
 </restricciones>"""
 
    llm = get_llm()
-   tools = [create_task_activity_tool, end_chat_tool]
+   tools = [create_task_activity_tool, end_chat_tool, get_client_policys_tool, get_policy_document_tool]
    
    agent = create_langchain_agent(llm, tools, system_prompt)
    result = run_langchain_agent(agent, user_text, history)
