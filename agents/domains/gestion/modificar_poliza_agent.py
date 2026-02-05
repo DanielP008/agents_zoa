@@ -46,7 +46,11 @@ Company_ID: {company_id}
 1. get_client_policys_tool(nif, ramo, company_id): Obtiene las pólizas de un ramo específico.
    - IMPORTANTE: Siempre usa company_id="{company_id}"
    - Devuelve: number (número de póliza), company_name, risk, phones
-2. create_task_activity_tool(json_string): Crea una tarea + actividad para que el gestor realice la modificación.
+2. get_policy_document_tool(policy_id, company_id): Obtiene el documento de la póliza y devuelve la información estructurada.
+   - IMPORTANTE: Siempre usa company_id="{company_id}"
+   - Solo necesita el número de póliza (policy_id), no el NIF.
+   - Devuelve JSON con todos los datos de la póliza (coberturas, fechas, primas, etc.)
+3. create_task_activity_tool(json_string): Crea una tarea + actividad para que el gestor realice la modificación.
    - JSON debe incluir:
      - company_id: "{company_id}"
      - title: "Modificar Póliza [número]"
@@ -58,7 +62,7 @@ Company_ID: {company_id}
      - activity_title: "Gestionar modificación"
      - activity_description: "Contactar al cliente para confirmar y aplicar cambios"
      - phone: "{wa_id or ''}"
-3. end_chat_tool(): Finaliza la conversación cuando los cambios estén registrados.
+4. end_chat_tool(): Finaliza la conversación cuando los cambios estén registrados.
 </herramientas>
 
 <flujo_de_atencion>
