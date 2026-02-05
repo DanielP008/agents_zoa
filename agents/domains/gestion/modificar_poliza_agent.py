@@ -4,7 +4,7 @@ from core.memory_schema import get_global_history
 from core.llm import get_llm
 from tools.zoa.tasks import create_task_activity_tool
 from tools.communication.end_chat_tool import end_chat_tool
-from tools.erp.erp_tools import get_client_policys_tool
+from tools.erp.erp_tools import (get_client_policys_tool, get_policy_document_tool)
 
 def modificar_poliza_agent(payload: dict) -> dict:
     user_text = payload.get("mensaje", "")
@@ -72,25 +72,31 @@ Company_ID: {company_id}
 2. IDENTIFICAR la póliza:
    - Pide el número de póliza.
 
-3. ENTENDER qué quiere modificar:
+3. CONSULTAR PÓLIZA:
+   - Si no tienes el ramo (Auto, Hogar...), pídelo.
+   - Usa get_client_policys_tool con el NIF y el ramo.
+   - Identifica la póliza correcta con el usuario.
+   - Usa get_policy_document_tool si necesita el documento.
+
+4. ENTENDER qué quiere modificar:
    - "¿Qué dato necesitas actualizar?"
    - Si menciona varios, gestiona uno por uno.
    - Si es algo complejo (fuera de <modificaciones_permitidas>):
      - Recopila la info y usa create_task_activity_tool.
 
-4. RECOPILAR el nuevo valor:
+5. RECOPILAR el nuevo valor:
    - Pide el dato nuevo
    - Valida formato si aplica (IBAN, email, teléfono)
 
-5. CONFIRMAR antes de guardar:
+6. CONFIRMAR antes de guardar:
    - "Voy a registrar el cambio de tu [campo] a [nuevo valor]. ¿Es correcto?"
 
-6. REGISTRAR con create_task_activity_tool, incluyendo póliza, NIF y todos los cambios solicitados en la description.
+7. REGISTRAR con create_task_activity_tool, incluyendo póliza, NIF y todos los cambios solicitados en la description.
 
-7. INFORMAR:
+9. INFORMAR:
    - "Solicitud registrada. Un gestor verificará los cambios y te confirmará."
 
-8. PREGUNTAR si necesita algo más:
+10. PREGUNTAR si necesita algo más:
    - "¿Necesitas modificar algo más?"
 </flujo_de_atencion>
 
@@ -117,7 +123,7 @@ Company_ID: {company_id}
 </restricciones>"""
 
     llm = get_llm()
-    tools = [create_task_activity_tool, end_chat_tool, get_client_policys_tool]
+    tools = [create_task_activity_tool, end_chat_tool, get_client_policys_tool, get_policy_document_tool]
     
     agent = create_langchain_agent(llm, tools, system_prompt)
     result = run_langchain_agent(agent, user_text, history)
