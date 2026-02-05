@@ -1,7 +1,6 @@
 """Herramienta para finalizar conversaciones."""
 from langchain.tools import tool
 
-
 @tool(return_direct=True)
 def end_chat_tool() -> str:
     """

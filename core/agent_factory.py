@@ -7,8 +7,6 @@ from langchain.tools import BaseTool
 from langchain.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
 
 logger = logging.getLogger(__name__)
-
-
 def _extract_text_from_content(content: Any) -> str:
     """
     Extract text from LangChain 1.x content which can be:
@@ -32,8 +30,6 @@ def _extract_text_from_content(content: Any) -> str:
         return " ".join(text_parts).strip()
     
     return str(content) if content else ""
-
-
 def create_langchain_agent(
     llm: Any,
     tools: List[BaseTool],
@@ -65,8 +61,6 @@ def create_langchain_agent(
     )
     
     return agent
-
-
 def run_langchain_agent(
     agent,
     user_text: str,

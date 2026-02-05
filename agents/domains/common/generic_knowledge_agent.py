@@ -2,7 +2,6 @@ from core.agent_factory import create_langchain_agent, run_langchain_agent
 from core.llm import get_llm
 from tools.communication.end_chat_tool import end_chat_tool
 
-
 def generic_knowledge_agent(payload: dict) -> dict:
     """
     Agente experto en conocimientos generales de seguros.

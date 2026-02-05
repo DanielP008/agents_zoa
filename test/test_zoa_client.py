@@ -10,7 +10,6 @@ from services.zoa_client import (
     extract_nif_from_contact_search,
 )
 
-
 def test_search_contact_by_phone():
     """Test search_contact_by_phone with a real API call."""
     print("="*60)
@@ -55,7 +54,6 @@ def test_search_contact_by_phone():
         print(f"  Message: {response.get('message', 'No message')}")
     
     return response
-
 
 def test_extract_nif_from_contact_search():
     """Test NIF extraction with different response formats."""
@@ -110,7 +108,6 @@ def test_extract_nif_from_contact_search():
     
     return all_passed
 
-
 def test_with_different_phone_numbers():
     """Test different phone number formats."""
     print("\n" + "="*60)
@@ -143,7 +140,6 @@ def test_with_different_phone_numbers():
             nif = extract_nif_from_contact_search(response)
             print(f"    NIF: {nif if nif else 'Not found in data'}")
 
-
 def main():
     """Run all tests."""
     print("\n🧪 ZOA CLIENT UNIT TESTS")
@@ -174,7 +170,6 @@ def main():
     print("\n💡 TIP: If no contacts are found, make sure the phone number")
     print("   exists in the ZOA system for the given company_id.")
     print("="*60 + "\n")
-
 
 if __name__ == "__main__":
     main()

@@ -12,7 +12,6 @@ from services.interfaces.erp_interfaces import (
     RefundsInterface,
 )
 
-
 # =============================================================================
 # Legacy ERPClient (backward compatibility)
 # =============================================================================
@@ -167,7 +166,6 @@ class ERPClient(ERPBaseInterface):
 
         return {"success": True, "status": result.get("Status")}
 
-
 # =============================================================================
 # Backward-compatible function wrappers
 # =============================================================================
@@ -181,7 +179,6 @@ def get_assistance_phones_from_erp(
     client = ERPClient(company_id)
     return client.get_client_policies_with_phones(nif, ramo=ramo)
 
-
 def get_client_info_from_erp(
     nif: str,
     company_id: str
@@ -189,7 +186,6 @@ def get_client_info_from_erp(
     """Fetch client details from the ERP."""
     client = ERPClient(company_id)
     return client.get_client_details(nif)
-
 
 def get_client_policys(
     nif: str,
@@ -203,7 +199,6 @@ def get_client_policys(
         return result
     return {"success": True, "policies": result.get("policies", [])}
 
-
 def get_policy_document_from_erp(
     policy_number: str,
     company_id: str
@@ -211,7 +206,6 @@ def get_policy_document_from_erp(
     """Fetch a policy document from ERP by policy number."""
     client = ERPClient(company_id)
     return client.get_policy_document(policy_number)
-
 
 def get_claims_from_erp(
     nif: str,
@@ -238,7 +232,6 @@ def get_claims_from_erp(
         })
     return {"success": True, "claims": claims}
 
-
 def get_claim_by_risk_from_erp(
     nif: str,
     risk: str,
@@ -247,7 +240,6 @@ def get_claim_by_risk_from_erp(
     """Fetch a specific claim by risk identifier."""
     client = ERPClient(company_id)
     return client.get_claim_by_risk(nif, risk)
-
 
 def get_claim_status_from_erp(
     id_siniestro: int,

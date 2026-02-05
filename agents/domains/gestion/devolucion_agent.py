@@ -6,19 +6,18 @@ from core.llm import get_llm
 from tools.communication.end_chat_tool import end_chat_tool
 from tools.zoa.tasks import create_task_activity_tool
 
-
 def devolucion_agent(payload: dict) -> dict:
-    user_text = payload.get("mensaje", "")
-    session = payload.get("session", {})
-    memory = session.get("agent_memory", {})
-    history = get_global_history(memory)
-    
-    company_id = payload.get("phone_number_id") or session.get("company_id", "")
-    global_mem = memory.get("global", {})
-    nif_value = global_mem.get("nif") or ""
-    wa_id = payload.get("wa_id")
+   user_text = payload.get("mensaje", "")
+   session = payload.get("session", {})
+   memory = session.get("agent_memory", {})
+   history = get_global_history(memory)
+   
+   company_id = payload.get("phone_number_id") or session.get("company_id", "")
+   global_mem = memory.get("global", {})
+   nif_value = global_mem.get("nif") or ""
+   wa_id = payload.get("wa_id")
 
-    system_prompt = f"""<rol>
+   system_prompt = f"""<rol>
 Eres parte del equipo de gestión de ZOA Seguros. Tu función es ayudar a los clientes a solicitar devoluciones de dinero.
 </rol>
 
@@ -104,22 +103,16 @@ Company_ID: {company_id}
 - USA end_chat_tool cuando la solicitud esté registrada y el cliente esté satisfecho
 </restricciones>"""
 
-    llm = get_llm()
-    tools = [create_task_activity_tool, end_chat_tool]
-    
-    agent = create_langchain_agent(llm, tools, system_prompt)
-    result = run_langchain_agent(agent, user_text, history)
-    
-    output_text = result.get("output", "")
-    action = result.get("action", "ask")
+   llm = get_llm()
+   tools = [create_task_activity_tool, end_chat_tool]
+   
+   agent = create_langchain_agent(llm, tools, system_prompt)
+   result = run_langchain_agent(agent, user_text, history)
+   
+   output_text = result.get("output", "")
+   action = result.get("action", "ask")
 
-    if action == "end_chat":
-        return {
-            "action": "end_chat",
-            "message": output_text
-        }
-
-    return {
-        "action": action,
-        "message": output_text
-    }
+   return {
+      "action": action,
+      "message": output_text
+   }

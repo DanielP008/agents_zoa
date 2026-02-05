@@ -8,7 +8,6 @@ from typing import Optional, Dict, Any, Tuple, TypedDict, List
 
 logger = logging.getLogger(__name__)
 
-
 # =============================================================================
 # Request Type Definitions (matches ERP repo interfaces)
 # =============================================================================
@@ -17,65 +16,53 @@ class BaseRequest(TypedDict, total=False):
     company_id: str  # Obligatorio
     option: str      # Obligatorio
 
-
 class DetalleClienteRequest(BaseRequest):
     """option: 'detalle_cliente'"""
     nif: str  # Obligatorio
-
 
 class GetPoliciesRequest(BaseRequest):
     """option: 'get_policies'"""
     nif: str  # Obligatorio
     lines: Optional[str]  # Opcional
 
-
 class GetClaimsRequest(BaseRequest):
     """option: 'get_claims'"""
     nif: str  # Obligatorio
-
 
 class GetClaimByRiskRequest(BaseRequest):
     """option: 'get_claim_by_risk'"""
     nif: str   # Obligatorio
     risk: str  # Obligatorio
 
-
 class GetDocPoliciesRequest(BaseRequest):
     """option: 'get_doc_policies'"""
     num_poliza: str  # Obligatorio
-
 
 class GetPolicyByNumRequest(BaseRequest):
     """option: 'get_policy_by_num'"""
     num_poliza: str  # Obligatorio
 
-
 class DocumentoReciboRequest(BaseRequest):
     """option: 'documento_recibo'"""
     num_poliza: str  # Obligatorio
 
-
 class InfoBancoDevolucionRequest(BaseRequest):
     """option: 'info_banco_devolucion'"""
     num_poliza: str  # Obligatorio
-
 
 class RenovacionesAutoSemanaRequest(BaseRequest):
     """option: 'renovaciones_auto_semana'"""
     start_date: Optional[str]
     frequency: Optional[int]
 
-
 class RenovacionesRecibosRequest(BaseRequest):
     """option: 'renovaciones_recibos'"""
     start_date: Optional[str]
     frequency: Optional[int]
 
-
 class GetStatusClaimsRequest(BaseRequest):
     """option: 'get_status_claims'"""
     id_siniestro: int  # Obligatorio
-
 
 # =============================================================================
 # Response Type Definitions (matches ERP repo interfaces)
@@ -88,14 +75,12 @@ class GetClaimsResponse(TypedDict):
     risk: str
     status: str
 
-
 class GetClaimByRiskResponse(TypedDict):
     """Response from option: 'get_claim_by_risk'"""
     id: str
     opening_date: str
     risk: str
     status: str
-
 
 class GetPoliciesResponse(TypedDict):
     """Response from option: 'get_policies'"""
@@ -105,13 +90,11 @@ class GetPoliciesResponse(TypedDict):
     risk: str
     phones: Dict[str, str]
 
-
 class GetDocPoliciesResponse(TypedDict):
     """Response from option: 'get_doc_policies'"""
     description: str
     filename: str
     data: str  # Base64
-
 
 class DocumentoReciboResponse(TypedDict):
     """Response from option: 'documento_recibo'"""
@@ -119,13 +102,11 @@ class DocumentoReciboResponse(TypedDict):
     filename: str
     data: str  # Base64
 
-
 class RenovacionesAutoSemanaResponse(TypedDict):
     """Response from option: 'renovaciones_auto_semana'"""
     client_nif: str
     client_name: str
     gestor: str
-
 
 class RenovacionesRecibosResponse(TypedDict):
     """Response from option: 'renovaciones_recibos'"""
@@ -133,11 +114,9 @@ class RenovacionesRecibosResponse(TypedDict):
     client_name: str
     gestor: str
 
-
 class GetStatusClaimsResponse(TypedDict):
     """Response from option: 'get_status_claims'"""
     Status: str
-
 
 class DetalleClienteResponse(TypedDict):
     """Response from option: 'detalle_cliente'"""
@@ -149,7 +128,6 @@ class DetalleClienteResponse(TypedDict):
     email: str
     address: Dict
 
-
 # =============================================================================
 # Exceptions
 # =============================================================================
@@ -157,7 +135,6 @@ class DetalleClienteResponse(TypedDict):
 class ERPClientError(Exception):
     """ERP client error."""
     pass
-
 
 # =============================================================================
 # ERP Base Interface
@@ -243,7 +220,6 @@ class ERPBaseInterface:
         except ERPClientError as e:
             return {"error": str(e)}, 500
 
-
 # =============================================================================
 # Specialized Interfaces
 # =============================================================================
@@ -256,7 +232,6 @@ class CustomerInterface(ERPBaseInterface):
         if not nif:
             return {"error": "El campo 'nif' es obligatorio."}, 400
         return self.execute("detalle_cliente", {"nif": nif})
-
 
 class PoliciesInterface(ERPBaseInterface):
     """Interface for policies operations."""
@@ -290,7 +265,6 @@ class PoliciesInterface(ERPBaseInterface):
             return {"error": "El campo 'num_poliza' es obligatorio."}, 400
         return self.execute("get_policy_by_num", {"num_poliza": num_poliza})
 
-
 class ReceiptsInterface(ERPBaseInterface):
     """Interface for receipts operations."""
     
@@ -302,7 +276,6 @@ class ReceiptsInterface(ERPBaseInterface):
         if not num_poliza:
             return {"error": "El campo 'num_poliza' es obligatorio."}, 400
         return self.execute("documento_recibo", {"num_poliza": num_poliza})
-
 
 class ClaimsInterface(ERPBaseInterface):
     """Interface for claims (siniestros) operations."""
@@ -336,7 +309,6 @@ class ClaimsInterface(ERPBaseInterface):
             return {"error": "El campo 'id_siniestro' es obligatorio."}, 400
         return self.execute("get_status_claims", {"id_siniestro": id_siniestro})
 
-
 class RefundsInterface(ERPBaseInterface):
     """Interface for refund-related operations."""
     
@@ -345,7 +317,6 @@ class RefundsInterface(ERPBaseInterface):
         if not num_poliza:
             return {"error": "El campo 'num_poliza' es obligatorio."}, 400
         return self.execute("info_banco_devolucion", {"num_poliza": num_poliza})
-
 
 class RenewalsInterface(ERPBaseInterface):
     """Interface for renewals operations."""

@@ -10,7 +10,6 @@ from services.interfaces.zoa_interfaces import (
     CardActionsInterface,
 )
 
-
 def extract_nif_from_contact_search(response: Dict[str, Any]) -> str:
     """Extract NIF from a ZOA contact search response."""
     if not isinstance(response, dict):
@@ -21,7 +20,6 @@ def extract_nif_from_contact_search(response: Dict[str, Any]) -> str:
     if isinstance(data, dict):
         return data.get("nif", "") or ""
     return response.get("nif", "") or ""
-
 
 def send_whatsapp_response(
     text: str,
@@ -43,7 +41,6 @@ def send_whatsapp_response(
     )
     return result
 
-
 def search_contact_by_phone(
     phone: str,
     company_id: str,
@@ -56,7 +53,6 @@ def search_contact_by_phone(
         request_data={"phone": phone}
     )
     return result
-
 
 def fetch_policy(policy_number: str) -> Dict[str, Any]:
     """Fetch policy information from ZOA."""
@@ -71,7 +67,6 @@ def fetch_policy(policy_number: str) -> Dict[str, Any]:
         "coverage": "Todo Riesgo",
         "valid_until": "2026-12-31"
     }
-
 
 def create_task_activity(
     company_id: str,

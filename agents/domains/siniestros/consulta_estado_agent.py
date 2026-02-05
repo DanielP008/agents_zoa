@@ -10,7 +10,6 @@ from tools.zoa.tasks import create_task_activity_tool
 from tools.erp.erp_tools import get_claims_tool
 from tools.document_ai.ocr_tools import process_document
 
-
 def consulta_estado_agent(payload: dict) -> dict:
     user_text = payload.get("mensaje", "")
     session = payload.get("session", {})

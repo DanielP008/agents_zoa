@@ -8,7 +8,6 @@ from typing import Optional, Dict, Any, Tuple
 
 logger = logging.getLogger(__name__)
 
-
 def _get_zoa_headers() -> Dict[str, str]:
     """Return headers for ZOA API requests."""
     api_key = os.environ.get("ZOA_API_KEY", "")
@@ -17,7 +16,6 @@ def _get_zoa_headers() -> Dict[str, str]:
         "Accept": "application/json",
         "apiKey": api_key
     }
-
 
 def _make_zoa_request(payload: Dict[str, Any]) -> Dict[str, Any]:
     """Helper to send requests to ZOA Cloud Function."""
@@ -47,7 +45,6 @@ def _make_zoa_request(payload: Dict[str, Any]) -> Dict[str, Any]:
         return {"error": f"Connection failed: {str(e)}"}
     except Exception as e:
         return {"error": str(e)}
-
 
 # =============================================================================
 # ZOA Interface Classes
@@ -103,7 +100,6 @@ class ZoaBaseInterface:
         except Exception as e:
             return {"error": f"Error interno ejecutando '{self.action_name}/{option}': {str(e)}"}, 500
 
-
 # =============================================================================
 # Active Interfaces (currently used in the codebase)
 # =============================================================================
@@ -114,13 +110,11 @@ class ContactsInterface(ZoaBaseInterface):
         super().__init__()
         self.action_name = "contacts"
 
-
 class ConversationsInterface(ZoaBaseInterface):
     """Interface for conversations operations. Used for sending WhatsApp messages."""
     def __init__(self):
         super().__init__()
         self.action_name = "conversations"
-
 
 class CardActionsInterface(ZoaBaseInterface):
     """Interface for card+activity operations. Used for creating tasks/opportunities."""

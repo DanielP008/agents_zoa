@@ -4,14 +4,12 @@ from core.config import get_routes_path
 
 _ROUTES_PATH = get_routes_path()
 
-
 def load_routes_config() -> dict:
     try:
         with open(_ROUTES_PATH, "r") as f:
             return json.load(f)
     except Exception:
         return {}
-
 
 def build_agent_allowlist(routes_config: dict) -> dict:
     allowlist = {}

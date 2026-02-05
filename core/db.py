@@ -34,7 +34,6 @@ def get_pool():
         _POOL = init_connection_pool()
     return _POOL
 
-
 class SessionManager:
     def __init__(self):
         self.pool = get_pool()
