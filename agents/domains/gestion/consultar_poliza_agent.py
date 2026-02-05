@@ -104,7 +104,7 @@ Company_ID: {company_id}
      - stage_name: "Nuevo"
      - type_of_activity: "whatsapp"
      - activity_title: "Identificar usuario"
-     - wa_id: "{wa_id or ''}"
+     - phone: "{wa_id or ''}"
 5. end_chat_tool(): Finaliza la conversación.
 </herramientas>
 

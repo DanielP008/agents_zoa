@@ -55,7 +55,7 @@ Company_ID: {company_id}
      - type_of_activity: "llamada"
      - activity_title: "Gestionar modificación"
      - activity_description: "Contactar al cliente para confirmar y aplicar cambios"
-     - phone: (teléfono del cliente si disponible)
+     - phone: "{wa_id or ''}"
 2. end_chat_tool(): Finaliza la conversación cuando los cambios estén registrados.
 </herramientas>
 

@@ -122,7 +122,7 @@ RESPONSABILIDAD CIVIL:
      * type_of_activity: "llamada"
      * activity_title: "Gestionar apertura siniestro"
      * activity_description: "Contactar cliente para finalizar apertura de siniestro."
-     * wa_id: "{wa_id or ''}"
+     * phone: "{wa_id or ''}"
 
 2. end_chat_tool(): Finaliza la conversación. Usar SOLO cuando la tarea esté creada Y el cliente confirme que no necesita nada más.
 </herramientas>

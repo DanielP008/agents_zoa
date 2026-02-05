@@ -53,7 +53,7 @@ Company_ID: {company_id}
      - type_of_activity: "llamada"
      - activity_title: "Gestionar devolución"
      - activity_description: "Contactar al cliente para tramitar devolución"
-     - phone: (teléfono del cliente si disponible)
+     - phone: "{wa_id or ''}"
 2. end_chat_tool(): Finaliza la conversación cuando la solicitud esté registrada y el cliente no necesite nada más.
 </herramientas>
 

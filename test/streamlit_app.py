@@ -13,11 +13,10 @@ st.set_page_config(
 )
 
 # Constants
-#API_URL = "http://localhost:8080" # Local
-API_URL = "https://zoa-agents-673887944015.europe-southwest1.run.app"
-DEFAULT_USER_ID = "+541133831705"
+API_URL = "http://localhost:8080" # Local
+DEFAULT_USER_ID = "+34622272095"
 DEFAULT_COMPANY_ID = "521783407682043"
-DEFAULT_USER_NAME = "Juan Arano"
+DEFAULT_USER_NAME = "Daniel Pulgar"
 
 # --- SESSION STATE INITIALIZATION ---
 if "messages" not in st.session_state:

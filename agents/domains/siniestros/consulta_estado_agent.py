@@ -65,7 +65,7 @@ Company_ID: {company_id}
      - stage_name: "Nuevo"
      - type_of_activity: "llamada"
      - activity_title: "Responder consulta estado"
-     - wa_id: "{wa_id or ''}"
+     - phone: "{wa_id or ''}"
 4. ask_expert_knowledge(query): Responde dudas genéricas o teóricas sobre seguros.
 5. end_chat_tool(): Finaliza la conversación cuando el cliente tenga la información que necesitaba.
 </herramientas>
