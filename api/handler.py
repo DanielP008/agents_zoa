@@ -4,6 +4,7 @@ import sys
 from core.orchestrator import process_message
 from core.db import SessionManager
 from core.tracing import setup_tracing
+from api.wildix_handler import handle_wildix
 
 # Configure logging to stdout
 logging.basicConfig(
@@ -14,6 +15,19 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 setup_tracing()
+
+
+def handle_request(request):
+    """Main entry point - routes to appropriate handler based on request."""
+    data = request.get_json(silent=True) or {}
+    
+    # Wildix webhook detection
+    if "sessionId" in data and "botId" in data and "event" in data:
+        return handle_wildix(request)
+    
+    # Default to WhatsApp handler
+    return handle_whatsapp(request)
+
 
 def handle_whatsapp(request):
     """Handle incoming ZOA Buffer System messages."""

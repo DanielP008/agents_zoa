@@ -52,11 +52,13 @@ def process_message(payload: dict) -> dict:
             payload["mensaje"] = mensaje
 
     # Handle NIF lookup and welcome message
+    channel = payload.get("channel", "whatsapp")
     memory, nif_value, should_continue, generated_message = _handle_nif_and_welcome(
         memory, 
         mensaje, 
         wa_id, 
-        company_id
+        company_id,
+        channel
     )
     
     session["agent_memory"] = memory
@@ -155,8 +157,10 @@ def process_message(payload: dict) -> dict:
     should_send_message = False
     if action in ["ask", "finish", "route"] and agent_message:
         should_send_message = True
-        
-    if should_send_message and phone_number_id:
+    
+    # Only send WhatsApp for whatsapp channel (wildix handles its own responses)
+    channel = payload.get("channel", "whatsapp")
+    if should_send_message and phone_number_id and channel == "whatsapp":
         whatsapp_result = send_whatsapp_response(
             text=agent_message,
             company_id=phone_number_id,
@@ -315,7 +319,8 @@ def _handle_nif_and_welcome(
     memory: dict,
     mensaje: str,
     wa_id: str,
-    company_id: str
+    company_id: str,
+    channel: str = "whatsapp"
 ) -> tuple[dict, str, bool, str | None]:
     """
     Handle NIF lookup and welcome message logic.
@@ -389,8 +394,8 @@ def _handle_nif_and_welcome(
         )
         session_manager.update_agent_memory(wa_id, memory, company_id)
         
-        # Send welcome message via WhatsApp
-        if company_id:
+        # Send welcome message via WhatsApp (only for whatsapp channel)
+        if company_id and channel == "whatsapp":
             send_whatsapp_response(
                 text=welcome_message,
                 company_id=company_id,
@@ -433,8 +438,8 @@ def _handle_nif_and_welcome(
             )
             session_manager.update_agent_memory(wa_id, memory, company_id)
             
-            # Send request via WhatsApp
-            if company_id:
+            # Send request via WhatsApp (only for whatsapp channel)
+            if company_id and channel == "whatsapp":
                 send_whatsapp_response(
                     text=nif_request_message,
                     company_id=company_id,
