@@ -1,28 +1,6 @@
-from datetime import datetime
-from core.agent_factory import create_langchain_agent, run_langchain_agent
-from core.memory_schema import get_global_history
+"""Prompts for apertura_siniestro_agent."""
 
-from core.llm import get_llm
-from tools.zoa.tasks import create_task_activity_tool
-from tools.communication.end_chat_tool import end_chat_tool
-def apertura_siniestro_agent(payload: dict) -> dict:
-    user_text = payload.get("mensaje", "")
-    session = payload.get("session", {})
-    memory = session.get("agent_memory", {})
-    history = get_global_history(memory)
-    
-    company_id = payload.get("phone_number_id") or session.get("company_id", "")
-    wa_id = payload.get("wa_id")
-    global_mem = memory.get("global", {})
-    nif_value = global_mem.get("nif") or "NO_IDENTIFICADO"
-    
-    # Get current date/time for context
-    now = datetime.now()
-    current_date = now.strftime("%d/%m/%Y")
-    current_time = now.strftime("%H:%M")
-    current_year = now.year
-
-    system_prompt = f"""<rol>
+WHATSAPP_PROMPT = """<rol>
 Eres parte del equipo de siniestros de ZOA Seguros. Tu función es recopilar la información necesaria para abrir un parte de siniestro.
 </rol>
 
@@ -48,7 +26,7 @@ Eres parte del equipo de siniestros de ZOA Seguros. Tu función es recopilar la 
 <variables_actuales>
 Company_ID: {company_id}
 NIF: {nif_value}
-WA_ID: {wa_id or 'NO_DISPONIBLE'}
+WA_ID: {wa_id}
 </variables_actuales>
 
 <datos_por_tipo_de_poliza>
@@ -120,7 +98,7 @@ RESPONSABILIDAD CIVIL:
      * type_of_activity: "llamada"
      * activity_title: "Gestionar apertura siniestro"
      * activity_description: "Contactar cliente para finalizar apertura de siniestro."
-     * phone: "{wa_id or ''}"
+     * phone: "{wa_id}"
 
 2. end_chat_tool(): Finaliza la conversación. Usar SOLO cuando la tarea esté creada Y el cliente confirme que no necesita nada más.
 </herramientas>
@@ -169,22 +147,14 @@ RESPONSABILIDAD CIVIL:
 - NO dupliques la creación de la tarea/actividad si ya la creaste anteriormente en la conversación
 </restricciones>"""
 
-    llm = get_llm()
-    tools = [create_task_activity_tool, end_chat_tool]
-    
-    agent = create_langchain_agent(llm, tools, system_prompt)
-    result = run_langchain_agent(agent, user_text, history)
-    
-    output_text = result.get("output", "")
-    action = result.get("action", "ask")
+CALL_PROMPT = WHATSAPP_PROMPT
 
-    if action == "end_chat":
-        return {
-            "action": "end_chat",
-            "message": output_text
-        }
+PROMPTS = {
+    "whatsapp": WHATSAPP_PROMPT,
+    "call": CALL_PROMPT,
+}
 
-    return {
-        "action": action,
-        "message": output_text
-    }
+
+def get_prompt(channel: str = "whatsapp") -> str:
+    """Get prompt for the specified channel."""
+    return PROMPTS.get(channel, PROMPTS["whatsapp"])

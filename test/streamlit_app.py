@@ -14,7 +14,7 @@ st.set_page_config(
 
 # Constants
 API_URL = "http://localhost:8080" # Local
-DEFAULT_USER_ID = "+34622272095"
+DEFAULT_USER_ID = "+541133831705"
 DEFAULT_COMPANY_ID = "521783407682043"
 DEFAULT_USER_NAME = "Daniel Pulgar"
 

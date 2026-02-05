@@ -11,4 +11,4 @@ ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8080
 
-CMD ["functions-framework", "--source", "api/handler.py", "--target", "handle_whatsapp", "--port", "8080"]
+CMD ["functions-framework", "--source", "api/handler.py", "--target", "handle_request", "--port", "8080"]
