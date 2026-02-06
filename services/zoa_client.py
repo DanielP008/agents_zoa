@@ -152,13 +152,13 @@ def create_task_activity(
     else:
         tags_name = required_tag
 
-    # Auto-calculate date and start_time for 'llamada' activities (now + 1 day)
+    # Auto-calculate date and start_time for 'llamada' activities (now)
     if type_of_activity == "llamada":
-        scheduled_time = datetime.now() + timedelta(days=1)
+        now = datetime.now()
         if date is None:
-            date = scheduled_time.strftime("%Y-%m-%d")
+            date = now.strftime("%Y-%m-%d")
         if start_time is None:
-            start_time = scheduled_time.strftime("%H:%M")
+            start_time = now.strftime("%H:%M")
     
     # Build request data with required fields and defaults
     request_data = {
