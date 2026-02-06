@@ -187,11 +187,11 @@ VARIANTES DE DESPEDIDA
 """
 
 PROMPTS = {
-    "whatsapp": WHATSAPP_PROMPT,
-    "call": CALL_PROMPT,
+   "whatsapp": WHATSAPP_PROMPT,
+   "call": CALL_PROMPT,
 }
 
 
 def get_prompt(channel: str = "whatsapp") -> str:
-    """Get prompt for the specified channel."""
-    return PROMPTS.get(channel, PROMPTS["whatsapp"])
+   """Get prompt for the specified channel."""
+   return PROMPTS.get(channel, PROMPTS["whatsapp"])

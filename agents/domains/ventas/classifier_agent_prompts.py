@@ -80,8 +80,8 @@ FORMATO DE RESPUESTA
 }}"""
 
 PROMPTS = {
-    "whatsapp": WHATSAPP_PROMPT,
-    "call": CALL_PROMPT,
+  "whatsapp": WHATSAPP_PROMPT,
+  "call": CALL_PROMPT,
 }
 
 
