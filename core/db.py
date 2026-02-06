@@ -4,6 +4,7 @@ import logging
 from sqlalchemy import create_engine, text
 
 from core.memory_schema import ensure_memory_shape
+from core.timing import Timer
 
 logger = logging.getLogger(__name__)
 
@@ -68,17 +69,18 @@ class SessionManager:
 
         query = text("SELECT domain, target_agent, agent_memory FROM sessions WHERE session_id = :sid")
         try:
-            with self.pool.connect() as conn:
-                result = conn.execute(query, {"sid": session_id}).fetchone()
-                if result:
-                    normalized_memory = self._normalize_memory(result[2])
-                    return {
-                        "session_id": session_id,
-                        "domain": result[0],
-                        "target_agent": result[1],
-                        "agent_memory": ensure_memory_shape(normalized_memory),
-                        "history": []
-                    }
+            with Timer("postgres", "get_session"):
+                with self.pool.connect() as conn:
+                    result = conn.execute(query, {"sid": session_id}).fetchone()
+            if result:
+                normalized_memory = self._normalize_memory(result[2])
+                return {
+                    "session_id": session_id,
+                    "domain": result[0],
+                    "target_agent": result[1],
+                    "agent_memory": ensure_memory_shape(normalized_memory),
+                    "history": []
+                }
         except Exception as e:
             logger.error(f"DB Read Error: {e}")
         
@@ -101,14 +103,15 @@ class SessionManager:
         """)
         
         try:
-            with self.pool.connect() as conn:
-                conn.execute(query, {
-                    "sid": session_id,
-                    "dom": domain,
-                    "agt": target_agent,
-                    "mem": memory
-                })
-                conn.commit()
+            with Timer("postgres", "save_session"):
+                with self.pool.connect() as conn:
+                    conn.execute(query, {
+                        "sid": session_id,
+                        "dom": domain,
+                        "agt": target_agent,
+                        "mem": memory
+                    })
+                    conn.commit()
         except Exception as e:
             logger.error(f"DB Write Error: {e}")
 
@@ -138,12 +141,13 @@ class SessionManager:
         
         query = text("DELETE FROM sessions WHERE session_id = :sid")
         try:
-            with self.pool.connect() as conn:
-                result = conn.execute(query, {"sid": session_id})
-                conn.commit()
-                deleted = result.rowcount > 0
-                logger.info(f"Session deletion: session_id={session_id}, deleted={deleted}, rowcount={result.rowcount}")
-                return deleted
+            with Timer("postgres", "delete_session"):
+                with self.pool.connect() as conn:
+                    result = conn.execute(query, {"sid": session_id})
+                    conn.commit()
+            deleted = result.rowcount > 0
+            logger.info(f"Session deletion: session_id={session_id}, deleted={deleted}, rowcount={result.rowcount}")
+            return deleted
         except Exception as e:
             logger.error(f"DB Delete Error: {e}")
             return False
@@ -164,11 +168,12 @@ class SessionManager:
                OR sessions.updated_at < NOW() - INTERVAL '60 seconds'
         """)
         try:
-            with self.pool.connect() as conn:
-                result = conn.execute(query, {"sid": session_id})
-                conn.commit()
-                locked = result.rowcount > 0
-                return locked
+            with Timer("postgres", "try_lock_session"):
+                with self.pool.connect() as conn:
+                    result = conn.execute(query, {"sid": session_id})
+                    conn.commit()
+            locked = result.rowcount > 0
+            return locked
         except Exception as e:
             logger.error(f"DB Lock Error: {e}")
             return False
@@ -179,8 +184,9 @@ class SessionManager:
         
         query = text("UPDATE sessions SET processing = FALSE WHERE session_id = :sid")
         try:
-            with self.pool.connect() as conn:
-                conn.execute(query, {"sid": session_id})
-                conn.commit()
+            with Timer("postgres", "unlock_session"):
+                with self.pool.connect() as conn:
+                    conn.execute(query, {"sid": session_id})
+                    conn.commit()
         except Exception as e:
             logger.error(f"DB Unlock Error: {e}")

@@ -5,6 +5,7 @@ import requests
 import json
 import logging
 from typing import Optional, Dict, Any, Tuple
+from core.timing import Timer, get_current_agent
 
 logger = logging.getLogger(__name__)
 
@@ -28,23 +29,27 @@ def _make_zoa_request(payload: Dict[str, Any]) -> Dict[str, Any]:
     if not zoa_endpoint:
         return {"error": "ZOA_ENDPOINT_URL not configured"}
 
-    try:
-        headers = _get_zoa_headers()
-        logger.debug(f"ZOA request: {payload}")
-        response = requests.post(zoa_endpoint, headers=headers, data=json.dumps(payload), timeout=10)
-        
+    action = payload.get("action", "unknown")
+    option = payload.get("option", "unknown")
+    parent = get_current_agent()
+    with Timer("zoa", f"zoa_{action}_{option}", parent=parent):
         try:
-            result = response.json()
-            logger.debug(f"ZOA response: {result}")
-            return result
-        except json.JSONDecodeError:
-            return {"status": response.status_code, "text": response.text}
-    except requests.exceptions.Timeout:
-        return {"error": "Request timeout"}
-    except requests.exceptions.ConnectionError as e:
-        return {"error": f"Connection failed: {str(e)}"}
-    except Exception as e:
-        return {"error": str(e)}
+            headers = _get_zoa_headers()
+            logger.debug(f"ZOA request: {payload}")
+            response = requests.post(zoa_endpoint, headers=headers, data=json.dumps(payload), timeout=10)
+            
+            try:
+                result = response.json()
+                logger.debug(f"ZOA response: {result}")
+                return result
+            except json.JSONDecodeError:
+                return {"status": response.status_code, "text": response.text}
+        except requests.exceptions.Timeout:
+            return {"error": "Request timeout"}
+        except requests.exceptions.ConnectionError as e:
+            return {"error": f"Connection failed: {str(e)}"}
+        except Exception as e:
+            return {"error": str(e)}
 
 # =============================================================================
 # ZOA Interface Classes

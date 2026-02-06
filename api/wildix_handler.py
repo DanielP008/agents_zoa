@@ -10,6 +10,7 @@ import logging
 import requests
 from core.orchestrator import process_message
 from core.db import SessionManager
+from core.timing import Timer, get_trace
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +109,14 @@ def handle_wildix(request):
             hangup_result = _hangup_wildix(session_id)
             logger.info(f"[WILDIX] Hangup after end_chat: {hangup_result}")
         
+        # Dump timing trace after all wildix API calls
+        trace = get_trace()
+        if trace:
+            try:
+                trace.dump()
+            except Exception:
+                pass
+        
         return _json_response({
             "status": "ok",
             "response": response,
@@ -153,13 +162,14 @@ def _send_to_wildix(session_id: str, text: str, reply_id: str = None, interrupti
     if reply_id:
         body["replyId"] = reply_id
     
-    try:
-        resp = requests.post(url, headers=headers, json=body, timeout=10)
-        resp.raise_for_status()
-        return {"status": "sent", "code": resp.status_code}
-    except requests.exceptions.RequestException as e:
-        logger.error(f"[WILDIX] API error: {e}")
-        return {"error": str(e)}
+    with Timer("wildix", "wildix_say"):
+        try:
+            resp = requests.post(url, headers=headers, json=body, timeout=10)
+            resp.raise_for_status()
+            return {"status": "sent", "code": resp.status_code}
+        except requests.exceptions.RequestException as e:
+            logger.error(f"[WILDIX] API error: {e}")
+            return {"error": str(e)}
 
 
 def _hangup_wildix(session_id: str) -> dict:
@@ -174,13 +184,14 @@ def _hangup_wildix(session_id: str) -> dict:
         "Authorization": f"Bearer {WILDIX_API_KEY}"
     }
     
-    try:
-        resp = requests.post(url, headers=headers, timeout=10)
-        resp.raise_for_status()
-        return {"status": "hangup", "code": resp.status_code}
-    except requests.exceptions.RequestException as e:
-        logger.error(f"[WILDIX] Hangup error: {e}")
-        return {"error": str(e)}
+    with Timer("wildix", "wildix_hangup"):
+        try:
+            resp = requests.post(url, headers=headers, timeout=10)
+            resp.raise_for_status()
+            return {"status": "hangup", "code": resp.status_code}
+        except requests.exceptions.RequestException as e:
+            logger.error(f"[WILDIX] Hangup error: {e}")
+            return {"error": str(e)}
 
 
 def _json_response(data: dict, status_code: int = 200):

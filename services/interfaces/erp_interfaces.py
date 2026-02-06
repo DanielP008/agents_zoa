@@ -5,6 +5,7 @@ import requests
 import json
 import logging
 from typing import Optional, Dict, Any, Tuple, TypedDict, List
+from core.timing import Timer, get_current_agent
 
 logger = logging.getLogger(__name__)
 
@@ -156,32 +157,35 @@ class ERPBaseInterface:
         if not self.endpoint_url:
             raise ERPClientError("ERP_ENDPOINT_URL not configured")
 
-        try:
-            headers = {"Content-Type": "application/json"}
-            logger.debug(f"ERP request: {payload}")
-            response = requests.post(
-                self.endpoint_url,
-                json=payload,
-                headers=headers,
-                timeout=self.timeout
-            )
-            response.raise_for_status()
-
+        option = payload.get("option", "unknown")
+        parent = get_current_agent()
+        with Timer("erp", f"erp_{option}", parent=parent):
             try:
-                result = response.json()
-                logger.debug(f"ERP response: {result}")
-                return result
-            except json.JSONDecodeError:
-                return {"status": response.status_code, "text": response.text}
+                headers = {"Content-Type": "application/json"}
+                logger.debug(f"ERP request: {payload}")
+                response = requests.post(
+                    self.endpoint_url,
+                    json=payload,
+                    headers=headers,
+                    timeout=self.timeout
+                )
+                response.raise_for_status()
 
-        except requests.exceptions.Timeout:
-            raise ERPClientError("Request timeout - ERP service took too long to respond")
-        except requests.exceptions.ConnectionError as e:
-            raise ERPClientError(f"Connection failed: {str(e)}")
-        except requests.exceptions.HTTPError as e:
-            raise ERPClientError(f"HTTP error: {str(e)}")
-        except Exception as e:
-            raise ERPClientError(f"Unexpected error: {str(e)}")
+                try:
+                    result = response.json()
+                    logger.debug(f"ERP response: {result}")
+                    return result
+                except json.JSONDecodeError:
+                    return {"status": response.status_code, "text": response.text}
+
+            except requests.exceptions.Timeout:
+                raise ERPClientError("Request timeout - ERP service took too long to respond")
+            except requests.exceptions.ConnectionError as e:
+                raise ERPClientError(f"Connection failed: {str(e)}")
+            except requests.exceptions.HTTPError as e:
+                raise ERPClientError(f"HTTP error: {str(e)}")
+            except Exception as e:
+                raise ERPClientError(f"Unexpected error: {str(e)}")
 
     def execute(
         self,

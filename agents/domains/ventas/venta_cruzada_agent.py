@@ -22,7 +22,7 @@ def venta_cruzada_agent(payload: dict) -> dict:
     tools = [get_customer_policies_tool, create_cross_sell_offer_tool, end_chat_tool, redirect_to_receptionist_tool]
     
     agent = create_langchain_agent(llm, tools, system_prompt)
-    result = run_langchain_agent(agent, user_text, history)
+    result = run_langchain_agent(agent, user_text, history, agent_name="venta_cruzada_agent")
     
     output_text = result.get("output", "")
     action = result.get("action", "ask")

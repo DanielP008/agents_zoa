@@ -2,6 +2,7 @@ import os
 import re
 import logging
 from core.db import SessionManager
+from core.timing import start_trace, get_trace
 
 logger = logging.getLogger(__name__)
 from core.memory_schema import (
@@ -23,6 +24,17 @@ session_manager = SessionManager()
 _ROUTES_CONFIG = load_routes_config()
 _AGENT_ALLOWLIST = build_agent_allowlist(_ROUTES_CONFIG)
 
+def _dump_trace(channel: str = "whatsapp"):
+    """Dump the current request trace if active. Skip for wildix (handler dumps later)."""
+    if channel == "wildix_voice":
+        return
+    trace = get_trace()
+    if trace:
+        try:
+            trace.dump()
+        except Exception:
+            pass
+
 def process_message(payload: dict) -> dict:
     
     wa_id = payload.get("wa_id")
@@ -30,6 +42,12 @@ def process_message(payload: dict) -> dict:
     phone_number_id = payload.get("phone_number_id")
     
     company_id = phone_number_id or "default"
+    channel = payload.get("channel", "whatsapp")
+    
+    # Start timing trace for this request
+    session_id = f"{company_id}_{wa_id}"
+    start_trace(session_id, channel)
+    
     # Add company_id to payload for agents and tools
     payload["company_id"] = company_id
 
@@ -65,6 +83,7 @@ def process_message(payload: dict) -> dict:
     
     # If _handle_nif_and_welcome returned should_continue=False, return early
     if not should_continue:
+        _dump_trace(channel)
         return {
             "type": "text",
             "message": generated_message or memory.get("global", {}).get("last_message", ""),
@@ -105,6 +124,7 @@ def process_message(payload: dict) -> dict:
             else:
                 logger.warning(f"[ORCHESTRATOR] Failed to delete session for wa_id: {wa_id}")
 
+            _dump_trace(channel)
             return {
                 "type": "text",
                 "message": agent_message,
@@ -120,10 +140,12 @@ def process_message(payload: dict) -> dict:
                 new_domain = session.get("domain")
             
             if not new_target:
+                _dump_trace(channel)
                 return {"error": "Route action missing next_agent"}
             
             allowed_next = _AGENT_ALLOWLIST.get(target_agent, [])
             if new_target not in allowed_next:
+                _dump_trace(channel)
                 return {
                     "type": "text",
                     "message": "No pude derivarte en este momento. ¿Podés intentar de nuevo?",
@@ -153,6 +175,7 @@ def process_message(payload: dict) -> dict:
         break
     
     if chain_depth >= MAX_CHAIN_DEPTH:
+        _dump_trace(channel)
         return {"error": "Max routing chain depth exceeded"}
     
     should_send_message = False
@@ -190,6 +213,7 @@ def process_message(payload: dict) -> dict:
             last_domain=session.get("domain"),
         )
         session_manager.update_agent_memory(wa_id, memory, company_id)
+        _dump_trace(channel)
         result = {
             "type": "text",
             "message": agent_message,
@@ -204,9 +228,11 @@ def process_message(payload: dict) -> dict:
             new_domain = session.get("domain")
         
         if not new_target:
+            _dump_trace(channel)
             return {"error": "Route action missing next_agent"}
         allowed_next = _AGENT_ALLOWLIST.get(target_agent, [])
         if new_target not in allowed_next:
+            _dump_trace(channel)
             return {
                 "type": "text",
                 "message": "No pude derivarte en este momento. ¿Podés intentar de nuevo?",
@@ -233,6 +259,7 @@ def process_message(payload: dict) -> dict:
         )
         session_manager.update_agent_memory(wa_id, memory, company_id)
         
+        _dump_trace(channel)
         result = {
             "type": "transition", 
             "message": agent_message,
@@ -263,6 +290,7 @@ def process_message(payload: dict) -> dict:
         )
         session_manager.update_agent_memory(wa_id, memory, company_id)
         
+        _dump_trace(channel)
         result = {
             "type": "text", 
             "message": agent_message, 
@@ -270,6 +298,7 @@ def process_message(payload: dict) -> dict:
         }
         return result
 
+    _dump_trace(channel)
     return {"error": "Unknown action"}
 
 def _extract_attachments(payload: dict) -> list:

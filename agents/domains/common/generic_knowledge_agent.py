@@ -19,7 +19,7 @@ def generic_knowledge_agent(payload: dict) -> dict:
     tools = [end_chat_tool]
     
     agent = create_langchain_agent(llm, tools, system_prompt)
-    result = run_langchain_agent(agent, user_text)
+    result = run_langchain_agent(agent, user_text, agent_name="generic_knowledge_agent")
     
     output_text = result.get("output", "")
     action = result.get("action", "answer")

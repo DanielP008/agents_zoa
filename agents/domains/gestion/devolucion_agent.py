@@ -34,7 +34,7 @@ def devolucion_agent(payload: dict) -> dict:
    tools = [create_task_activity_tool, end_chat_tool, redirect_to_receptionist_tool, get_client_policys_tool, get_policy_document_tool]
    
    agent = create_langchain_agent(llm, tools, system_prompt)
-   result = run_langchain_agent(agent, user_text, history)
+   result = run_langchain_agent(agent, user_text, history, agent_name="devolucion_agent")
    
    output_text = result.get("output", "")
    action = result.get("action", "ask")

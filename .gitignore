@@ -20,5 +20,6 @@ venv/
 
 # logs
 *.log
+timings/
 
 *streamlit_app.py

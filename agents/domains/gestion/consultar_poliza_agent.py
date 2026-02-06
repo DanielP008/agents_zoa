@@ -85,7 +85,7 @@ def consultar_poliza_agent(payload: dict) -> dict:
     ]
     
     agent = create_langchain_agent(llm, tools, system_prompt)
-    result = run_langchain_agent(agent, user_text, history)
+    result = run_langchain_agent(agent, user_text, history, agent_name="consultar_poliza_agent")
     
     output_text = result.get("output", "")
     action = result.get("action", "ask")

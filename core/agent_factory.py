@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, Union
 from langchain.agents import create_agent, AgentState
 from langchain.tools import BaseTool
 from langchain.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
+from core.timing import Timer, set_current_agent
 
 logger = logging.getLogger(__name__)
 def _extract_text_from_content(content: Any) -> str:
@@ -65,6 +66,7 @@ def run_langchain_agent(
     agent,
     user_text: str,
     history: Optional[List] = None,
+    agent_name: str = "unknown_agent",
     **invoke_kwargs
 ) -> Dict[str, Any]:
     """
@@ -74,6 +76,7 @@ def run_langchain_agent(
         agent: The LangChain agent to execute
         user_text: User's input text
         history: Optional conversation history as list of message tuples
+        agent_name: Name of the agent (for timing/profiling)
         **invoke_kwargs: Additional arguments for invoke
     
     Returns:
@@ -92,9 +95,13 @@ def run_langchain_agent(
     # Add current user message
     messages.append({"role": "user", "content": user_text})
     
-    # Invoke agent
+    # Set current agent for tool-level timing parent tracking
+    set_current_agent(agent_name)
+    
+    # Invoke agent with timing
     try:
-        result = agent.invoke({"messages": messages}, **invoke_kwargs)
+        with Timer("agent", agent_name):
+            result = agent.invoke({"messages": messages}, **invoke_kwargs)
         
         logger.info(f"[AGENT_FACTORY] Agent result type: {type(result)}")
         

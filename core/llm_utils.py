@@ -1,6 +1,7 @@
 """LLM utilities with safe error handling."""
 import logging
 from typing import Any, Dict, Optional, Callable, TypeVar, Type
+from core.timing import Timer
 
 logger = logging.getLogger(__name__)
 
@@ -14,9 +15,11 @@ def safe_structured_invoke(
 ) -> T:
     """Safely invoke a structured output chain."""
     context_msg = f" [{error_context}]" if error_context else ""
+    agent_label = error_context or "unknown_classifier"
     
     try:
-        result = chain.invoke(inputs)
+        with Timer("agent", agent_label):
+            result = chain.invoke(inputs)
         
         if result is None:
             logger.warning(f"Structured output returned None{context_msg}, using fallback")

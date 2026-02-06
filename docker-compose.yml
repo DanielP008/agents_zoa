@@ -10,3 +10,4 @@ services:
       - TZ=Europe/Madrid
     volumes:
       - .:/app
+      - ./timings:/tmp/timings
