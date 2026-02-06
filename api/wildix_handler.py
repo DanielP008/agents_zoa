@@ -59,11 +59,8 @@ def handle_wildix(request):
     event_id = event.get("id")
     text = event.get("text", "").strip()
     
-    logger.info(f"[WILDIX] Received: session={session_id}, type={event_type}, text={text[:50]}...")
-    
     # Only process "reply" events (user speech)
     if event_type != "reply":
-        logger.info(f"[WILDIX] Ignoring event type: {event_type}")
         return _json_response({"status": "ignored", "reason": f"event_type={event_type}"})
     
     if not text:
@@ -74,35 +71,51 @@ def handle_wildix(request):
     if text.upper() == "BORRAR TODO":
         return _handle_session_reset(session_id, bot_id)
     
-    # Build payload compatible with orchestrator
-    payload = {
-        "wa_id": session_id,  # Use sessionId as user identifier
-        "mensaje": text,
-        "phone_number_id": bot_id,  # Use botId as company identifier
-        "company_id": bot_id,
-        "channel": "wildix_voice",
-        "wildix_metadata": {
-            "session_id": session_id,
-            "bot_id": bot_id,
-            "call_id": call_id,
-            "event_id": event_id,
+    # Try to acquire session lock (prevents concurrent processing for same call)
+    if not session_manager.try_lock_session(session_id, bot_id or "default"):
+        print(f"[WILDIX] Session {session_id} busy, ignoring: '{text}'")
+        return _json_response({"status": "ignored", "reason": "session_busy"})
+    
+    try:
+        # Build payload compatible with orchestrator
+        payload = {
+            "wa_id": session_id,  # Use sessionId as user identifier
+            "mensaje": text,
+            "phone_number_id": bot_id,  # Use botId as company identifier
+            "company_id": bot_id,
+            "channel": "wildix_voice",
+            "wildix_metadata": {
+                "session_id": session_id,
+                "bot_id": bot_id,
+                "call_id": call_id,
+                "event_id": event_id,
+            }
         }
-    }
-    
-    # Process through orchestrator
-    response = process_message(payload)
-    agent_message = response.get("message", "")
-    
-    # Send response to Wildix
-    if agent_message:
-        wildix_response = _send_to_wildix(session_id, agent_message, event_id)
-        logger.info(f"[WILDIX] Sent response: {agent_message[:50]}... wildix_status={wildix_response}")
-    
-    return _json_response({
-        "status": "ok",
-        "response": response,
-        "wildix_sent": bool(agent_message)
-    })
+        
+        # Process through orchestrator
+        response = process_message(payload)
+        agent_message = response.get("message", "")
+        
+        # Send response to Wildix
+        is_end_chat = response.get("status") == "completed" and response.get("session_deleted")
+        
+        if agent_message:
+            wildix_response = _send_to_wildix(session_id, agent_message, event_id)
+            logger.info(f"[WILDIX] Sent response: {agent_message[:50]}... wildix_status={wildix_response}")
+        
+        # If end_chat, hang up the call after sending the final message
+        if is_end_chat:
+            hangup_result = _hangup_wildix(session_id)
+            logger.info(f"[WILDIX] Hangup after end_chat: {hangup_result}")
+        
+        return _json_response({
+            "status": "ok",
+            "response": response,
+            "wildix_sent": bool(agent_message),
+            "hangup": is_end_chat
+        })
+    finally:
+        session_manager.unlock_session(session_id, bot_id or "default")
 
 
 def _handle_session_reset(session_id: str, bot_id: str):
@@ -146,6 +159,27 @@ def _send_to_wildix(session_id: str, text: str, reply_id: str = None, interrupti
         return {"status": "sent", "code": resp.status_code}
     except requests.exceptions.RequestException as e:
         logger.error(f"[WILDIX] API error: {e}")
+        return {"error": str(e)}
+
+
+def _hangup_wildix(session_id: str) -> dict:
+    """Hang up the Wildix Voice Bot call."""
+    if not WILDIX_API_KEY:
+        return {"error": "no_api_key"}
+    
+    url = f"{WILDIX_API_BASE}/{session_id}/hangup"
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "Authorization": f"Bearer {WILDIX_API_KEY}"
+    }
+    
+    try:
+        resp = requests.post(url, headers=headers, timeout=10)
+        resp.raise_for_status()
+        return {"status": "hangup", "code": resp.status_code}
+    except requests.exceptions.RequestException as e:
+        logger.error(f"[WILDIX] Hangup error: {e}")
         return {"error": str(e)}
 
 

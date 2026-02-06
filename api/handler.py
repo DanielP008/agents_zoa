@@ -23,6 +23,11 @@ def handle_request(request):
     
     # Wildix webhook detection
     if "sessionId" in data and "botId" in data and "event" in data:
+        event = data.get("event", {})
+        event_type = event.get("type")
+        text = event.get("text", "").strip()
+        if event_type == "reply" and text:
+            print(f"\n[WILDIX_FINAL_MESSAGE] session={data.get('sessionId')} text='{text}'\n")
         return handle_wildix(request)
     
     # Default to WhatsApp handler

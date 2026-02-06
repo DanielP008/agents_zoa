@@ -147,3 +147,40 @@ class SessionManager:
         except Exception as e:
             logger.error(f"DB Delete Error: {e}")
             return False
+
+    def try_lock_session(self, user_id: str, company_id: str) -> bool:
+        """Atomically lock a session for processing. Returns True if lock acquired."""
+        session_id = self._get_composite_id(user_id, company_id)
+        
+        # UPSERT: insert if new session, or update if exists AND not already locked.
+        # Stale lock protection: allow re-lock if updated_at > 60s ago (crash recovery).
+        query = text("""
+            INSERT INTO sessions (session_id, processing, target_agent, updated_at)
+            VALUES (:sid, TRUE, 'receptionist_agent', NOW())
+            ON CONFLICT (session_id) DO UPDATE 
+            SET processing = TRUE, updated_at = NOW()
+            WHERE sessions.processing = FALSE 
+               OR sessions.processing IS NULL
+               OR sessions.updated_at < NOW() - INTERVAL '60 seconds'
+        """)
+        try:
+            with self.pool.connect() as conn:
+                result = conn.execute(query, {"sid": session_id})
+                conn.commit()
+                locked = result.rowcount > 0
+                return locked
+        except Exception as e:
+            logger.error(f"DB Lock Error: {e}")
+            return False
+
+    def unlock_session(self, user_id: str, company_id: str):
+        """Release the processing lock on a session."""
+        session_id = self._get_composite_id(user_id, company_id)
+        
+        query = text("UPDATE sessions SET processing = FALSE WHERE session_id = :sid")
+        try:
+            with self.pool.connect() as conn:
+                conn.execute(query, {"sid": session_id})
+                conn.commit()
+        except Exception as e:
+            logger.error(f"DB Unlock Error: {e}")

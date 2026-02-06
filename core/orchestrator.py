@@ -341,22 +341,23 @@ def _handle_nif_and_welcome(
     logger.info(f"[NIF_HANDLER] wa_id: {wa_id}, nif: {nif_value}, welcomed: {orchestrator_welcomed}")
     
     # STEP 1: Try to get NIF if we don't have it yet
+    print(f"\n[NIF_THINK] wa_id={wa_id} current_nif={nif_value} lookup_failed={nif_lookup_failed} message='{mensaje}'")
     if not nif_value and not nif_lookup_failed:
         # 1.1: Try to extract from current message
         nif_from_message = _extract_nif_from_text(mensaje)
         if nif_from_message:
-            logger.info(f"[NIF_HANDLER] NIF extracted from message: {nif_from_message}")
+            print(f"[NIF_THINK] Extracted from message: {nif_from_message}")
             nif_value = nif_from_message
         
         # 1.2: Try CRM/ZOA lookup if still no NIF
         if not nif_value and wa_id and company_id:
-            logger.info(f"[NIF_HANDLER] Attempting ZOA CRM lookup for wa_id={wa_id}, company_id={company_id}")
+            print(f"[NIF_THINK] Searching CRM for {wa_id}...")
             try:
                 contact_response = search_contact_by_phone(wa_id, company_id)
-                logger.info(f"[NIF_HANDLER] Raw contact response: {contact_response}")
                 nif_value = extract_nif_from_contact_search(contact_response)
-                logger.info(f"[NIF_HANDLER] Extracted NIF from contact: {nif_value}")
+                print(f"[NIF_THINK] CRM result NIF: {nif_value}")
             except Exception as e:
+                print(f"[NIF_THINK] CRM Error: {e}")
                 logger.error(f"[NIF_HANDLER] Error during contact lookup: {e}", exc_info=True)
             
         # 1.3: Save NIF or mark lookup as failed
