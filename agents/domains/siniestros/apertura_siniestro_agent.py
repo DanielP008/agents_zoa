@@ -7,6 +7,7 @@ from tools.zoa.tasks import create_task_activity_tool
 from tools.communication.end_chat_tool import end_chat_tool
 from tools.communication.redirect_to_receptionist_tool import redirect_to_receptionist_tool
 from agents.domains.siniestros.apertura_siniestro_agent_prompts import get_prompt
+
 def apertura_siniestro_agent(payload: dict) -> dict:
     user_text = payload.get("mensaje", "")
     session = payload.get("session", {})

@@ -1,6 +1,6 @@
 """
 Timing Dashboard - Performance analytics for ZOA Agents.
-Run: streamlit run test/timing_dashboard.py
+Run: streamlit run test/test_latency.py
 """
 
 import json
@@ -55,12 +55,15 @@ def explode_agents(df: pd.DataFrame) -> pd.DataFrame:
     rows = []
     for _, row in df.iterrows():
         for agent in row.get("agents", []):
+            model = agent.get("model", "") or "unknown"
             rows.append({
                 "timestamp": row["timestamp"],
                 "session_id": row["session_id"],
                 "channel": row["channel"],
                 "agent_name": agent["name"],
+                "model": model,
                 "agent_ms": agent["duration_ms"],
+                "llm_ms": agent["duration_ms"] - sum(t["duration_ms"] for t in agent.get("tools", [])),
                 "num_tools": len(agent.get("tools", [])),
                 "tool_names": ", ".join(t["name"] for t in agent.get("tools", [])),
                 "tool_total_ms": sum(t["duration_ms"] for t in agent.get("tools", [])),
@@ -210,6 +213,57 @@ def main():
             labels={"value": "Time (ms)", "agent_name": "Agent"},
         )
         st.plotly_chart(fig_agents, use_container_width=True)
+
+    # ─── Per-Model Performance ───
+    st.header("Per-Model Performance")
+    if not agent_df.empty and "model" in agent_df.columns:
+        model_df = agent_df[agent_df["model"] != "unknown"]
+        if not model_df.empty:
+            model_stats = model_df.groupby("model").agg(
+                calls=("agent_ms", "count"),
+                avg_total_ms=("agent_ms", "mean"),
+                avg_llm_ms=("llm_ms", "mean"),
+                p95_ms=("agent_ms", lambda x: x.quantile(0.95)),
+                max_ms=("agent_ms", "max"),
+                min_ms=("agent_ms", "min"),
+            ).round(1).sort_values("avg_llm_ms", ascending=True)
+
+            st.dataframe(model_stats, use_container_width=True)
+
+            col_m1, col_m2 = st.columns(2)
+            with col_m1:
+                fig_model_bar = px.bar(
+                    model_stats.reset_index(), x="model", y="avg_llm_ms",
+                    title="Average LLM Time by Model",
+                    labels={"avg_llm_ms": "Avg LLM Time (ms)", "model": "Model"},
+                    color="model",
+                    text="avg_llm_ms",
+                )
+                fig_model_bar.update_traces(texttemplate="%{text:.0f}ms", textposition="outside")
+                st.plotly_chart(fig_model_bar, use_container_width=True)
+
+            with col_m2:
+                fig_model_box = px.box(
+                    model_df, x="model", y="llm_ms",
+                    title="LLM Time Distribution by Model",
+                    labels={"llm_ms": "LLM Time (ms)", "model": "Model"},
+                    color="model",
+                )
+                st.plotly_chart(fig_model_box, use_container_width=True)
+
+            # Model + Agent breakdown
+            st.subheader("Model x Agent Breakdown")
+            model_agent_stats = model_df.groupby(["model", "agent_name"]).agg(
+                calls=("agent_ms", "count"),
+                avg_llm_ms=("llm_ms", "mean"),
+                avg_total_ms=("agent_ms", "mean"),
+            ).round(1).sort_values(["model", "avg_llm_ms"], ascending=[True, False])
+
+            st.dataframe(model_agent_stats, use_container_width=True)
+        else:
+            st.info("No model data captured yet. Model tracking was added recently.")
+    else:
+        st.info("No agent data available.")
 
     # ─── Postgres Breakdown ───
     st.header("Postgres Operations")

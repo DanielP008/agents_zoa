@@ -57,7 +57,12 @@ Eres el clasificador del área de Gestión de ZOA Seguros. El cliente ya fue ide
 - "cambiar beneficiario"
 - Cualquier solicitud de CAMBIAR/ACTUALIZAR datos
 
-## CLASIFICACIÓN CON PREGUNTA (needs_more_info = true)
+## FINALIZACIÓN DE CHAT (action = "end_chat", needs_more_info = false)
+Si el usuario solo se está despidiendo o dice que no necesita nada más:
+- "gracias", "muchas gracias", "adiós", "chao", "nada más", "eso es todo"
+- En este caso, usa `question` para dar una despedida amable.
+
+## CLASIFICACIÓN CON PREGUNTA (needs_more_info = true, action = "route")
 
 | Mensaje ambiguo | Pregunta sugerida |
 |-----------------|-------------------|
@@ -159,9 +164,10 @@ Responde SOLO en JSON válido:
 ```json
 {{{{
   "route": "devolucion_agent" | "consultar_poliza_agent" | "modificar_poliza_agent",
+  "action": "route" | "end_chat",
   "confidence": número entre 0.0 y 1.0,
   "needs_more_info": true | false,
-  "question": "string (pregunta si needs_more_info=true, vacío si es false)"
+  "question": "string (pregunta si needs_more_info=true, despedida si action=end_chat, vacío si es false)"
 }}}}
 ```
 </formato_respuesta>"""

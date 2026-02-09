@@ -7,6 +7,43 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar('T')
 
+
+def _extract_model_from_chain(chain: Any) -> str:
+    """Extract the model name from a LangChain chain (prompt | llm)."""
+    # Try chain.last (the llm/structured_llm at the end of the pipe)
+    for attr_name in ("last", "middle"):
+        obj = getattr(chain, attr_name, None)
+        if obj is None:
+            continue
+        # middle is a list
+        if isinstance(obj, (list, tuple)):
+            for item in obj:
+                name = _get_model_name(item)
+                if name:
+                    return name
+        else:
+            name = _get_model_name(obj)
+            if name:
+                return name
+    return ""
+
+
+def _get_model_name(obj: Any) -> str:
+    """Try multiple attributes to find a model name."""
+    for attr in ("model_name", "model", "model_id"):
+        val = getattr(obj, attr, None)
+        if val and isinstance(val, str):
+            return val
+    # Some structured output wrappers have .llm inside
+    inner = getattr(obj, "llm", None)
+    if inner:
+        for attr in ("model_name", "model", "model_id"):
+            val = getattr(inner, attr, None)
+            if val and isinstance(val, str):
+                return val
+    return ""
+
+
 def safe_structured_invoke(
     chain: Any,
     inputs: Dict[str, Any],
@@ -18,7 +55,9 @@ def safe_structured_invoke(
     agent_label = error_context or "unknown_classifier"
     
     try:
-        with Timer("agent", agent_label):
+        model_name_str = _extract_model_from_chain(chain)
+
+        with Timer("agent", agent_label, model=model_name_str):
             result = chain.invoke(inputs)
         
         if result is None:

@@ -25,12 +25,13 @@ class RequestTrace:
         self.start = time.perf_counter()
         self.entries: list[dict] = []
 
-    def record(self, category: str, label: str, duration_ms: float, parent: str = ""):
+    def record(self, category: str, label: str, duration_ms: float, parent: str = "", model: str = ""):
         self.entries.append({
             "category": category,
             "label": label,
             "duration_ms": round(duration_ms, 1),
             "parent": parent,
+            "model": model,
         })
 
     def dump(self):
@@ -67,9 +68,10 @@ class RequestTrace:
             for e in agents:
                 # Find tool calls that belong to this agent
                 agent_name = e["label"]
+                model_info = f" [{e['model']}]" if e.get("model") else ""
                 child_tools = [t for t in self.entries if t["category"] in ("erp", "zoa", "tool") and t["parent"] == agent_name]
                 tool_info = f" (LLM + {len(child_tools)} tool calls)" if child_tools else " (LLM only, no tools)"
-                lines.append(f"  {agent_name:.<35s} {e['duration_ms']}ms{tool_info}")
+                lines.append(f"  {agent_name:.<35s} {e['duration_ms']}ms{model_info}{tool_info}")
                 for ct in child_tools:
                     lines.append(f"    └─ {ct['label']:.<31s} {ct['duration_ms']}ms [{ct['category'].upper()}]")
             agent_total = sum(e["duration_ms"] for e in agents)
@@ -147,6 +149,7 @@ class RequestTrace:
                 {
                     "name": e["label"],
                     "duration_ms": e["duration_ms"],
+                    "model": e.get("model", ""),
                     "tools": [
                         {"name": t["label"], "duration_ms": t["duration_ms"], "category": t["category"]}
                         for t in self.entries
@@ -174,11 +177,11 @@ def get_trace() -> "RequestTrace | None":
     return _request_trace.get()
 
 
-def record(category: str, label: str, duration_ms: float, parent: str = ""):
+def record(category: str, label: str, duration_ms: float, parent: str = "", model: str = ""):
     """Record a timing entry into the current trace (if active)."""
     trace = _request_trace.get()
     if trace:
-        trace.record(category, label, duration_ms, parent)
+        trace.record(category, label, duration_ms, parent, model)
 
 
 def set_current_agent(name: str):
@@ -194,10 +197,11 @@ def get_current_agent() -> str:
 class Timer:
     """Context manager that measures elapsed time and records to the active trace."""
 
-    def __init__(self, category: str, label: str, parent: str = ""):
+    def __init__(self, category: str, label: str, parent: str = "", model: str = ""):
         self.category = category
         self.label = label
         self.parent = parent
+        self.model = model
         self.duration_ms = 0.0
 
     def __enter__(self):
@@ -206,4 +210,4 @@ class Timer:
 
     def __exit__(self, *args):
         self.duration_ms = round((time.perf_counter() - self._start) * 1000, 1)
-        record(self.category, self.label, self.duration_ms, self.parent)
+        record(self.category, self.label, self.duration_ms, self.parent, self.model)

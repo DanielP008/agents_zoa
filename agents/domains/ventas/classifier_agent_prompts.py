@@ -21,6 +21,11 @@ El cliente ya fue identificado como alguien interesado en contratar o mejorar un
    - "Quiero contratar un seguro", "cuánto cuesta asegurar", "cotización" (sin mencionar póliza actual) → nueva_poliza_agent
    - "Mejorar mi cobertura actual", "añadir protección", "upgrade", "tengo Terceros y quiero Todo Riesgo" → venta_cruzada_agent
 
+## FINALIZACIÓN DE CHAT (action = "end_chat", needs_more_info = false)
+Si el usuario solo se está despidiendo o dice que no necesita nada más:
+- "gracias", "muchas gracias", "adiós", "chao", "nada más", "eso es todo"
+- En este caso, usa `question` para dar una despedida amable.
+
 3. SEÑALES AMBIGUAS:
    - "Quiero un seguro" → Pregunta: "¿Buscas contratar una póliza nueva o mejorar un seguro que ya tienes con nosotros?"
    - "Información sobre seguros" → Pregunta qué tipo de seguro le interesa y si ya es cliente
@@ -41,10 +46,12 @@ El cliente ya fue identificado como alguien interesado en contratar o mejorar un
 Responde SOLO en JSON válido:
 {{
   "route": "nueva_poliza_agent" | "venta_cruzada_agent",
+  "action": "route" | "end_chat",
   "confidence": número entre 0.0 y 1.0,
   "needs_more_info": true | false,
-  "question": "string (tu pregunta si needs_more_info es true, vacío si es false)"
-}}
+  "question": "string (pregunta si needs_more_info=true, despedida si action=end_chat, vacío si es false)"
+}}}}
+```
 </formato_respuesta>"""
 
 CALL_PROMPT = """Eres el clasificador telefónico de Ventas de ZOA Seguros. El cliente quiere contratar o mejorar un seguro. Determina si es cliente nuevo o existente.

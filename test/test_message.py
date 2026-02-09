@@ -112,24 +112,43 @@ if prompt := st.chat_input("Escribe tu mensaje aquí..."):
             
             if isinstance(agent_response, dict):
                 agent_name = agent_response.get("agent") or agent_response.get("next_agent") or "System"
+                
+                # Extract model info if available from timing data
+                model_info = ""
+                try:
+                    # We look for the latest trace entry for this agent to find the model
+                    # This is a bit of a hack since the API doesn't return it directly in the response
+                    # but we can read it from the jsonl file we just wrote
+                    with open("timings/request_trace.jsonl", "r") as f:
+                        last_trace = json.loads(f.readlines()[-1])
+                        for ag in last_trace.get("agents", []):
+                            if ag["name"] == agent_name or ag["name"] == agent_response.get("agent"):
+                                if ag.get("model"):
+                                    model_info = f" ({ag['model']})"
+                                break
+                except:
+                    pass
+
                 message_text = agent_response.get("message", "")
                 
                 # Check for completion
                 if agent_response.get("status") == "completed":
                     message_text += "\n\n*🔒 Conversación finalizada*"
             else:
+                agent_name = "unknown"
+                model_info = ""
                 message_text = str(agent_response)
 
         # 3. Display Assistant Message
         st.session_state.messages.append({
             "role": "assistant", 
             "content": message_text, 
-            "agent": agent_name,
+            "agent": f"{agent_name}{model_info}",
             "avatar": "🤖"
         })
         
         with st.chat_message("assistant", avatar="🤖"):
-            st.caption(f"🤖 {agent_name}")
+            st.caption(f"🤖 {agent_name}{model_info}")
             st.markdown(message_text)
 
     except requests.exceptions.ConnectionError:

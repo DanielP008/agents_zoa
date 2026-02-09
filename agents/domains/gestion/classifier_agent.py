@@ -5,7 +5,7 @@ from typing import Optional, List
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 
-from core.llm import get_llm
+from core.llm import get_llm_fast
 from core.memory_schema import get_agent_memory, get_global_history
 from core.llm_utils import safe_structured_invoke
 from core.decision_schemas import ClassificationDecision
@@ -24,7 +24,25 @@ with open(_ROUTES_PATH, "r") as f:
 def classifier_gestion_agent(payload: dict) -> dict:
     decision = classify_message(payload)
     
-    if decision.needs_more_info:
+    if decision.action == "end_chat":
+        return {
+            "action": "end_chat",
+            "message": decision.question or "¡Perfecto! Fue un placer ayudarte. Si necesitas algo más, aquí estaré. ¡Que tengas un excelente día! 😊"
+        }
+
+    # Safeguard: only ask if there's actually a question to ask
+    if decision.needs_more_info and decision.question:
+        # If the LLM says it needs more info but provides a message that looks like routing,
+        # it's likely a model hallucination in the decision object.
+        routing_phrases = ["contacto", "especialista", "redirijo", "paso con", "transfiero"]
+        if any(phrase in decision.question.lower() for phrase in routing_phrases) and decision.route:
+            return {
+                "action": "route",
+                "next_agent": decision.route, 
+                "domain": "gestion",
+                "message": decision.question
+            }
+
         return {
             "action": "ask",
             "message": decision.question,
@@ -67,7 +85,7 @@ def classify_message(payload: dict) -> ClassificationDecision:
         ]
     )
 
-    llm = get_llm()
+    llm = get_llm_fast()
     
     try:
         structured_llm = llm.with_structured_output(ClassificationDecision, method="json_mode")

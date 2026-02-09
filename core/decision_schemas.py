@@ -28,7 +28,11 @@ class ClassificationDecision(BaseModel):
     )
     needs_more_info: bool = Field(
         default=True,
-        description="Set to True if you need to ask the user a clarifying question before routing. Set to False if you are confident."
+        description="Set to True if you need to ask the user a clarifying question before routing. Set to False if you are confident or want to end the chat."
+    )
+    action: str | None = Field(
+        default="route",
+        description="The action to take. 'route' to send to a specialist, or 'end_chat' if the user is just saying goodbye or doesn't need anything else."
     )
     question: str = Field(
         default="",

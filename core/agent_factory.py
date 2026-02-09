@@ -61,6 +61,9 @@ def create_langchain_agent(
         **agent_kwargs
     )
     
+    # Store model name for timing/profiling
+    agent._llm_model_name = getattr(llm, "model_name", "") or getattr(llm, "model", "") or ""
+    
     return agent
 def run_langchain_agent(
     agent,
@@ -100,7 +103,9 @@ def run_langchain_agent(
     
     # Invoke agent with timing
     try:
-        with Timer("agent", agent_name):
+        model_name_str = getattr(agent, "_llm_model_name", "")
+             
+        with Timer("agent", agent_name, model=model_name_str):
             result = agent.invoke({"messages": messages}, **invoke_kwargs)
         
         logger.info(f"[AGENT_FACTORY] Agent result type: {type(result)}")
