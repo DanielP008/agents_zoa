@@ -72,7 +72,7 @@ def create_task_activity(
     company_id: str,
     title: str,
     description: Optional[str] = None,
-    card_type: str = "opportunity",
+    card_type: Optional[str] = None,
     amount: float = 0.0,
     tags_name: Optional[Union[List[str], str]] = None,
     type_of_activity: Optional[str] = None,
@@ -160,17 +160,35 @@ def create_task_activity(
         if start_time is None:
             start_time = now.strftime("%H:%M")
     
+    # Determine card_type based on domain if not explicitly provided
+    if not card_type:
+        domain_tag_lower = domain_tag.lower()
+        if domain_tag_lower == "ventas":
+            card_type = "opportunity"
+        else:
+            card_type = "task"
+
+    # Determine pipeline_name based on card_type if not explicitly provided
+    if not pipeline_name:
+        card_type_lower = card_type.lower()
+        if card_type_lower == "opportunity":
+            pipeline_name = "Ventas"
+        elif card_type_lower == "task":
+            pipeline_name = "Principal"
+        else:
+            pipeline_name = "Revisiones"
+
     # Build request data with required fields and defaults
     request_data = {
         "title": title,
-        #"card_type": card_type,        # TODO: Add card_type back when ZOA supports it
+        "card_type": card_type,
         "amount": amount,
         "duration": duration,
         "repeat": repeat,
         "end_type": end_type,
         "type": activity_type,
     }
-    
+
     # Optional fields mapping
     optional_fields = {
         "description": description,
@@ -188,7 +206,7 @@ def create_task_activity(
         "email": email,
         "nif": nif,
         "mobile": mobile,
-        "pipeline_name": "Revisiones"
+        "pipeline_name": pipeline_name
         #"stage_name": stage_name, # switch to Nuevo
     }
     

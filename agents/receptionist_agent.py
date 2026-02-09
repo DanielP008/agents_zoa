@@ -140,7 +140,7 @@ def receptionist_agent(payload: dict) -> dict:
     domain = decision.domain
     message = decision.message
     confidence = decision.confidence if decision.confidence is not None else 0.0
-    
+
     if domain and domain in active_domains_map:
         domain_config = _ROUTES_CONFIG["domains"][domain]
         classifier_agent = domain_config.get("classifier")

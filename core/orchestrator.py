@@ -165,16 +165,17 @@ def process_message(payload: dict) -> dict:
                 last_domain=new_domain,
             )
             session["agent_memory"] = memory
-            
-            session_manager.set_target_agent(wa_id, new_target, new_domain, company_id)
-            session_manager.update_agent_memory(wa_id, memory, company_id)
-            
             target_agent = new_target
             continue
         
         break
     
     if chain_depth >= MAX_CHAIN_DEPTH:
+        # Persist accumulated in-memory state before returning error
+        session["agent_memory"] = memory
+        session_manager.save_session(
+            session_manager._get_composite_id(wa_id, company_id), session
+        )
         _dump_trace(channel)
         return {"error": "Max routing chain depth exceeded"}
     

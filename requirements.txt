@@ -1,5 +1,6 @@
 # LangChain 1.x Migration - 2026-02-02
 functions-framework==3.10.0
+gunicorn==23.0.0
 langchain==1.2.7
 langchain-core==1.2.7
 langchain-community==0.4.1

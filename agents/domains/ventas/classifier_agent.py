@@ -21,6 +21,21 @@ with open(_ROUTES_PATH, "r") as f:
     except KeyError:
         _VALID_ROUTES = []
 
+# Fallback confirmation questions per route (never mention agents/transfers)
+_CONFIRMATIONS = {
+    "nueva_poliza_agent": "Para confirmar, quieres contratar una póliza nueva, ¿correcto?",
+    "venta_cruzada_agent": "Para confirmar, te interesa mejorar o ampliar un seguro que ya tienes, ¿verdad?",
+}
+
+def _sanitize_question(question: str | None) -> str | None:
+    """Strip routing-related phrases from LLM-generated questions."""
+    if not question:
+        return None
+    blocked = ["contacto", "especialista", "redirijo", "paso con", "transfiero", "derivar", "transferi"]
+    if any(phrase in question.lower() for phrase in blocked):
+        return None
+    return question
+
 def classifier_ventas_agent(payload: dict) -> dict:
     decision = classify_message(payload)
     
@@ -30,37 +45,32 @@ def classifier_ventas_agent(payload: dict) -> dict:
             "message": decision.question or "¡Perfecto! Fue un placer ayudarte. Si necesitas algo más, aquí estaré. ¡Que tengas un excelente día! 😊"
         }
 
-    # Safeguard: only ask if there's actually a question to ask
-    if decision.needs_more_info and decision.question:
-        # If the LLM says it needs more info but provides a message that looks like routing,
-        # it's likely a model hallucination in the decision object.
-        routing_phrases = ["contacto", "especialista", "redirijo", "paso con", "transfiero"]
-        if any(phrase in decision.question.lower() for phrase in routing_phrases) and decision.route:
+    # If the classifier needs more info, ask the user
+    if decision.needs_more_info:
+        clean_q = _sanitize_question(decision.question)
+        if clean_q:
             return {
-                "action": "route",
-                "next_agent": decision.route, 
-                "domain": "ventas",
-                "message": decision.question
+                "action": "ask",
+                "message": clean_q,
+                "memory": {
+                    "agents": {
+                        "classifier_ventas_agent": {
+                            "last_route": decision.route,
+                            "confidence": decision.confidence,
+                        }
+                    }
+                } 
             }
 
-        return {
-            "action": "ask",
-            "message": decision.question,
-            "memory": {
-                "agents": {
-                    "classifier_ventas_agent": {
-                        "last_route": decision.route,
-                        "confidence": decision.confidence,
-                    }
-                }
-            } 
-        }
-
+    # Always confirm before routing — never silently passthrough.
+    confirmation = _sanitize_question(decision.question) or _CONFIRMATIONS.get(
+        decision.route, "Para confirmar, ¿es esto lo que necesitas?"
+    )
     return {
         "action": "route",
         "next_agent": decision.route, 
         "domain": "ventas",
-        "message": None
+        "message": confirmation
     }
 
 def classify_message(payload: dict) -> ClassificationDecision:

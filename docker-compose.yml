@@ -8,6 +8,12 @@ services:
       - "8080:8080"
     environment:
       - TZ=Europe/Madrid
+      - WORKERS=4
     volumes:
       - .:/app
       - ./timings:/tmp/timings
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 4G

@@ -10,7 +10,7 @@ def create_task_activity_tool(data: str) -> dict:
     - company_id: str (required)
     - title: str (required, title of the card)
     - description: str (optional)
-    - card_type: str (optional, default "opportunity")
+    - card_type: str (optional, OBLIGATORIO: 'task' para siniestros/gestión, 'opportunity' para ventas)
     - amount: float (optional)
     - tags_name: List[str] or str (optional, comma separated)
     - type_of_activity: str (optional, one of: "llamada", "reunion", "whatsapp", "email", "tarea". If present, creates activity)

@@ -20,7 +20,8 @@ def get_llm(model_name: str = None):
         model=model, 
         google_api_key=api_key,
         temperature=0.7,
-        max_retries=2
+        max_retries=2,
+        timeout=30.0
     )
 
 def get_openai_fast(model_name: str = None):
@@ -39,10 +40,12 @@ def get_gemini_fast(model_name: str = None):
     api_key = os.environ.get("GEMINI_API_KEY", "")
     model = model_name or os.environ.get("GEMINI_MODEL_FAST", "gemini-2.5-flash")
     return ChatGoogleGenerativeAI(
-        model=model, 
+        model=model,
         google_api_key=api_key,
         temperature=0.1,
-        max_retries=2
+        max_retries=2,
+        max_output_tokens=512,
+        timeout=15.0
     )
 
 def get_llm_fast(model_name: str = None):

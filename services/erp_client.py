@@ -1,5 +1,7 @@
 """ERP client with backward-compatible function wrappers."""
 
+import time
+import logging
 from typing import Optional, Dict, Any
 
 from services.interfaces.erp_interfaces import (
@@ -11,6 +13,34 @@ from services.interfaces.erp_interfaces import (
     ClaimsInterface,
     RefundsInterface,
 )
+
+logger = logging.getLogger(__name__)
+
+# =============================================================================
+# In-process policy cache (TTL-based, avoids repeated ERP calls per session)
+# =============================================================================
+_POLICY_CACHE: Dict[str, tuple[float, Dict[str, Any]]] = {}  # key -> (timestamp, result)
+_POLICY_CACHE_TTL = 300  # 5 minutes
+
+
+def _cache_key(company_id: str, nif: str, ramo: Optional[str]) -> str:
+    return f"{company_id}:{nif}:{ramo or '*'}"
+
+
+def _get_cached_policies(key: str) -> Optional[Dict[str, Any]]:
+    entry = _POLICY_CACHE.get(key)
+    if entry is None:
+        return None
+    ts, result = entry
+    if time.time() - ts > _POLICY_CACHE_TTL:
+        del _POLICY_CACHE[key]
+        return None
+    logger.info(f"[ERP_CACHE] HIT for {key}")
+    return result
+
+
+def _set_cached_policies(key: str, result: Dict[str, Any]):
+    _POLICY_CACHE[key] = (time.time(), result)
 
 # =============================================================================
 # Legacy ERPClient (backward compatibility)
@@ -28,6 +58,12 @@ class ERPClient(ERPBaseInterface):
         Get active policies with assistance phones for a specific category (ramo).
         Uses option='get_policies' which returns: number, company_id, company_name, risk, phones
         """
+        # Check in-process cache first
+        key = _cache_key(self.company_id, nif, ramo)
+        cached = _get_cached_policies(key)
+        if cached is not None:
+            return cached
+
         interface = PoliciesInterface(self.company_id)
         result, status = interface.get_policies(nif, lines=ramo)
 
@@ -39,9 +75,15 @@ class ERPClient(ERPBaseInterface):
             }
 
         if isinstance(result, list):
-            return {"success": True, "policies": result}
+            response = {"success": True, "policies": result}
+        else:
+            response = {"success": True, "policies": result if result else []}
 
-        return {"success": True, "policies": result if result else []}
+        # Cache successful results
+        if response.get("success"):
+            _set_cached_policies(key, response)
+
+        return response
 
     def get_client_details(self, nif: str) -> Dict[str, Any]:
         """

@@ -3,7 +3,7 @@ import logging
 
 from core.agent_factory import create_langchain_agent, run_langchain_agent
 from core.memory_schema import get_global_history
-from core.llm import get_llm
+from core.llm import get_llm_fast
 from tools.communication.end_chat_tool import end_chat_tool
 from tools.communication.redirect_to_receptionist_tool import redirect_to_receptionist_tool
 from tools.zoa.tasks import create_task_activity_tool
@@ -30,7 +30,7 @@ def telefonos_asistencia_agent(payload: dict) -> dict:
        wa_id=wa_id
    )
 
-   llm = get_llm()
+   llm = get_llm_fast()
    tools = [get_assistance_phones, create_task_activity_tool, end_chat_tool, redirect_to_receptionist_tool]
    
    agent = create_langchain_agent(llm, tools, system_prompt)

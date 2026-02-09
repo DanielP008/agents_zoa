@@ -789,7 +789,7 @@ def print_summary(results: list):
 
 
 def main():
-    workers = int(sys.argv[1]) if len(sys.argv) > 1 else 6
+    workers = int(sys.argv[1]) if len(sys.argv) > 1 else 4
 
     print(f"{BOLD}{'='*60}{RESET}")
     print(f"{BOLD}ZOA AGENTS - BATTERY TEST{RESET}")

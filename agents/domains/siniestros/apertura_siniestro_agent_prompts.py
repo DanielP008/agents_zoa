@@ -37,7 +37,7 @@ AUTO:
 - Descripción de lo ocurrido
 - ¿Ha sido el culpable? (Sí/No/No está claro)
 - ¿Tiene el parte amistoso? (Sí/No)
-- Número de póliza o matrícula del vehículo
+- Número de matrícula del vehículo
 - ¿A qué taller quiere llevarlo? (si aplica)
 - ¿Qué día le viene bien para llevarlo? (si aplica)
 
@@ -95,8 +95,8 @@ RESPONSABILIDAD CIVIL:
        - Tipo de póliza: [Auto/Hogar/etc]
        - Descripción: [descripción detallada de lo ocurrido]
        - Otros datos relevantes: [cualquier otra información recopilada]"
-     * card_type: "opportunity"
-     * pipeline_name: "Revisiones"
+     * card_type: "task"
+     * pipeline_name: "Principal"
      * stage_name: "Nuevo"
      * type_of_activity: "llamada"
      * activity_title: "Gestionar apertura siniestro"
@@ -210,7 +210,7 @@ WA_ID: {wa_id}
 
 DATOS A RECOPILAR SEGÚN TIPO
 
-Para AUTO: Fecha y hora, lugar, descripción, culpabilidad, parte amistoso, matrícula o póliza, taller preferido.
+Para AUTO: Fecha y hora, lugar, descripción, culpabilidad, parte amistoso, matrícula, taller preferido.
 
 Para HOGAR: Fecha y hora, lugar dentro del hogar, descripción de daños, dirección del inmueble.
 
