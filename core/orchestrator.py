@@ -26,7 +26,7 @@ _AGENT_ALLOWLIST = build_agent_allowlist(_ROUTES_CONFIG)
 
 def _dump_trace(channel: str = "whatsapp"):
     """Dump the current request trace if active. Skip for wildix (handler dumps later)."""
-    if channel == "wildix_voice":
+    if channel == "call":
         return
     trace = get_trace()
     if trace:

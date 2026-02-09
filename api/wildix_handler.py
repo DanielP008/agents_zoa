@@ -84,7 +84,7 @@ def handle_wildix(request):
             "mensaje": text,
             "phone_number_id": bot_id,  # Use botId as company identifier
             "company_id": bot_id,
-            "channel": "wildix_voice",
+            "channel": "call",
             "wildix_metadata": {
                 "session_id": session_id,
                 "bot_id": bot_id,
