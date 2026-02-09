@@ -15,7 +15,7 @@ def generic_knowledge_agent(payload: dict) -> dict:
     channel = payload.get("channel", "whatsapp")
     system_prompt = get_prompt(channel)
 
-    llm = get_llm()
+    llm = get_llm_fast()
     tools = [end_chat_tool]
     
     agent = create_langchain_agent(llm, tools, system_prompt)

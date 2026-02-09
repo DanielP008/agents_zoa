@@ -63,7 +63,7 @@ def explode_agents(df: pd.DataFrame) -> pd.DataFrame:
                 "agent_name": agent["name"],
                 "model": model,
                 "agent_ms": agent["duration_ms"],
-                "llm_ms": agent["duration_ms"] - sum(t["duration_ms"] for t in agent.get("tools", [])),
+                "llm_ms": max(0, agent["duration_ms"] - sum(t["duration_ms"] for t in agent.get("tools", []))),
                 "num_tools": len(agent.get("tools", [])),
                 "tool_names": ", ".join(t["name"] for t in agent.get("tools", [])),
                 "tool_total_ms": sum(t["duration_ms"] for t in agent.get("tools", [])),
@@ -158,6 +158,11 @@ def main():
     existing_cols = [c for c in breakdown_cols if c in df.columns]
     if existing_cols:
         chart_df = df[["timestamp"] + existing_cols].copy()
+        
+        # Ensure no negative values for the area chart
+        for col in existing_cols:
+            chart_df[col] = chart_df[col].clip(lower=0)
+            
         chart_df = chart_df.sort_values("timestamp").reset_index(drop=True)
         chart_df["request_num"] = range(1, len(chart_df) + 1)
 

@@ -108,6 +108,10 @@ class RequestTrace:
         zoa_total = sum(e["duration_ms"] for e in zoa)
         wdx_total = sum(e["duration_ms"] for e in wildix)
         tool_total = erp_total + zoa_total
+        
+        # Ensure LLM time is not negative (can happen with nested agents or timing overlaps)
+        agent_llm_ms = max(0, agent_total - tool_total)
+        
         other = max(0, total_ms - pg_total - agent_total - wdx_total)
 
         def pct(v):
@@ -115,7 +119,7 @@ class RequestTrace:
 
         lines.append("[SUMMARY]")
         lines.append(f"  Postgres ......... {round(pg_total, 1)}ms ({pct(pg_total)})")
-        lines.append(f"  Agent LLM ........ {round(agent_total - tool_total, 1)}ms ({pct(agent_total - tool_total)})")
+        lines.append(f"  Agent LLM ........ {round(agent_llm_ms, 1)}ms ({pct(agent_llm_ms)})")
         lines.append(f"  Tool calls ....... {round(tool_total, 1)}ms ({pct(tool_total)})")
         lines.append(f"  Wildix API ....... {round(wdx_total, 1)}ms ({pct(wdx_total)})")
         lines.append(f"  Other ............ {round(other, 1)}ms ({pct(other)})")
@@ -136,7 +140,7 @@ class RequestTrace:
             "postgres_ms": round(pg_total, 1),
             "postgres_calls": len(pg),
             "agent_total_ms": round(agent_total, 1),
-            "agent_llm_ms": round(agent_total - tool_total, 1),
+            "agent_llm_ms": round(agent_llm_ms, 1),
             "tool_calls_ms": round(tool_total, 1),
             "erp_ms": round(erp_total, 1),
             "erp_calls": len(erp),
