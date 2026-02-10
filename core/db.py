@@ -1,12 +1,17 @@
 import os
 import json
 import logging
+import time
 from sqlalchemy import create_engine, text
 
 from core.memory_schema import ensure_memory_shape
 from core.timing import Timer
 
 logger = logging.getLogger(__name__)
+
+# Retry configuration
+MAX_RETRIES = 3
+RETRY_DELAY = 0.5  # seconds
 
 DB_HOST = os.getenv("DB_HOST", "34.175.165.97")
 DB_USER = os.getenv("DB_USER", "postgres")
@@ -68,23 +73,29 @@ class SessionManager:
         }
 
         query = text("SELECT domain, target_agent, agent_memory FROM sessions WHERE session_id = :sid")
-        try:
-            with Timer("postgres", "get_session"):
-                with self.pool.connect() as conn:
-                    result = conn.execute(query, {"sid": session_id}).fetchone()
-            if result:
-                normalized_memory = self._normalize_memory(result[2])
-                return {
-                    "session_id": session_id,
-                    "domain": result[0],
-                    "target_agent": result[1],
-                    "agent_memory": ensure_memory_shape(normalized_memory),
-                    "history": []
-                }
-        except Exception as e:
-            logger.error(f"DB Read Error: {e}")
         
-        return default_session
+        for attempt in range(MAX_RETRIES):
+            try:
+                with Timer("postgres", "get_session"):
+                    with self.pool.connect() as conn:
+                        result = conn.execute(query, {"sid": session_id}).fetchone()
+                if result:
+                    normalized_memory = self._normalize_memory(result[2])
+                    return {
+                        "session_id": session_id,
+                        "domain": result[0],
+                        "target_agent": result[1],
+                        "agent_memory": ensure_memory_shape(normalized_memory),
+                        "history": []
+                    }
+                return default_session
+            except Exception as e:
+                if attempt < MAX_RETRIES - 1:
+                    logger.warning(f"DB Read Error (attempt {attempt + 1}/{MAX_RETRIES}): {e}")
+                    time.sleep(RETRY_DELAY * (attempt + 1))
+                else:
+                    logger.error(f"DB Read Error (final attempt): {e}")
+                    return default_session
 
     def save_session(self, session_id: str, data: dict):
         domain = data.get("domain")
@@ -102,18 +113,24 @@ class SessionManager:
                 updated_at = NOW();
         """)
         
-        try:
-            with Timer("postgres", "save_session"):
-                with self.pool.connect() as conn:
-                    conn.execute(query, {
-                        "sid": session_id,
-                        "dom": domain,
-                        "agt": target_agent,
-                        "mem": memory
-                    })
-                    conn.commit()
-        except Exception as e:
-            logger.error(f"DB Write Error: {e}")
+        for attempt in range(MAX_RETRIES):
+            try:
+                with Timer("postgres", "save_session"):
+                    with self.pool.connect() as conn:
+                        conn.execute(query, {
+                            "sid": session_id,
+                            "dom": domain,
+                            "agt": target_agent,
+                            "mem": memory
+                        })
+                        conn.commit()
+                return
+            except Exception as e:
+                if attempt < MAX_RETRIES - 1:
+                    logger.warning(f"DB Write Error (attempt {attempt + 1}/{MAX_RETRIES}): {e}")
+                    time.sleep(RETRY_DELAY * (attempt + 1))
+                else:
+                    logger.error(f"DB Write Error (final attempt): {e}")
 
     def update_agent_memory(self, user_id: str, new_memory: dict, company_id: str):
         session = self.get_session(user_id, company_id)
@@ -140,17 +157,23 @@ class SessionManager:
         session_id = self._get_composite_id(user_id, company_id)
         
         query = text("DELETE FROM sessions WHERE session_id = :sid")
-        try:
-            with Timer("postgres", "delete_session"):
-                with self.pool.connect() as conn:
-                    result = conn.execute(query, {"sid": session_id})
-                    conn.commit()
-            deleted = result.rowcount > 0
-            logger.info(f"Session deletion: session_id={session_id}, deleted={deleted}, rowcount={result.rowcount}")
-            return deleted
-        except Exception as e:
-            logger.error(f"DB Delete Error: {e}")
-            return False
+        
+        for attempt in range(MAX_RETRIES):
+            try:
+                with Timer("postgres", "delete_session"):
+                    with self.pool.connect() as conn:
+                        result = conn.execute(query, {"sid": session_id})
+                        conn.commit()
+                deleted = result.rowcount > 0
+                logger.info(f"Session deletion: session_id={session_id}, deleted={deleted}, rowcount={result.rowcount}")
+                return deleted
+            except Exception as e:
+                if attempt < MAX_RETRIES - 1:
+                    logger.warning(f"DB Delete Error (attempt {attempt + 1}/{MAX_RETRIES}): {e}")
+                    time.sleep(RETRY_DELAY * (attempt + 1))
+                else:
+                    logger.error(f"DB Delete Error (final attempt): {e}")
+                    return False
 
     def try_lock_session(self, user_id: str, company_id: str) -> bool:
         """Atomically lock a session for processing. Returns True if lock acquired."""
@@ -167,26 +190,39 @@ class SessionManager:
                OR sessions.processing IS NULL
                OR sessions.updated_at < NOW() - INTERVAL '60 seconds'
         """)
-        try:
-            with Timer("postgres", "try_lock_session"):
-                with self.pool.connect() as conn:
-                    result = conn.execute(query, {"sid": session_id})
-                    conn.commit()
-            locked = result.rowcount > 0
-            return locked
-        except Exception as e:
-            logger.error(f"DB Lock Error: {e}")
-            return False
+        
+        for attempt in range(MAX_RETRIES):
+            try:
+                with Timer("postgres", "try_lock_session"):
+                    with self.pool.connect() as conn:
+                        result = conn.execute(query, {"sid": session_id})
+                        conn.commit()
+                locked = result.rowcount > 0
+                return locked
+            except Exception as e:
+                if attempt < MAX_RETRIES - 1:
+                    logger.warning(f"DB Lock Error (attempt {attempt + 1}/{MAX_RETRIES}): {e}")
+                    time.sleep(RETRY_DELAY * (attempt + 1))  # Exponential backoff
+                else:
+                    logger.error(f"DB Lock Error (final attempt): {e}")
+                    return False
 
     def unlock_session(self, user_id: str, company_id: str):
         """Release the processing lock on a session."""
         session_id = self._get_composite_id(user_id, company_id)
         
         query = text("UPDATE sessions SET processing = FALSE WHERE session_id = :sid")
-        try:
-            with Timer("postgres", "unlock_session"):
-                with self.pool.connect() as conn:
-                    conn.execute(query, {"sid": session_id})
-                    conn.commit()
-        except Exception as e:
-            logger.error(f"DB Unlock Error: {e}")
+        
+        for attempt in range(MAX_RETRIES):
+            try:
+                with Timer("postgres", "unlock_session"):
+                    with self.pool.connect() as conn:
+                        conn.execute(query, {"sid": session_id})
+                        conn.commit()
+                return
+            except Exception as e:
+                if attempt < MAX_RETRIES - 1:
+                    logger.warning(f"DB Unlock Error (attempt {attempt + 1}/{MAX_RETRIES}): {e}")
+                    time.sleep(RETRY_DELAY * (attempt + 1))
+                else:
+                    logger.error(f"DB Unlock Error (final attempt): {e}")
