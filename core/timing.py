@@ -181,6 +181,18 @@ def get_trace() -> "RequestTrace | None":
     return _request_trace.get()
 
 
+def dump_trace(channel: str = "whatsapp"):
+    """Dump the current request trace if active. Skip for call channel (handler dumps later)."""
+    if channel == "call":
+        return
+    trace = get_trace()
+    if trace:
+        try:
+            trace.dump()
+        except Exception:
+            pass
+
+
 def record(category: str, label: str, duration_ms: float, parent: str = "", model: str = ""):
     """Record a timing entry into the current trace (if active)."""
     trace = _request_trace.get()
