@@ -104,6 +104,7 @@ def process_message(payload: dict) -> dict:
 
     MAX_CHAIN_DEPTH = 5
     chain_depth = 0
+    final_response = None
     
     while chain_depth < MAX_CHAIN_DEPTH:
         chain_depth += 1
@@ -114,16 +115,15 @@ def process_message(payload: dict) -> dict:
         action = response.get("action")
         agent_message = response.get("message")
         tool_calls = response.get("tool_calls")
+        memory_patch = response.get("memory", {})
+
+        # Apply memory patches immediately to keep 'memory' and 'session' in sync
+        memory = apply_memory_patch(memory, memory_patch)
+        session["agent_memory"] = memory
 
         if action == "end_chat":
             logger.info(f"[ORCHESTRATOR] end_chat action triggered. Cleaning up session for wa_id: {wa_id}")
             deleted = session_manager.delete_session(wa_id, company_id)
-            
-            if deleted:
-                logger.info(f"[ORCHESTRATOR] Session successfully deleted for wa_id: {wa_id}")
-            else:
-                logger.warning(f"[ORCHESTRATOR] Failed to delete session for wa_id: {wa_id}")
-
             _dump_trace(channel)
             return {
                 "type": "text",
@@ -133,11 +133,9 @@ def process_message(payload: dict) -> dict:
                 "session_deleted": deleted
             }
 
-        if action == "route" and not agent_message:
+        if action == "route":
             new_target = response.get("next_agent")
-            new_domain = response.get("domain")
-            if new_domain is None:
-                new_domain = session.get("domain")
+            new_domain = response.get("domain") or session.get("domain")
             
             if not new_target:
                 _dump_trace(channel)
@@ -152,152 +150,118 @@ def process_message(payload: dict) -> dict:
                     "agent": target_agent
                 }
             
+            # Update session state in memory
             session["target_agent"] = new_target
-            if new_domain:
-                session["domain"] = new_domain
-            payload["session"] = session
+            session["domain"] = new_domain
+            target_agent = new_target
             
-            memory = apply_memory_patch(memory, response.get("memory", {}))
             memory = update_global(
                 memory,
                 last_agent=target_agent,
-                last_action="passthrough",
+                last_action="passthrough" if not agent_message else "route",
                 last_domain=new_domain,
             )
             session["agent_memory"] = memory
-            target_agent = new_target
-            continue
+            payload["session"] = session
+
+            if agent_message:
+                # Agent wants to say something while routing (e.g. confirmation)
+                # We stop the loop here and return the message.
+                memory = append_turn(
+                    memory,
+                    role="assistant",
+                    text=agent_message,
+                    agent=response.get("agent_name") or target_agent,
+                    domain=new_domain,
+                    action=action,
+                    tool_calls=tool_calls,
+                )
+                session["agent_memory"] = memory
+                final_response = {
+                    "type": "transition", 
+                    "message": agent_message,
+                    "next_agent": new_target
+                }
+                break
+            else:
+                # Passthrough routing - continue loop
+                continue
+        
+        if action == "ask":
+            if agent_message:
+                memory = append_turn(
+                    memory,
+                    role="assistant",
+                    text=agent_message,
+                    agent=target_agent,
+                    domain=session.get("domain"),
+                    action=action,
+                    tool_calls=tool_calls,
+                )
+            memory = update_global(
+                memory,
+                last_agent=target_agent,
+                last_action=action,
+                last_domain=session.get("domain"),
+            )
+            session["agent_memory"] = memory
+            final_response = {
+                "type": "text",
+                "message": agent_message,
+                "agent": target_agent
+            }
+            break
+
+        if action == "finish":
+            session["target_agent"] = "receptionist_agent"
+            session["domain"] = None
+            
+            if agent_message:
+                memory = append_turn(
+                    memory,
+                    role="assistant",
+                    text=agent_message,
+                    agent=target_agent,
+                    domain=session.get("domain"),
+                    action=action,
+                    tool_calls=tool_calls,
+                )
+            
+            memory = update_global(
+                memory,
+                last_agent=target_agent,
+                last_action=action,
+                last_domain=session.get("domain"),
+                consultation_completed=True,
+            )
+            session["agent_memory"] = memory
+            final_response = {
+                "type": "text", 
+                "message": agent_message, 
+                "status": "completed"
+            }
+            break
         
         break
     
     if chain_depth >= MAX_CHAIN_DEPTH:
-        # Persist accumulated in-memory state before returning error
-        session["agent_memory"] = memory
-        session_manager.save_session(
-            session_manager._get_composite_id(wa_id, company_id), session
-        )
         _dump_trace(channel)
         return {"error": "Max routing chain depth exceeded"}
-    
-    should_send_message = False
-    if action in ["ask", "finish", "route"] and agent_message:
-        should_send_message = True
-    
+
+    # SINGLE SAVE POINT: Persist the final state of the session
+    session_manager.save_session(session["session_id"], session)
+
     # Only send WhatsApp for whatsapp channel (wildix handles its own responses)
-    channel = payload.get("channel", "whatsapp")
-    if should_send_message and phone_number_id and channel == "whatsapp":
-        whatsapp_result = send_whatsapp_response(
-            text=agent_message,
+    if final_response and final_response.get("message") and phone_number_id and channel == "whatsapp":
+        send_whatsapp_response(
+            text=final_response["message"],
             company_id=phone_number_id,
             wa_id=wa_id
         )
-        
-    elif should_send_message and not phone_number_id:
-        pass
 
-    if action == "ask":
-        if agent_message:
-            memory = append_turn(
-                memory,
-                role="assistant",
-                text=agent_message,
-                agent=target_agent,
-                domain=session.get("domain"),
-                action=action,
-                tool_calls=tool_calls,
-            )
-        memory = apply_memory_patch(memory, response.get("memory", {}))
-        memory = update_global(
-            memory,
-            last_agent=target_agent,
-            last_action=action,
-            last_domain=session.get("domain"),
-        )
-        session_manager.update_agent_memory(wa_id, memory, company_id)
-        _dump_trace(channel)
-        result = {
-            "type": "text",
-            "message": agent_message,
-            "agent": target_agent
-        }
-        return result
-        
-    if action == "route":
-        new_target = response.get("next_agent")
-        new_domain = response.get("domain")
-        if new_domain is None:
-            new_domain = session.get("domain")
-        
-        if not new_target:
-            _dump_trace(channel)
-            return {"error": "Route action missing next_agent"}
-        allowed_next = _AGENT_ALLOWLIST.get(target_agent, [])
-        if new_target not in allowed_next:
-            _dump_trace(channel)
-            return {
-                "type": "text",
-                "message": "No pude derivarte en este momento. ¿Podés intentar de nuevo?",
-                "agent": target_agent
-            }
-        
-        session_manager.set_target_agent(wa_id, new_target, new_domain, company_id)
-        if agent_message:
-            memory = append_turn(
-                memory,
-                role="assistant",
-                text=agent_message,
-                agent=target_agent,
-                domain=new_domain,
-                action=action,
-                tool_calls=tool_calls,
-            )
-        memory = apply_memory_patch(memory, response.get("memory", {}))
-        memory = update_global(
-            memory,
-            last_agent=target_agent,
-            last_action=action,
-            last_domain=new_domain,
-        )
-        session_manager.update_agent_memory(wa_id, memory, company_id)
-        
-        _dump_trace(channel)
-        result = {
-            "type": "transition", 
-            "message": agent_message,
-            "next_agent": new_target
-        }
-        return result
-            
-    if action == "finish":
-        session_manager.set_target_agent(wa_id, "receptionist_agent", None, company_id)
-        
-        if agent_message:
-            memory = append_turn(
-                memory,
-                role="assistant",
-                text=agent_message,
-                agent=target_agent,
-                domain=session.get("domain"),
-                action=action,
-                tool_calls=tool_calls,
-            )
-        
-        memory = update_global(
-            memory,
-            last_agent=target_agent,
-            last_action=action,
-            last_domain=session.get("domain"),
-            consultation_completed=True,
-        )
-        session_manager.update_agent_memory(wa_id, memory, company_id)
-        
-        _dump_trace(channel)
-        result = {
-            "type": "text", 
-            "message": agent_message, 
-            "status": "completed"
-        }
-        return result
+    _dump_trace(channel)
+    return final_response or {"error": "Unknown action"}
+
 
     _dump_trace(channel)
     return {"error": "Unknown action"}
