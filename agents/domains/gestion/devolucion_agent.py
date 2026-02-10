@@ -42,7 +42,14 @@ def devolucion_agent(payload: dict) -> dict:
 
    # Check if redirect to receptionist was triggered
    if "__REDIRECT_TO_RECEPTIONIST__" in output_text:
-      return {"action": "route", "next_agent": "receptionist_agent", "message": "", "tool_calls": tool_calls}
+      clean_message = output_text.replace("__REDIRECT_TO_RECEPTIONIST__", "").strip()
+      return {
+          "action": "route", 
+          "next_agent": "receptionist_agent", 
+          "domain": None,
+          "message": clean_message, 
+          "tool_calls": tool_calls
+      }
 
    if action == "end_chat":
       return {"action": "end_chat", "message": output_text, "tool_calls": tool_calls}

@@ -163,29 +163,43 @@ def receptionist_agent(payload: dict) -> dict:
             domain_config = _ROUTES_CONFIG["domains"][domain]
             classifier_agent = domain_config.get("classifier")
             if classifier_agent:
+                # Merge patches to clear consultation_completed
+                final_patch = memory_patch or {}
+                if "global" not in final_patch:
+                    final_patch["global"] = {}
+                final_patch["global"]["consultation_completed"] = False
+
                 result = {
                     "action": "route",
                     "next_agent": classifier_agent,
                     "domain": domain,
                     "message": None,
+                    "memory": final_patch
                 }
-                if memory_patch:
-                    result["memory"] = memory_patch
                 return result
         else:
             # Domain detected but no NIF -> ask for NIF (don't route yet)
             if not message:
                 message = "Para poder gestionar tu consulta, necesito tu NIF, DNI o NIE. ¿Podrías proporcionármelo?"
-            result = {"action": "ask", "message": message}
-            if memory_patch:
-                result["memory"] = memory_patch
+            
+            final_patch = memory_patch or {}
+            if "global" not in final_patch:
+                final_patch["global"] = {}
+            final_patch["global"]["consultation_completed"] = False
+            
+            result = {"action": "ask", "message": message, "memory": final_patch}
             return result
 
     # No domain detected (or unknown domain) -> ask for clarification
     if not message:
         message = f"Disculpa, no entendí bien. ¿Tu consulta es sobre {available_domains_str}?"
 
-    result = {"action": "ask", "message": message}
-    if memory_patch:
-        result["memory"] = memory_patch
+    final_patch = memory_patch or {}
+    if "global" not in final_patch:
+        final_patch["global"] = {}
+    # Only clear if the user actually sent something that looks like an intent
+    if len(user_text) > 2:
+        final_patch["global"]["consultation_completed"] = False
+
+    result = {"action": "ask", "message": message, "memory": final_patch}
     return result

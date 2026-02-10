@@ -62,10 +62,12 @@ def consulta_estado_agent(payload: dict) -> dict:
 
     # Check if redirect to receptionist was triggered
     if "__REDIRECT_TO_RECEPTIONIST__" in output_text:
+        clean_message = output_text.replace("__REDIRECT_TO_RECEPTIONIST__", "").strip()
         return {
             "action": "route",
             "next_agent": "receptionist_agent",
-            "message": "",
+            "domain": None,
+            "message": clean_message,
             "tool_calls": tool_calls
         }
 

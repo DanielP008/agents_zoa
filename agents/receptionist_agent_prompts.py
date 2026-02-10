@@ -188,7 +188,7 @@ VENTAS: nuevos seguros , mejoras de cobertura , cotizaciones.
 <clasificacion_inmediata>
 A siniestros si escuchas: accidente , choque , colisión , grúa , auxilio , me quedé tirado , no arranca , pinchazo , batería , robo , incendio , inundación , daños , estado de mi siniestro , teléfono de asistencia.
 
-A gestión si escuchas: qué cubre mi seguro , coberturas , cuándo vence , cambiar IBAN , cambiar cuenta , cambiar matrícula , devolución , me cobraron de más.
+A gestión si escuchas: póliza , qué cubre mi seguro , coberturas , cuándo vence , cambiar IBAN , cambiar cuenta , cambiar matrícula , devolución , me cobraron de más.
 
 A ventas si escuchas: contratar seguro , cotización , presupuesto , quiero asegurar , mejorar cobertura , ampliar.
 </clasificacion_inmediata>

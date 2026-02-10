@@ -136,10 +136,11 @@ def run_langchain_agent(
         action = "ask"
         tool_calls_executed = []  # Track all tool calls made during this turn
         
-        # Check if any tool returned end_chat action
+        # Check if any tool returned end_chat or redirect action
         if isinstance(result, dict):
-            # Prefer the ToolMessage content if end_chat_tool was called.
+            # Prefer the ToolMessage content if end_chat_tool or redirect_to_receptionist_tool was called.
             end_chat_tool_message_text: Optional[str] = None
+            redirect_tool_message_text: Optional[str] = None
             ai_message_text: Optional[str] = None
             
             for i, msg in enumerate(result.get("messages", [])):
@@ -152,17 +153,28 @@ def run_langchain_agent(
                             "args": tool_call.get("args", {})
                         })
                         
-                        if tool_call.get("name") == "end_chat_tool":
+                        tool_name = tool_call.get("name")
+                        if tool_name == "end_chat_tool":
                             action = "end_chat"
-                            # Capture the text content of this AIMessage if it exists
-                            if hasattr(msg, 'content') and msg.content:
-                                ai_message_text = _extract_text_from_content(msg.content)
+                        elif tool_name == "redirect_to_receptionist_tool":
+                            # We keep action as "ask" but ensure the flag is in output
+                            pass
+
+                        # Capture the text content of this AIMessage if it exists
+                        if hasattr(msg, 'content') and msg.content:
+                            ai_message_text = _extract_text_from_content(msg.content)
                 
-                # ToolMessage path (most reliable for action confirmation)
-                if isinstance(msg, ToolMessage) and getattr(msg, "name", None) == "end_chat_tool":
-                    end_chat_tool_message_text = _extract_text_from_content(msg.content)
-                    action = "end_chat"
-                    continue
+                # ToolMessage path
+                if isinstance(msg, ToolMessage):
+                    tool_name = getattr(msg, "name", None)
+                    if tool_name == "end_chat_tool":
+                        end_chat_tool_message_text = _extract_text_from_content(msg.content)
+                        action = "end_chat"
+                    elif tool_name == "redirect_to_receptionist_tool":
+                        redirect_tool_message_text = _extract_text_from_content(msg.content)
+                        # We don't change action to route here yet, 
+                        # let the agent handle it via the __REDIRECT_TO_RECEPTIONIST__ flag
+                        continue
 
                 # Check tool messages for end_chat pattern manually
                 if hasattr(msg, 'content'):
@@ -171,8 +183,6 @@ def run_langchain_agent(
                         action = "end_chat"
 
             # DECISION LOGIC FOR OUTPUT:
-            # 1. If both AI message and Tool output exist, combine them.
-            # 2. If only one exists, use that one.
             if action == "end_chat":
                 parts = []
                 if ai_message_text and ai_message_text.strip():
@@ -183,6 +193,12 @@ def run_langchain_agent(
                 if parts:
                     output = "\n\n".join(parts)
                     logger.info(f"[AGENT_FACTORY] Combined output for end_chat: {output[:50]}...")
+            
+            elif redirect_tool_message_text:
+                # Ensure the redirect flag is preserved even if the AI added more text
+                if redirect_tool_message_text not in output:
+                    output = f"{output}\n\n{redirect_tool_message_text}".strip()
+                    logger.info(f"[AGENT_FACTORY] Appended redirect flag to output")
         
         # Log tool calls if any
         if tool_calls_executed:

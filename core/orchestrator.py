@@ -92,9 +92,7 @@ def process_message(payload: dict) -> dict:
 
         if action == "route" and not agent_message:
             new_target = response.get("next_agent")
-            new_domain = response.get("domain")
-            if new_domain is None:
-                new_domain = session.get("domain")
+            new_domain = response.get("domain") if "domain" in response else session.get("domain")
             
             if not new_target:
                 dump_trace(channel)
@@ -110,8 +108,7 @@ def process_message(payload: dict) -> dict:
                 }
             
             session["target_agent"] = new_target
-            if new_domain:
-                session["domain"] = new_domain
+            session["domain"] = new_domain
             payload["session"] = session
             
             memory = apply_memory_patch(memory, response.get("memory", {}))
@@ -195,9 +192,7 @@ def process_message(payload: dict) -> dict:
         
     if action == "route":
         new_target = response.get("next_agent")
-        new_domain = response.get("domain")
-        if new_domain is None:
-            new_domain = session.get("domain")
+        new_domain = response.get("domain") if "domain" in response else session.get("domain")
         
         if not new_target:
             dump_trace(channel)
