@@ -24,7 +24,7 @@ def get_llm(model_name: str = None):
         timeout=30.0
     )
 
-def get_openai_fast(model_name: str = None):
+def _get_openai_fast(model_name: str = None):
     """Get a fast OpenAI instance."""
     api_key = os.environ.get("OPENAI_API_KEY", "")
     model = model_name or os.environ.get("OPENAI_MODEL_FAST", "gpt-5.2")
@@ -35,7 +35,7 @@ def get_openai_fast(model_name: str = None):
         max_retries=2
     )
 
-def get_gemini_fast(model_name: str = None):
+def _get_gemini_fast(model_name: str = None):
     """Get a fast Gemini instance."""
     api_key = os.environ.get("GEMINI_API_KEY", "")
     model = model_name or os.environ.get("GEMINI_MODEL_FAST", "gemini-2.5-flash")
@@ -56,6 +56,6 @@ def get_llm_fast(model_name: str = None):
     provider = os.environ.get("FAST_LLM_PROVIDER", "openai").lower()
     
     if provider == "openai":
-        return get_openai_fast(model_name)
+        return _get_openai_fast(model_name)
     
-    return get_gemini_fast(model_name)
+    return _get_gemini_fast(model_name)
