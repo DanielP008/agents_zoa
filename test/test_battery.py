@@ -15,7 +15,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 
 # Detect if we are running locally or in GCP
-API_URL = "https://zoa-agents-673887944015.europe-southwest1.run.app"
+API_URL = "https:localhost:8080"
 IS_LOCAL = "localhost" in API_URL or "127.0.0.1" in API_URL
 
 COMPANY_ID = "521783407682043"

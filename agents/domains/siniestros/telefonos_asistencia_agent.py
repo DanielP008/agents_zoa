@@ -6,6 +6,7 @@ from core.memory_schema import get_global_history
 from core.llm import get_llm_fast
 from tools.communication.end_chat_tool import end_chat_tool
 from tools.communication.redirect_to_receptionist_tool import redirect_to_receptionist_tool
+from tools.communication.send_whatsapp_tool import send_whatsapp_tool
 from tools.zoa.tasks import create_task_activity_tool
 from tools.erp.erp_tools import get_assistance_phones
 from agents.domains.siniestros.telefonos_asistencia_agent_prompts import get_prompt
@@ -32,6 +33,10 @@ def telefonos_asistencia_agent(payload: dict) -> dict:
 
    llm = get_llm_fast()
    tools = [get_assistance_phones, create_task_activity_tool, end_chat_tool, redirect_to_receptionist_tool]
+   
+   # Add WhatsApp tool for phone calls so the agent can send numbers via message
+   if channel in ("call", "wildix_voice"):
+       tools.append(send_whatsapp_tool)
    
    agent = create_langchain_agent(llm, tools, system_prompt)
    result = run_langchain_agent(agent, user_text, history, agent_name="telefonos_asistencia_agent")
