@@ -7,6 +7,7 @@ services:
     environment:
       - TZ=Europe/Madrid
       - PYTHONUNBUFFERED=1
+      - TIMING_DIR=/app/timings
     ports:
       - "8080:8080"
     volumes:

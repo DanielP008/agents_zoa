@@ -9,6 +9,10 @@ class ReceptionistDecision(BaseModel):
         default=None,
         description="Respuesta natural al usuario si no se detecta dominio o se requiere más información."
     )
+    nif: str | None = Field(
+        default=None,
+        description="NIF/DNI/NIE/CIF extraído del mensaje del usuario, si está presente."
+    )
     confidence: float | None = Field(
         default=0.0,
         description="Nivel de confianza de la clasificación (0.0 a 1.0).",

@@ -12,7 +12,7 @@ from core.memory_schema import (
 from core.routing.main_router import route_request
 from services.zoa_client import send_whatsapp_response
 from core.routing.allowlist import build_agent_allowlist, load_routes_config
-from core.preprocessors import extract_attachments, handle_nif_and_welcome
+from core.preprocessors import extract_attachments, try_silent_nif_lookup
 
 session_manager = SessionManager()
 
@@ -53,26 +53,9 @@ def process_message(payload: dict) -> dict:
             mensaje = "[imagen adjunta]"
             payload["mensaje"] = mensaje
 
-    # Handle NIF lookup and welcome message
-    channel = payload.get("channel", "whatsapp")
-    memory, nif_value, should_continue, generated_message = handle_nif_and_welcome(
-        memory, 
-        mensaje, 
-        wa_id, 
-        company_id,
-        channel
-    )
-    
+    # Silent CRM lookup for NIF (no user interaction)
+    memory, nif_value = try_silent_nif_lookup(memory, wa_id, company_id)
     session["agent_memory"] = memory
-    
-    # If _handle_nif_and_welcome returned should_continue=False, return early
-    if not should_continue:
-        dump_trace(channel)
-        return {
-            "type": "text",
-            "message": generated_message or memory.get("global", {}).get("last_message", ""),
-            "agent": "orchestrator"
-        }
 
     payload["session"] = session
 
