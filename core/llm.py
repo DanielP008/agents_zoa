@@ -19,7 +19,7 @@ def get_llm(model_name: str = None):
     return ChatGoogleGenerativeAI(
         model=model, 
         google_api_key=api_key,
-        temperature=0.7,
+        temperature=0.2,
         max_retries=2,
         timeout=30.0
     )

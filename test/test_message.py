@@ -21,7 +21,7 @@ st.set_page_config(
 API_URL = "http://localhost:8080" # Local
 DEFAULT_USER_ID = os.getenv("TEST_PHONE_NUMBER", "+34000000000")
 DEFAULT_COMPANY_ID = "521783407682043"
-DEFAULT_USER_NAME = "Daniel Pulgar"
+DEFAULT_USER_NAME = "Juan Arano"
 
 # --- SESSION STATE INITIALIZATION ---
 if "messages" not in st.session_state:

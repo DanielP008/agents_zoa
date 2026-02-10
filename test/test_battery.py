@@ -14,11 +14,14 @@ import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 
-API_URL = "http://localhost:8080"
+# Detect if we are running locally or in GCP
+API_URL = "https://zoa-agents-673887944015.europe-southwest1.run.app"
+IS_LOCAL = "localhost" in API_URL or "127.0.0.1" in API_URL
+
 COMPANY_ID = "521783407682043"
 TEST_NIF = "Z1549612S"
 MAX_TURNS = 20  # Safety limit per conversation
-TIMEOUT = 60    # HTTP timeout per request
+TIMEOUT = 60 if IS_LOCAL else 120    # Shorter timeout for local, longer for Cloud Run
 
 # ─── Colors ───
 GREEN = "\033[92m"
@@ -802,10 +805,14 @@ def main():
 
     # Check API is reachable
     try:
-        requests.get(API_URL, timeout=5)
-    except Exception:
-        print(f"{RED}ERROR: Cannot reach {API_URL}. Is Docker running?{RESET}")
-        sys.exit(1)
+        requests.get(API_URL, timeout=10)
+    except Exception as e:
+        if IS_LOCAL:
+            print(f"{RED}ERROR: Cannot reach {API_URL}. Is Docker running?{RESET}")
+            sys.exit(1)
+        else:
+            print(f"{YELLOW}WARNING: Initial reachability check failed for GCP ({e}).{RESET}")
+            print(f"{YELLOW}Proceeding with tests anyway...{RESET}\n")
 
     # Build all tasks
     tasks = []

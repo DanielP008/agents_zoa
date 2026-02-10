@@ -19,6 +19,7 @@ WHATSAPP_PROMPT = """Eres Sofía, la recepcionista virtual de ZOA Seguros. Tu ro
 | "grúa", "auxilio", "me quedé tirado", "no arranca", "pinchazo", "batería" | siniestros | Urgencia implícita |
 | "me robaron", "robo", "incendio", "inundación", "daños" | siniestros | Eventos adversos |
 | "estado de mi siniestro", "cómo va mi parte", "expediente" | siniestros | Seguimiento |
+| "póliza", "contrato", "datos del contrato", "datos de mi seguro", "dudas sobre mi poliza" | gestion | Consulta de póliza |
 | "devolución", "reembolso", "me cobraron de más", "cobro duplicado" | gestion | Dinero a devolver |
 | "cambiar mi IBAN", "cambiar cuenta", "cambiar matrícula", "actualizar datos" | gestion | Modificación explícita |
 | "contratar seguro", "cotización", "presupuesto nuevo", "quiero asegurar" | ventas | Nueva contratación |
