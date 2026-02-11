@@ -132,6 +132,17 @@ def get_global_history(memory: Dict[str, Any]) -> List[tuple]:
 
     # ── Short conversations: return everything as-is ──────────────────────
     if len(raw_history) <= RECENT_WINDOW:
+        # Even in short conversations, we print the persistent data if it exists
+        global_data = memory.get("global", {})
+        if global_data.get("nif") or global_data.get("wa_id") or global_data.get("company_id"):
+            print("\n" + "="*50)
+            print("DATOS OBLIGATORIOS (Conversación Corta)")
+            print("="*50)
+            if global_data.get("nif"): print(f"- NIF/NIE: {global_data['nif']}")
+            if global_data.get("wa_id"): print(f"- Teléfono (wa_id): {global_data['wa_id']}")
+            if global_data.get("company_id"): print(f"- Company ID: {global_data['company_id']}")
+            print("="*50 + "\n")
+            
         return [
             (("human" if h.get("role") == "user" else "ai"), h.get("text", ""))
             for h in raw_history
@@ -142,6 +153,32 @@ def get_global_history(memory: Dict[str, Any]) -> List[tuple]:
     recent_turns = raw_history[-RECENT_WINDOW:]
 
     context_summary = _build_context_summary(old_turns)
+
+    # Add persistent global data to summary so it's never lost
+    global_data = memory.get("global", {})
+    persistent_info = []
+    if global_data.get("nif"):
+        persistent_info.append(f"- NIF/NIE: {global_data['nif']}")
+    
+    # Use wa_id from payload if available, or from global memory
+    wa_id = global_data.get("wa_id")
+    if wa_id:
+        persistent_info.append(f"- Teléfono (wa_id): {wa_id}")
+
+    # Add company_id to persistent info
+    company_id = global_data.get("company_id")
+    if company_id:
+        persistent_info.append(f"- Company ID: {company_id}")
+    
+    if persistent_info:
+        context_summary = "[DATOS OBLIGATORIOS DEL CLIENTE]\n" + "\n".join(persistent_info) + "\n\n" + context_summary
+
+    # Print summary to console for evolution monitoring
+    print("\n" + "="*50)
+    print("EVOLUCIÓN DEL RESUMEN DE MEMORIA")
+    print("="*50)
+    print(context_summary or "Sin historial antiguo todavía.")
+    print("="*50 + "\n")
 
     old_chars = sum(len(t.get("text", "")) for t in old_turns)
     summary_chars = len(context_summary)

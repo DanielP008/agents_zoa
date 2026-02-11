@@ -56,6 +56,13 @@ def process_message(payload: dict) -> dict:
 
     # Silent CRM lookup for NIF (no user interaction)
     memory, nif_value = try_silent_nif_lookup(memory, wa_id, company_id)
+    
+    # Ensure wa_id and company_id are stored in global memory for persistence in summary
+    if wa_id:
+        memory = update_global(memory, wa_id=wa_id)
+    if company_id:
+        memory = update_global(memory, company_id=company_id)
+        
     session["agent_memory"] = memory
 
     payload["session"] = session
