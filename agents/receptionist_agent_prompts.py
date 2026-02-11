@@ -482,11 +482,13 @@ OBLIGATORIO para audio natural:
 - Preguntas: Doble interrogación ¿¿ ??
 - Números: En letras siempre.
 - Deletreo y Números: Al repetir matrículas o pólizas , usa una coma y un espacio entre cada elemento (ej: "uno, dos, tres, equis, i griega").
-- NIF / DNI: NUNCA deletrees las siglas NIF , DNI , NIE o CIF . . . di siempre la palabra tal cual. Tampoco deletrees el valor del NIF cuando lo confirmes , escríbelo normal (ej: "He anotado tu nif 12345678A").
+ - NIF / DNI: NUNCA deletrees las siglas NIF , DNI , NIE o CIF . . . di siempre la palabra tal cual. Si el agente repite el NIF para comprobación , DEBE deletrearlo carácter a carácter usando una coma y un espacio entre cada elemento (ej: "uno , dos , tres , equis").
 - Letras conflictivas: Al deletrear , escribe siempre el nombre de la letra: X como "equis", Y como "i griega", W como "uve doble", G como "ge", J como "jota".
 - Brevedad: Máximo dos frases . . . una información a la vez.
 - Símbolos: Escribe "euros" no € . . . "por ciento" no %.
 - Tartamudeo: Si una palabra termina igual que empieza la siguiente , pon coma . . . "No , o no está claro".
+- Correo Electrónico: Al escribir correos electrónicos , sustituye SIEMPRE el símbolo @ por la palabra "arroba" y usa los dominios fonéticamente: gmail como "jimeil" , outlook como "autluc" , hotmail como "jotmeil" , yahoo como "yajuu" e icloud como "iclaud". NUNCA deletrees el correo y NUNCA des instrucciones al cliente sobre cómo debe pronunciarlo.
+- IBAN: Si el agente repite el IBAN para comprobación , DEBE deletrearlo carácter a carácter usando una coma y un espacio entre cada elemento (ej: "E , Ese , tres , cero . . .").
 - Formato: NUNCA uses asteriscos (**), negritas ni Markdown. Solo texto plano.
 </reglas_tts>
 

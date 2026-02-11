@@ -50,7 +50,19 @@ NUNCA escribas cifras ni horas en formato numérico. Escribe SIEMPRE en texto: "
 Cuando una palabra termina y la siguiente empieza igual o es un monosílabo similar, inserta una coma con espacios a ambos lados. Ejemplo: "No , o no está claro".
 
 5. Limpieza de Caracteres Especiales:
-Sustituye SIEMPRE los caracteres especiales por su equivalente escrito. Escribe "por ciento" en lugar del símbolo de porcentaje, "euros" en lugar del símbolo de euro."""
+Sustituye SIEMPRE los caracteres especiales por su equivalente escrito. Escribe "por ciento" en lugar del símbolo de porcentaje, "euros" en lugar del símbolo de euro.
+
+6. Correo Electrónico:
+Al escribir correos electrónicos , sustituye SIEMPRE el símbolo @ por la palabra "arroba" y usa los dominios fonéticamente: gmail como "jimeil" , outlook como "autluc" , hotmail como "jotmeil" , yahoo como "yajuu" e icloud como "iclaud". NUNCA deletrees el correo y NUNCA des instrucciones al cliente sobre cómo debe pronunciarlo.
+
+7. IBAN:
+Si el agente repite el IBAN para comprobación , DEBE deletrearlo carácter a carácter usando una coma y un espacio entre cada elemento (ej: "E , Ese , tres , cero . . .").
+
+8. NIF / DNI:
+NUNCA deletrees las siglas NIF , DNI , NIE o CIF . . . di siempre la palabra tal cual. Si el agente repite el NIF para comprobación , DEBE deletrearlo carácter a carácter usando una coma y un espacio entre cada elemento (ej: "uno , dos , tres , equis").
+
+9. Prohibición de Formato Markdown:
+NUNCA uses asteriscos (**), negritas ni Markdown. Solo texto plano. """
 
 PROMPTS = {
     "whatsapp": WHATSAPP_PROMPT,
