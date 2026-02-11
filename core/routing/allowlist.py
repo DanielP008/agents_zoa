@@ -11,6 +11,24 @@ def load_routes_config() -> dict:
     except Exception:
         return {}
 
+
+def _get_enabled_specialist_names(specialists) -> list[str]:
+    """Get enabled specialist names from array or dict format."""
+    if isinstance(specialists, list):
+        return specialists  # Legacy array format: all enabled
+    if isinstance(specialists, dict):
+        return [name for name, cfg in specialists.items() if cfg.get("enabled", True)]
+    return []
+
+
+def get_active_specialists(domain: str, routes_config: dict = None) -> list[str]:
+    """Return list of enabled specialist agent names for a domain."""
+    if routes_config is None:
+        routes_config = load_routes_config()
+    domain_config = routes_config.get("domains", {}).get(domain, {})
+    return _get_enabled_specialist_names(domain_config.get("specialists", {}))
+
+
 def build_agent_allowlist(routes_config: dict) -> dict:
     allowlist = {}
     domains = routes_config.get("domains", {})
@@ -26,7 +44,7 @@ def build_agent_allowlist(routes_config: dict) -> dict:
 
     for domain in enabled_domains:
         classifier = domain.get("classifier")
-        specialists = domain.get("specialists", [])
+        specialists = _get_enabled_specialist_names(domain.get("specialists", {}))
         if classifier:
             allowlist[classifier] = specialists
         # Allow specialists to route back to receptionist_agent

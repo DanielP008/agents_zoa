@@ -1,11 +1,359 @@
-"""Prompts for receptionist_agent."""
+"""Prompts for receptionist_agent.
 
-WHATSAPP_PROMPT = """Eres Sofía, la recepcionista virtual de ZOA Seguros. Tu rol es identificar qué necesita el cliente y dirigirlo al área correcta.
+Domain and specialist sections are dynamically built based on the active
+agents configured in routes.json. get_prompt() accepts domain/specialist
+info and assembles the prompt accordingly.
+"""
+
+# ---------------------------------------------------------------------------
+# Data mappings: each specialist contributes signal rows and description
+# fragments that are included only when that specialist is active.
+# ---------------------------------------------------------------------------
+
+# Domain-level data for the receptionist
+DOMAIN_DATA = {
+    "siniestros": {
+        "label": "SINIESTROS",
+        "base_services": ["siniestros"],
+        "specialist_services": {
+            "apertura_siniestro_agent": "apertura de parte",
+            "consulta_estado_agent": "consulta de estado de parte",
+            "telefonos_asistencia_agent": "TELEFONOS DE ASISTENCIA",
+        },
+        # Classification signal rows (high priority) mapped to specialists
+        "signal_rows": {
+            "telefonos_asistencia_agent": [
+                '| "telefono asistencia", "accidente", "choque", "choqué", "colisión", "atropello" | siniestros | Aunque mencione "póliza" |',
+                '| "grúa", "auxilio", "me quedé tirado", "no arranca", "pinchazo", "batería" | siniestros | Urgencia implícita |',
+            ],
+            "apertura_siniestro_agent": [
+                '| "me robaron", "robo", "incendio", "inundación", "daños" | siniestros | Eventos adversos |',
+            ],
+            "consulta_estado_agent": [
+                '| "estado de mi siniestro", "cómo va mi parte", "expediente" | siniestros | Seguimiento |',
+            ],
+        },
+        # Call channel data
+        "call_base_description": "accidentes , choques , grúa , auxilio , robos",
+        "call_specialist_services": {
+            "consulta_estado_agent": "estado de partes",
+        },
+        "call_signal_rows": {
+            "telefonos_asistencia_agent": [
+                "A siniestros si escuchas: accidente , choque , colisión , grúa , auxilio , me quedé tirado , no arranca , pinchazo , batería , robo , incendio , inundación , daños , teléfono de asistencia.",
+            ],
+            "consulta_estado_agent": [],  # merged into base for call
+        },
+    },
+    "gestion": {
+        "label": "GESTIÓN",
+        "base_services": [],
+        "specialist_services": {
+            "consultar_poliza_agent": "consultas y dudas sobre pólizas",
+            "devolucion_agent": "devoluciones y reembolsos",
+            "modificar_poliza_agent": "modificación de datos de póliza",
+        },
+        "signal_rows": {
+            "consultar_poliza_agent": [
+                '| "póliza", "contrato", "datos del contrato", "datos de mi seguro", "dudas sobre mi poliza" | gestion | Consulta de póliza |',
+            ],
+            "devolucion_agent": [
+                '| "devolución", "reembolso", "me cobraron de más", "cobro duplicado" | gestion | Dinero a devolver |',
+            ],
+            "modificar_poliza_agent": [
+                '| "cambiar mi IBAN", "cambiar cuenta", "cambiar matrícula", "actualizar datos" | gestion | Modificación explícita |',
+            ],
+        },
+        "call_base_description": "",
+        "call_specialist_services": {
+            "devolucion_agent": "devoluciones",
+            "consultar_poliza_agent": "consultas de póliza",
+            "modificar_poliza_agent": "modificaciones , coberturas",
+        },
+        "call_signal_rows": {
+            "consultar_poliza_agent": [
+                "A gestión si escuchas: qué cubre mi seguro , coberturas , cuándo vence.",
+            ],
+            "modificar_poliza_agent": [
+                "A gestión si escuchas: cambiar IBAN , cambiar cuenta , cambiar matrícula.",
+            ],
+            "devolucion_agent": [
+                "A gestión si escuchas: devolución , me cobraron de más.",
+            ],
+        },
+    },
+    "ventas": {
+        "label": "VENTAS",
+        "base_services": ["contratación y mejora de seguros"],
+        "specialist_services": {},
+        "signal_rows": {
+            "nueva_poliza_agent": [
+                '| "contratar seguro", "cotización", "presupuesto nuevo", "quiero asegurar" | ventas | Nueva contratación |',
+            ],
+            "venta_cruzada_agent": [
+                '| "mejorar mi seguro", "ampliar cobertura", "subir de plan" | ventas | Upgrade |',
+            ],
+        },
+        "call_base_description": "nuevos seguros , mejoras de cobertura , cotizaciones",
+        "call_specialist_services": {},
+        "call_signal_rows": {
+            "nueva_poliza_agent": [
+                "A ventas si escuchas: contratar seguro , cotización , presupuesto , quiero asegurar.",
+            ],
+            "venta_cruzada_agent": [
+                "A ventas si escuchas: mejorar cobertura , ampliar.",
+            ],
+        },
+    },
+}
+
+# Medium priority signal rows mapped to specialists
+MEDIUM_PRIORITY_ROWS = {
+    "consultar_poliza_agent": [
+        '| "qué cubre mi seguro", "coberturas", "qué incluye" | gestion | Clasificar como gestión (consulta de póliza) |',
+        '| "cuándo vence", "fecha de renovación" | gestion | Clasificar como gestión (consulta de póliza) |',
+    ],
+}
+
+# Receptionist examples mapped to the specialist they depend on.
+# An example is included only if its required specialist is active.
+# Examples with requires_specialist=None are always included.
+RECEPTIONIST_EXAMPLES_WHATSAPP = [
+    {
+        "requires_specialist": "telefonos_asistencia_agent",
+        "requires_domain": "siniestros",
+        "text": (
+            '### Ejemplo: Señal clara de agente de siniestros\n'
+            '**Usuario**: "Necesito numero de telefonos de asistencia de mi poliza"\n'
+            '**Clasificación**: domain="siniestros", confidence=0.95, message=null'
+        ),
+    },
+    {
+        "requires_specialist": "apertura_siniestro_agent",
+        "requires_domain": "siniestros",
+        "text": (
+            '### Ejemplo: Señal clara de siniestro\n'
+            '**Usuario**: "Tuve un accidente con el carro, necesito reportar un siniestro"\n'
+            '**Clasificación**: domain="siniestros", confidence=0.95, message=null'
+        ),
+    },
+    {
+        "requires_specialist": "consulta_estado_agent",
+        "requires_domain": "siniestros",
+        "text": (
+            '### Ejemplo: Seguimiento de siniestro\n'
+            '**Usuario**: "¿Cómo va mi siniestro del mes pasado?"\n'
+            '**Clasificación**: domain="siniestros", confidence=0.95, message=null'
+        ),
+    },
+    {
+        "requires_specialist": "consultar_poliza_agent",
+        "requires_domain": "gestion",
+        "text": (
+            '### Ejemplo: Señal clara de gestión (consulta)\n'
+            '**Usuario**: "¿Qué cubre mi seguro y cuándo vence?"\n'
+            '**Clasificación**: domain="gestion", confidence=0.90, message=null'
+        ),
+    },
+    {
+        "requires_specialist": "modificar_poliza_agent",
+        "requires_domain": "gestion",
+        "text": (
+            '### Ejemplo: Señal clara de gestión (modificación)\n'
+            '**Usuario**: "Quiero cambiar mi IBAN"\n'
+            '**Clasificación**: domain="gestion", confidence=0.95, message=null'
+        ),
+    },
+    {
+        "requires_specialist": "devolucion_agent",
+        "requires_domain": "gestion",
+        "text": (
+            '### Ejemplo: Señal clara de gestión (devolución)\n'
+            '**Usuario**: "Me cobraron de más, necesito una devolución"\n'
+            '**Clasificación**: domain="gestion", confidence=0.95, message=null'
+        ),
+    },
+    {
+        "requires_specialist": "nueva_poliza_agent",
+        "requires_domain": "ventas",
+        "text": (
+            '### Ejemplo: Señal clara de ventas\n'
+            '**Usuario**: "Quiero contratar un seguro nuevo"\n'
+            '**Clasificación**: domain="ventas", confidence=0.95, message=null'
+        ),
+    },
+    {
+        "requires_specialist": None,
+        "requires_domain": None,
+        "text": (
+            '### Ejemplo: Señal ambigua\n'
+            '**Usuario**: "Necesito ayuda con mi póliza"\n'
+            '**Clasificación**: domain=null, confidence=0.0, message="Claro, ¿qué necesitas hacer con tu póliza?"'
+        ),
+    },
+    {
+        "requires_specialist": None,
+        "requires_domain": None,
+        "text": (
+            '### Ejemplo: Fuera de dominio\n'
+            '**Usuario**: "¿Me puedes pedir una pizza?"\n'
+            '**Clasificación**: domain=null, confidence=0.0, message="Lo siento, solo puedo ayudarte con temas de seguros. ¿Hay algo de esto en lo que pueda asistirte?"'
+        ),
+    },
+    {
+        "requires_specialist": None,
+        "requires_domain": None,
+        "text": (
+            '### Ejemplo: Saludo inicial\n'
+            '**Usuario**: "Hola"\n'
+            '**Clasificación**: domain=null, confidence=0.0, nif=null, message="¡Hola! Soy Sofía, tu asistente virtual de ZOA Seguros. ¿En qué puedo ayudarte hoy?"'
+        ),
+    },
+    {
+        "requires_specialist": None,
+        "requires_domain": None,
+        "text": (
+            '### Ejemplo: Dominio claro pero sin NIF\n'
+            '**Usuario**: "Tuve un accidente"\n'
+            '**Clasificación**: domain=null, confidence=0.0, nif=null, message="Lamento escuchar eso. Para poder gestionar tu siniestro, necesito tu NIF, DNI o NIE. ¿Podrías proporcionármelo?"'
+        ),
+    },
+    {
+        "requires_specialist": None,
+        "requires_domain": None,
+        "text": (
+            '### Ejemplo: Usuario proporciona NIF junto con consulta\n'
+            '**Usuario**: "Mi DNI es 12345678A y quiero saber el estado de mi siniestro"\n'
+            '**Clasificación**: domain="siniestros", confidence=0.95, nif="12345678A", message=null'
+        ),
+    },
+    {
+        "requires_specialist": None,
+        "requires_domain": None,
+        "text": (
+            '### Ejemplo: Usuario solo proporciona NIF\n'
+            '**Usuario**: "12345678A"\n'
+            '**Clasificación**: domain=null, confidence=0.0, nif="12345678A", message="Perfecto, gracias. ¿En qué puedo ayudarte hoy?"'
+        ),
+    },
+]
+
+
+def _build_areas_section(active_domains: list[str], active_specialists_by_domain: dict) -> str:
+    """Build the ## ÁREAS DISPONIBLES section."""
+    lines = []
+    for domain in active_domains:
+        data = DOMAIN_DATA.get(domain)
+        if not data:
+            continue
+        active_specs = active_specialists_by_domain.get(domain, [])
+        services = list(data["base_services"])
+        for spec, label in data["specialist_services"].items():
+            if spec in active_specs:
+                services.append(label)
+        if not services:
+            continue
+        desc = ", ".join(services) if len(services) > 1 else services[0]
+        lines.append(f"- **{data['label']}**: que incluye {desc}")
+    return "\n".join(lines)
+
+
+def _build_signal_table(active_domains: list[str], active_specialists_by_domain: dict) -> str:
+    """Build high-priority classification signal rows."""
+    rows = []
+    for domain in active_domains:
+        data = DOMAIN_DATA.get(domain)
+        if not data:
+            continue
+        active_specs = active_specialists_by_domain.get(domain, [])
+        for spec, spec_rows in data["signal_rows"].items():
+            if spec in active_specs:
+                rows.extend(spec_rows)
+    return "\n".join(rows)
+
+
+def _build_medium_rows(active_specialists_by_domain: dict) -> str:
+    """Build medium-priority rows."""
+    all_active = []
+    for specs in active_specialists_by_domain.values():
+        all_active.extend(specs)
+    rows = []
+    for spec, spec_rows in MEDIUM_PRIORITY_ROWS.items():
+        if spec in all_active:
+            rows.extend(spec_rows)
+    return "\n".join(rows)
+
+
+def _build_domain_options(active_domains: list[str]) -> str:
+    """Build the domain options for the JSON format section."""
+    options = [f'"{d}"' for d in active_domains]
+    return " | ".join(options) + " | null"
+
+
+def _build_call_areas(active_domains: list[str], active_specialists_by_domain: dict) -> str:
+    """Build the <areas> section for the call prompt."""
+    lines = []
+    for domain in active_domains:
+        data = DOMAIN_DATA.get(domain)
+        if not data:
+            continue
+        active_specs = active_specialists_by_domain.get(domain, [])
+        parts = [data["call_base_description"]] if data["call_base_description"] else []
+        for spec, label in data.get("call_specialist_services", {}).items():
+            if spec in active_specs:
+                parts.append(label)
+        desc = " , ".join(p for p in parts if p)
+        if desc:
+            lines.append(f"{data['label']}: {desc}.")
+    return "\n".join(lines)
+
+
+def _build_call_signals(active_domains: list[str], active_specialists_by_domain: dict) -> str:
+    """Build classification signals for call prompt."""
+    lines = []
+    for domain in active_domains:
+        data = DOMAIN_DATA.get(domain)
+        if not data:
+            continue
+        active_specs = active_specialists_by_domain.get(domain, [])
+        for spec, spec_lines in data.get("call_signal_rows", {}).items():
+            if spec in active_specs:
+                lines.extend(spec_lines)
+    return "\n\n".join(lines)
+
+
+def _build_examples(active_domains: list[str], active_specialists_by_domain: dict) -> str:
+    """Build filtered examples section for the WhatsApp receptionist prompt."""
+    all_active_specialists = set()
+    for specs in active_specialists_by_domain.values():
+        all_active_specialists.update(specs)
+
+    examples = []
+    for ex in RECEPTIONIST_EXAMPLES_WHATSAPP:
+        req_domain = ex.get("requires_domain")
+        req_spec = ex.get("requires_specialist")
+        if req_domain and req_domain not in active_domains:
+            continue
+        if req_spec and req_spec not in all_active_specialists:
+            continue
+        examples.append(ex["text"])
+    return "\n\n".join(examples)
+
+
+def _build_whatsapp_prompt(active_domains, active_specialists_by_domain):
+    """Assemble the full WhatsApp receptionist prompt."""
+    areas = _build_areas_section(active_domains, active_specialists_by_domain)
+    signal_table = _build_signal_table(active_domains, active_specialists_by_domain)
+    medium_rows = _build_medium_rows(active_specialists_by_domain)
+    domain_options = _build_domain_options(active_domains)
+    examples = _build_examples(active_domains, active_specialists_by_domain)
+
+    medium_section = medium_rows + "\n" if medium_rows else ""
+
+    prompt = """Eres Sofía, la recepcionista virtual de ZOA Seguros. Tu rol es identificar qué necesita el cliente y dirigirlo al área correcta.
 
 ## ÁREAS DISPONIBLES {available_domains}
-- **SINIESTROS**: que incluye siniestros, apertura de parte, consulta de estado de parte, TELEFONOS DE ASISTENCIA.
-- **GESTIÓN**: gestión de pólizas  
-- **VENTAS**: contratación y mejora de seguros
+$AREAS$
 
 ---
 
@@ -15,15 +363,7 @@ WHATSAPP_PROMPT = """Eres Sofía, la recepcionista virtual de ZOA Seguros. Tu ro
 
 | Señales en el mensaje | Domain | Notas |
 |----------------------|--------|-------|
-| "telefono asistencia", "accidente", "choque", "choqué", "colisión", "atropello" | siniestros | Aunque mencione "póliza" |
-| "grúa", "auxilio", "me quedé tirado", "no arranca", "pinchazo", "batería" | siniestros | Urgencia implícita |
-| "me robaron", "robo", "incendio", "inundación", "daños" | siniestros | Eventos adversos |
-| "estado de mi siniestro", "cómo va mi parte", "expediente" | siniestros | Seguimiento |
-| "póliza", "contrato", "datos del contrato", "datos de mi seguro", "dudas sobre mi poliza" | gestion | Consulta de póliza |
-| "devolución", "reembolso", "me cobraron de más", "cobro duplicado" | gestion | Dinero a devolver |
-| "cambiar mi IBAN", "cambiar cuenta", "cambiar matrícula", "actualizar datos" | gestion | Modificación explícita |
-| "contratar seguro", "cotización", "presupuesto nuevo", "quiero asegurar" | ventas | Nueva contratación |
-| "mejorar mi seguro", "ampliar cobertura", "subir de plan" | ventas | Upgrade |
+$SIGNAL_TABLE$
 
 ### 🟡 PRIORIDAD MEDIA - Requiere contexto (confidence 0.5-0.84)
 
@@ -32,9 +372,7 @@ WHATSAPP_PROMPT = """Eres Sofía, la recepcionista virtual de ZOA Seguros. Tu ro
 | "mi póliza" (solo) | gestion o siniestros | "¿Quieres consultar información de tu póliza o reportar algún incidente?" |
 | "tengo un problema" | cualquiera | "¿Podrías contarme qué tipo de problema tienes?" |
 | "necesito ayuda" | cualquiera | "Claro, ¿en qué puedo ayudarte exactamente?" |
-| "qué cubre mi seguro", "coberturas", "qué incluye" | gestion | Clasificar como gestión (consulta de póliza) |
-| "cuándo vence", "fecha de renovación" | gestion | Clasificar como gestión (consulta de póliza) |
-
+$MEDIUM_ROWS$
 ### 🟢 PRIORIDAD BAJA - No clasificar, responder
 
 | Tipo de mensaje | Acción |
@@ -82,56 +420,14 @@ WHATSAPP_PROMPT = """Eres Sofía, la recepcionista virtual de ZOA Seguros. Tu ro
 
 Si el usuario pide algo que NO es sobre seguros (comida, transporte, información general no relacionada ni al caso ni al usuario):
 
-1. Responde: "Lo siento, solo puedo ayudarte con temas relacionados con seguros de ZOA: siniestros, gestión de pólizas o contratación de nuevos seguros. ¿Hay algo de esto en lo que pueda asistirte?"
+1. Responde: "Lo siento, solo puedo ayudarte con temas relacionados con seguros de ZOA. ¿Hay algo de esto en lo que pueda asistirte?"
 2. `domain` = null, `confidence` = 0.0
 
 ---
 
 ## EJEMPLOS DE CLASIFICACIÓN CORRECTA
 
-### Ejemplo 1: Señal clara de agente de siniestros
-**Usuario**: "Necesito numero de telefonos de asistencia de mi poliza"
-**Clasificación**: domain="siniestros", confidence=0.95, message=null
-
-### Ejemplo 1: Señal clara de siniestro
-**Usuario**: "Tuve un accidente con el carro, necesito reportar un siniestro"
-**Clasificación**: domain="siniestros", confidence=0.95, message=null
-
-### Ejemplo 2: Señal clara de gestión (consulta)
-**Usuario**: "¿Qué cubre mi seguro y cuándo vence?"
-**Clasificación**: domain="gestion", confidence=0.90, message=null
-
-### Ejemplo 3: Señal clara de gestión (modificación)
-**Usuario**: "Quiero cambiar mi IBAN"
-**Clasificación**: domain="gestion", confidence=0.95, message=null
-
-### Ejemplo 4: Señal ambigua
-**Usuario**: "Necesito ayuda con mi póliza"
-**Clasificación**: domain=null, confidence=0.0, message="Claro, ¿qué necesitas hacer con tu póliza? ¿Quieres consultarla, modificar algún dato, o tienes algún incidente que reportar?"
-
-### Ejemplo 5: Fuera de dominio
-**Usuario**: "¿Me puedes pedir una pizza?"
-**Clasificación**: domain=null, confidence=0.0, message="Lo siento, solo puedo ayudarte con temas de seguros: siniestros, gestión de pólizas o contratación. ¿Hay algo de esto en lo que pueda asistirte?"
-
-### Ejemplo 6: Saludo inicial
-**Usuario**: "Hola"
-**Clasificación**: domain=null, confidence=0.0, nif=null, message="¡Hola! Soy Sofía, tu asistente virtual de ZOA Seguros. Puedo ayudarte con siniestros (denuncias, asistencia en carretera, seguimiento), gestión de pólizas (consultas, modificaciones, devoluciones) o contratación de nuevos seguros. ¿En qué puedo ayudarte hoy?"
-
-### Ejemplo 7: Múltiples intenciones
-**Usuario**: "Quiero abrir un siniestro y también cambiar mi IBAN"
-**Clasificación**: domain=null, confidence=0.0, nif=null, message="Puedo ayudarte con ambas gestiones. ¿Cuál prefieres que hagamos primero: abrir el siniestro o cambiar tu IBAN?"
-
-### Ejemplo 8: Dominio claro pero sin NIF (y NIF no disponible)
-**Usuario**: "Tuve un accidente"
-**Clasificación**: domain=null, confidence=0.0, nif=null, message="Lamento escuchar eso. Para poder gestionar tu siniestro, necesito tu NIF, DNI o NIE. ¿Podrías proporcionármelo?"
-
-### Ejemplo 9: Usuario proporciona NIF junto con consulta
-**Usuario**: "Mi DNI es 12345678A y quiero saber el estado de mi siniestro"
-**Clasificación**: domain="siniestros", confidence=0.95, nif="12345678A", message=null
-
-### Ejemplo 10: Usuario solo proporciona NIF
-**Usuario**: "12345678A"
-**Clasificación**: domain=null, confidence=0.0, nif="12345678A", message="Perfecto, gracias. ¿En qué puedo ayudarte hoy?"
+$EXAMPLES$
 
 ---
 
@@ -140,7 +436,7 @@ Si el usuario pide algo que NO es sobre seguros (comida, transporte, informació
 Responde SIEMPRE en JSON válido:
 ```json
 {{
-  "domain": "siniestros" | "gestion" | "ventas" | null,
+  "domain": $DOMAIN_OPTIONS$,
   "message": "string o null",
   "nif": "NIF extraído o null",
   "confidence": número entre 0.0 y 1.0
@@ -154,10 +450,24 @@ Responde SIEMPRE en JSON válido:
 - `confidence` >= 0.85 → clasificación segura
 - `confidence` < 0.85 → considera pedir clarificación
 
-{consultation_context}
-"""
+{consultation_context}"""
 
-CALL_PROMPT = """Eres Sofía , la recepcionista telefónica de ZOA Seguros . . . Atiendes llamadas entrantes.
+    prompt = prompt.replace("$AREAS$", areas)
+    prompt = prompt.replace("$SIGNAL_TABLE$", signal_table)
+    prompt = prompt.replace("$MEDIUM_ROWS$", medium_section)
+    prompt = prompt.replace("$EXAMPLES$", examples)
+    prompt = prompt.replace("$DOMAIN_OPTIONS$", domain_options)
+    return prompt
+
+
+def _build_call_prompt(active_domains, active_specialists_by_domain):
+    """Assemble the full call receptionist prompt."""
+    areas = _build_call_areas(active_domains, active_specialists_by_domain)
+    signals = _build_call_signals(active_domains, active_specialists_by_domain)
+    domain_options = _build_domain_options(active_domains)
+
+    prompt = """\
+Eres Sofía , la recepcionista telefónica de ZOA Seguros . . . Atiendes llamadas entrantes.
 
 <identidad>
 Nombre: Sofía
@@ -180,17 +490,11 @@ OBLIGATORIO para audio natural:
 </reglas_tts>
 
 <areas>
-SINIESTROS: accidentes , choques , grúa , auxilio , robos , estado de partes.
-GESTIÓN: consultas de póliza , modificaciones , devoluciones , coberturas.
-VENTAS: nuevos seguros , mejoras de cobertura , cotizaciones.
+$AREAS$
 </areas>
 
 <clasificacion_inmediata>
-A siniestros si escuchas: accidente , choque , colisión , grúa , auxilio , me quedé tirado , no arranca , pinchazo , batería , robo , incendio , inundación , daños , estado de mi siniestro , teléfono de asistencia.
-
-A gestión si escuchas: póliza , qué cubre mi seguro , coberturas , cuándo vence , cambiar IBAN , cambiar cuenta , cambiar matrícula , devolución , me cobraron de más.
-
-A ventas si escuchas: contratar seguro , cotización , presupuesto , quiero asegurar , mejorar cobertura , ampliar.
+$SIGNALS$
 </clasificacion_inmediata>
 
 <clarificacion>
@@ -240,7 +544,7 @@ NUNCA pidas NIF para solicitudes absurdas.
 <formato_respuesta>
 Responde SIEMPRE en JSON:
 {{
-  "domain": "siniestros" | "gestion" | "ventas" | null,
+  "domain": $DOMAIN_OPTIONS$,
   "message": "texto para decir al cliente o null",
   "nif": "NIF extraído o null",
   "confidence": número entre cero y uno
@@ -251,13 +555,29 @@ Si domain es null → message DEBE tener tu respuesta.
 Si el usuario dice un NIF → nif debe contener el valor.
 </formato_respuesta>"""
 
+    prompt = prompt.replace("$AREAS$", areas)
+    prompt = prompt.replace("$SIGNALS$", signals)
+    prompt = prompt.replace("$DOMAIN_OPTIONS$", domain_options)
+    return prompt
 
-PROMPTS = {
-  "whatsapp": WHATSAPP_PROMPT,
-  "call": CALL_PROMPT,
-}
 
+def get_prompt(channel: str = "whatsapp",
+               active_domains: list[str] = None,
+               active_specialists_by_domain: dict = None) -> str:
+    """Get prompt for the specified channel with dynamic domain/specialist filtering.
 
-def get_prompt(channel: str = "whatsapp") -> str:
-  """Get prompt for the specified channel."""
-  return PROMPTS.get(channel, PROMPTS["whatsapp"])
+    Args:
+        channel: "whatsapp" or "call"
+        active_domains: List of enabled domain names (e.g. ["siniestros", "gestion"])
+        active_specialists_by_domain: Dict mapping domain → list of enabled specialist names
+    """
+    if active_domains is None:
+        active_domains = list(DOMAIN_DATA.keys())
+    if active_specialists_by_domain is None:
+        active_specialists_by_domain = {
+            d: list(DOMAIN_DATA[d].get("signal_rows", {}).keys()) for d in active_domains
+        }
+
+    if channel == "call":
+        return _build_call_prompt(active_domains, active_specialists_by_domain)
+    return _build_whatsapp_prompt(active_domains, active_specialists_by_domain)

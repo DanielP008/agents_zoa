@@ -10,16 +10,15 @@ from core.memory_schema import get_agent_memory, get_global_history
 from core.llm_utils import safe_structured_invoke
 from core.decision_schemas import ClassificationDecision
 from core.config import get_routes_path
+from core.routing.allowlist import get_active_specialists
 from agents.domains.siniestros.classifier_agent_prompts import get_prompt
 
 _ROUTES_PATH = get_routes_path()
 
 with open(_ROUTES_PATH, "r") as f:
     _ROUTES_CONFIG = json.load(f)
-    try:
-        _VALID_ROUTES = _ROUTES_CONFIG["domains"]["siniestros"]["specialists"]
-    except KeyError:
-        _VALID_ROUTES = []
+
+_ACTIVE_SPECIALISTS = get_active_specialists("siniestros", _ROUTES_CONFIG)
 
 # Fallback confirmation questions per route (never mention agents/transfers)
 _CONFIRMATIONS = {
@@ -85,9 +84,9 @@ def classify_message(payload: dict) -> ClassificationDecision:
     last_route = agent_mem.get("last_route", "unknown")
     history = get_global_history(memory)
     
-    # Get prompt based on channel
+    # Get prompt based on channel, filtered to active specialists
     channel = payload.get("channel", "whatsapp")
-    system_prompt = get_prompt(channel)
+    system_prompt = get_prompt(channel, _ACTIVE_SPECIALISTS)
 
     prompt = ChatPromptTemplate.from_messages(
         [

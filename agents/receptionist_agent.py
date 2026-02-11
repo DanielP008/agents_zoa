@@ -8,6 +8,7 @@ from core.memory_schema import get_global_history
 from core.llm_utils import safe_structured_invoke
 from core.config import get_routes_path
 from core.decision_schemas import ReceptionistDecision
+from core.routing.allowlist import get_active_specialists
 from agents.receptionist_agent_prompts import get_prompt
 
 _ROUTES_PATH = get_routes_path()
@@ -18,6 +19,16 @@ with open(_ROUTES_PATH, "r") as f:
         k for k, v in _ROUTES_CONFIG["domains"].items()
         if v.get("enabled", True)
     )
+
+# Build active domains and specialist mapping for prompt assembly
+_ACTIVE_DOMAINS = [
+    k for k, v in _ROUTES_CONFIG["domains"].items()
+    if v.get("enabled", True) and v.get("classifier")
+]
+_ACTIVE_SPECIALISTS_BY_DOMAIN = {
+    domain: get_active_specialists(domain, _ROUTES_CONFIG)
+    for domain in _ACTIVE_DOMAINS
+}
 
 def _extract_nif_from_text(text: str) -> str:
     if not text:
@@ -103,9 +114,9 @@ def receptionist_agent(payload: dict) -> dict:
     else:
         nif_status = "El NIF del cliente NO está disponible. Necesitarás pedirlo antes de poder redirigir a un especialista."
 
-    # Get prompt based on channel
+    # Get prompt based on channel, filtered to active domains/specialists
     channel = payload.get("channel", "whatsapp")
-    system_prompt = get_prompt(channel)
+    system_prompt = get_prompt(channel, _ACTIVE_DOMAINS, _ACTIVE_SPECIALISTS_BY_DOMAIN)
 
     prompt = ChatPromptTemplate.from_messages(
         [
