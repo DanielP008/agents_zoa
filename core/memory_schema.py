@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import logging
 from copy import deepcopy
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 _DEFAULT_MEMORY: Dict[str, Any] = {
     "global": {
@@ -83,18 +86,91 @@ def apply_memory_patch(memory: Dict[str, Any], patch: Optional[Dict[str, Any]]) 
     memory["metadata"]["updated_at"] = _utc_now()
     return memory
 
+# ---------------------------------------------------------------------------
+# History compression settings
+# ---------------------------------------------------------------------------
+# When conversation_history exceeds RECENT_WINDOW messages, older turns are
+# compressed into a compact summary (user answers kept intact, assistant
+# messages truncated) and only the most recent RECENT_WINDOW messages are
+# sent in full.  This keeps token count stable regardless of conversation
+# length while preserving all factual data the client provided.
+RECENT_WINDOW = 6          # last 3 exchanges sent in full
+ASSISTANT_TRUNCATE = 100   # max chars for assistant msgs in summary
+
+
+def _build_context_summary(old_turns: List[Dict[str, Any]]) -> str:
+    """Build a compact summary of older conversation turns.
+
+    Preserves full user messages (they contain the actual data) and truncates
+    assistant messages (mostly questions / filler).
+    """
+    lines: List[str] = []
+    for turn in old_turns:
+        text = turn.get("text", "").strip()
+        if not text:
+            continue
+        if turn.get("role") == "user":
+            lines.append(f"- Cliente: {text}")
+        else:
+            truncated = text[:ASSISTANT_TRUNCATE]
+            if len(text) > ASSISTANT_TRUNCATE:
+                truncated += "..."
+            lines.append(f"- Agente: {truncated}")
+    return "\n".join(lines)
+
+
 def get_global_history(memory: Dict[str, Any]) -> List[tuple]:
-    """Get conversation history formatted for LangChain."""
+    """Get conversation history formatted for LangChain.
+
+    When the history is longer than RECENT_WINDOW messages the function
+    compresses older turns into a lightweight context block and only sends the
+    most recent messages in full.  This reduces input tokens dramatically on
+    long conversations (10+ turns) without losing any client-provided data.
+    """
     memory = ensure_memory_shape(memory)
     raw_history = memory.get("conversation_history", [])
-    
-    formatted_history = []
-    for turn in raw_history:
+
+    # ── Short conversations: return everything as-is ──────────────────────
+    if len(raw_history) <= RECENT_WINDOW:
+        return [
+            (("human" if h.get("role") == "user" else "ai"), h.get("text", ""))
+            for h in raw_history
+        ]
+
+    # ── Long conversations: compress old turns + recent window ────────────
+    old_turns = raw_history[:-RECENT_WINDOW]
+    recent_turns = raw_history[-RECENT_WINDOW:]
+
+    context_summary = _build_context_summary(old_turns)
+
+    old_chars = sum(len(t.get("text", "")) for t in old_turns)
+    summary_chars = len(context_summary)
+    logger.info(
+        f"[MEMORY] History compressed: {len(raw_history)} turns → "
+        f"summary({len(old_turns)}) + recent({len(recent_turns)}). "
+        f"Old text: ~{old_chars} chars → summary: ~{summary_chars} chars "
+        f"({100 - round(summary_chars / max(old_chars, 1) * 100)}% reduction)"
+    )
+
+    formatted: List[tuple] = []
+
+    if context_summary:
+        formatted.append((
+            "human",
+            "[CONTEXTO DE TURNOS ANTERIORES]\n"
+            + context_summary
+            + "\n[FIN CONTEXTO ANTERIORES]"
+        ))
+        formatted.append((
+            "ai",
+            "Entendido, tengo presentes todos los datos anteriores del cliente."
+        ))
+
+    for turn in recent_turns:
         role = "human" if turn.get("role") == "user" else "ai"
-        content = turn.get("text", "")
-        formatted_history.append((role, content))
-        
-    return formatted_history
+        formatted.append((role, turn.get("text", "")))
+
+    return formatted
 
 def get_agent_memory(memory: Dict[str, Any], agent_name: str, default: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Get agent-specific memory namespace."""

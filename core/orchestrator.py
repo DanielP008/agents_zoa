@@ -1,4 +1,5 @@
 import logging
+import threading
 from core.db import SessionManager
 from core.timing import start_trace, dump_trace
 
@@ -150,14 +151,21 @@ def process_message(payload: dict) -> dict:
         should_send_message = True
     
     # Only send WhatsApp for whatsapp channel (wildix handles its own responses)
+    # Fire-and-forget: the result is never used, so we avoid blocking ~230ms
     channel = payload.get("channel", "whatsapp")
     if should_send_message and phone_number_id and channel == "whatsapp":
-        whatsapp_result = send_whatsapp_response(
-            text=agent_message,
-            company_id=phone_number_id,
-            wa_id=wa_id
-        )
-        
+        def _send_wa():
+            try:
+                send_whatsapp_response(
+                    text=agent_message,
+                    company_id=phone_number_id,
+                    wa_id=wa_id,
+                )
+            except Exception:
+                logger.exception("[ORCHESTRATOR] Fire-and-forget WhatsApp send failed")
+
+        threading.Thread(target=_send_wa, daemon=True).start()
+
     elif should_send_message and not phone_number_id:
         pass
 
