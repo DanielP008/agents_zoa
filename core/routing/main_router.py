@@ -15,10 +15,10 @@ from agents.domains.gestion.devolucion_agent import devolucion_agent
 from agents.domains.gestion.consultar_poliza_agent import consultar_poliza_agent
 from agents.domains.gestion.modificar_poliza_agent import modificar_poliza_agent
 
-# Ventas deshabilitado (enabled: false en routes.json). Descomentar para reactivar:
-# from agents.domains.ventas.classifier_agent import classifier_ventas_agent
-# from agents.domains.ventas.nueva_poliza_agent import nueva_poliza_agent
-# from agents.domains.ventas.venta_cruzada_agent import venta_cruzada_agent
+from agents.domains.ventas.classifier_agent import classifier_ventas_agent
+from agents.domains.ventas.renovacion_agent import renovacion_agent
+from agents.domains.ventas.nueva_poliza_agent import nueva_poliza_agent
+from agents.domains.ventas.venta_cruzada_agent import venta_cruzada_agent
 
 _ROUTES_PATH = Path(__file__).parent / "routes.json"
 
@@ -54,13 +54,14 @@ def route_request(target_agent: str, payload: dict) -> dict:
     if target_agent == "modificar_poliza_agent":
         return modificar_poliza_agent(payload)
 
-    # Ventas deshabilitado. Descomentar imports arriba y este bloque para reactivar:
-    # if target_agent == "classifier_ventas_agent":
-    #     return classifier_ventas_agent(payload)
-    # if target_agent == "nueva_poliza_agent":
-    #     return nueva_poliza_agent(payload)
-    # if target_agent == "venta_cruzada_agent":
-    #     return venta_cruzada_agent(payload)
+    if target_agent == "classifier_ventas_agent":
+        return classifier_ventas_agent(payload)
+    if target_agent == "renovacion_agent":
+        return renovacion_agent(payload)
+    if target_agent == "nueva_poliza_agent":
+        return nueva_poliza_agent(payload)
+    if target_agent == "venta_cruzada_agent":
+        return venta_cruzada_agent(payload)
 
     return {
         "action": "finish",

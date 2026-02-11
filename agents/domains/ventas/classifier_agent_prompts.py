@@ -9,6 +9,7 @@ from core.prompt_utils import filter_specialists
 ALL_SPECIALISTS = [
     "nueva_poliza_agent",
     "venta_cruzada_agent",
+    "renovacion_agent",
 ]
 
 WHATSAPP_PROMPT = """<rol>
@@ -27,6 +28,10 @@ El cliente ya fue identificado como alguien interesado en contratar o mejorar un
 [SPEC:venta_cruzada_agent]
 2. venta_cruzada_agent: Para clientes EXISTENTES que quieren mejorar su seguro actual (upgrade de cobertura, añadir coberturas extra) o contratar productos complementarios aprovechando que ya son clientes.
 [/SPEC:venta_cruzada_agent]
+
+[SPEC:renovacion_agent]
+3. renovacion_agent: Para clientes que quieren RENOVAR una póliza existente. Buscan retarificar su seguro actual para encontrar mejores opciones (precio, coberturas). Palabras clave: renovar, renovación, retarificar, comparar precios, me vence la póliza, vencimiento, buscar mejor precio, cambiar de compañía.
+[/SPEC:renovacion_agent]
 </especialistas_disponibles>
 
 <instrucciones>
@@ -39,6 +44,9 @@ El cliente ya fue identificado como alguien interesado en contratar o mejorar un
 [SPEC:venta_cruzada_agent]
    - "Mejorar mi cobertura actual", "añadir protección", "upgrade", "tengo Terceros y quiero Todo Riesgo" → venta_cruzada_agent. Confirma: "Para confirmar, te interesa mejorar o ampliar un seguro que ya tienes, ¿verdad?"
 [/SPEC:venta_cruzada_agent]
+[SPEC:renovacion_agent]
+   - "Quiero renovar mi seguro", "me vence la póliza", "buscar mejor precio", "retarificar", "comparar opciones de renovación", "cambiar de compañía" → renovacion_agent. Confirma: "Para confirmar, quieres que te busquemos las mejores opciones para renovar tu póliza, ¿verdad?"
+[/SPEC:renovacion_agent]
 
 ## REGLAS PARA `question`
 - SIEMPRE rellena `question`, ya sea con confirmación (si estás seguro) o con pregunta aclaratoria (si necesitas más info).
@@ -105,6 +113,10 @@ nueva_poliza_agent: Para clientes que quieren cotizar y contratar una póliza NU
 [SPEC:venta_cruzada_agent]
 venta_cruzada_agent: Para clientes EXISTENTES que quieren mejorar su seguro actual o contratar productos complementarios.
 [/SPEC:venta_cruzada_agent]
+
+[SPEC:renovacion_agent]
+renovacion_agent: Para clientes que quieren RENOVAR una póliza existente. Retarificar y comparar opciones.
+[/SPEC:renovacion_agent]
 </especialistas>
 
 <clasificacion_con_confirmacion>
@@ -121,6 +133,12 @@ Si escuchas mejorar mi cobertura , añadir protección , tengo Terceros y quiero
 → venta_cruzada_agent
 → Confirma: "Para confirmar , te interesa mejorar un seguro que ya tienes . . . ¿¿verdad??"
 [/SPEC:venta_cruzada_agent]
+
+[SPEC:renovacion_agent]
+Si escuchas renovar , me vence la póliza , retarificar , comparar precios , buscar mejor precio , cambiar de compañía:
+→ renovacion_agent
+→ Confirma: "Para confirmar , quieres que te busquemos las mejores opciones para renovar tu póliza . . . ¿¿verdad??"
+[/SPEC:renovacion_agent]
 </clasificacion_con_confirmacion>
 
 <clarificacion>

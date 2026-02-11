@@ -7,8 +7,8 @@ from core.llm import get_llm
 from tools.communication.end_chat_tool import end_chat_tool
 from tools.communication.redirect_to_receptionist_tool import redirect_to_receptionist_tool
 from tools.communication.send_whatsapp_tool import send_whatsapp_tool
-from tools.zoa.tasks import create_task_activity_tool
-from tools.erp.erp_tools import get_assistance_phones
+from tools.zoa.tasks_tool import create_task_activity_tool
+from tools.erp.erp_tool import get_assistance_phones
 from agents.domains.siniestros.telefonos_asistencia_agent_prompts import get_prompt
 
 logger = logging.getLogger(__name__)

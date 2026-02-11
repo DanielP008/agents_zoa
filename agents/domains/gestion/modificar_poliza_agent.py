@@ -2,10 +2,10 @@
 from core.agent_factory import create_langchain_agent, run_langchain_agent
 from core.memory_schema import get_global_history
 from core.llm import get_llm
-from tools.zoa.tasks import create_task_activity_tool
+from tools.zoa.tasks_tool import create_task_activity_tool
 from tools.communication.end_chat_tool import end_chat_tool
 from tools.communication.redirect_to_receptionist_tool import redirect_to_receptionist_tool
-from tools.erp.erp_tools import (get_client_policys_tool, get_policy_document_tool)
+from tools.erp.erp_tool import (get_client_policys_tool, get_policy_document_tool)
 from agents.domains.gestion.modificar_poliza_agent_prompts import get_prompt
 
 def modificar_poliza_agent(payload: dict) -> dict:

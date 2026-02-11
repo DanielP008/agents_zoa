@@ -5,7 +5,7 @@ from core.memory_schema import get_global_history
 from core.llm import get_llm
 from tools.communication.end_chat_tool import end_chat_tool
 from tools.communication.redirect_to_receptionist_tool import redirect_to_receptionist_tool
-from tools.sales.cross_sell import get_customer_policies_tool, create_cross_sell_offer_tool
+from tools.sales.cross_sell_tool import get_customer_policies_tool, create_cross_sell_offer_tool
 from agents.domains.ventas.venta_cruzada_agent_prompts import get_prompt
 
 def venta_cruzada_agent(payload: dict) -> dict:

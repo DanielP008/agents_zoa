@@ -23,6 +23,8 @@ DEFAULT_USER_ID = os.getenv("TEST_PHONE_NUMBER", "+34000000000")
 DEFAULT_COMPANY_ID = "521783407682043"
 DEFAULT_USER_NAME = "Juan Arano"
 
+import base64
+
 # --- SESSION STATE INITIALIZATION ---
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -38,6 +40,11 @@ with st.sidebar:
     user_id = st.text_input("User Phone (wa_id)", value=DEFAULT_USER_ID)
     user_name = st.text_input("User Name", value=DEFAULT_USER_NAME)
     company_id = st.text_input("Company ID", value=DEFAULT_COMPANY_ID)
+    
+    st.divider()
+
+    st.subheader("📁 Adjuntar Archivos")
+    uploaded_file = st.file_uploader("Subir imagen o PDF", type=["png", "jpg", "jpeg", "pdf"])
     
     st.divider()
     
@@ -79,12 +86,7 @@ for message in st.session_state.messages:
 
 # Chat Input
 if prompt := st.chat_input("Escribe tu mensaje aquí..."):
-    # 1. Display User Message
-    st.session_state.messages.append({"role": "user", "content": prompt, "avatar": "👤"})
-    with st.chat_message("user", avatar="👤"):
-        st.markdown(prompt)
-
-    # 2. Call API
+    # 1. Prepare Payload
     payload = {
         "wa_id": user_id,
         "mensaje": prompt,
@@ -92,6 +94,30 @@ if prompt := st.chat_input("Escribe tu mensaje aquí..."):
         "name": user_name,
     }
 
+    # Handle file upload
+    attached_filename = None
+    attached_type = None
+    if uploaded_file is not None:
+        uploaded_file.seek(0)  # Ensure buffer is at start
+        file_bytes = uploaded_file.read()
+        if file_bytes:
+            base64_file = base64.b64encode(file_bytes).decode("utf-8")
+            attached_filename = uploaded_file.name
+            attached_type = uploaded_file.type
+            payload["media"] = [{
+                "mime_type": attached_type,
+                "data": base64_file,
+                "filename": attached_filename,
+            }]
+
+    # 1. Display User Message
+    st.session_state.messages.append({"role": "user", "content": prompt, "avatar": "👤"})
+    with st.chat_message("user", avatar="👤"):
+        st.markdown(prompt)
+        if attached_filename:
+            st.caption(f"📎 Archivo adjunto: {attached_filename} ({attached_type})")
+
+    # 2. Call API
     try:
         with st.spinner("Pensando..."):
             response = requests.post(API_URL, json=payload)

@@ -5,7 +5,7 @@ from core.memory_schema import get_global_history
 from core.llm import get_llm
 from tools.communication.end_chat_tool import end_chat_tool
 from tools.communication.redirect_to_receptionist_tool import redirect_to_receptionist_tool
-from tools.sales.quotes import create_quote_tool, create_new_policy_tool
+from tools.sales.quotes_tool import create_quote_tool, create_new_policy_tool
 from agents.domains.ventas.nueva_poliza_agent_prompts import get_prompt
 
 def nueva_poliza_agent(payload: dict) -> dict:

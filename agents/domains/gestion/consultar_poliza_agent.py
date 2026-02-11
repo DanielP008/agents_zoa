@@ -7,10 +7,10 @@ from core.llm import get_llm
 from agents.domains.common.generic_knowledge_agent import generic_knowledge_agent
 from core.agent_factory import create_langchain_agent, run_langchain_agent
 from core.memory_schema import get_global_history
-from tools.zoa.tasks import create_task_activity_tool
+from tools.zoa.tasks_tool import create_task_activity_tool
 from tools.communication.end_chat_tool import end_chat_tool
 from tools.communication.redirect_to_receptionist_tool import redirect_to_receptionist_tool
-from tools.erp.erp_tools import (
+from tools.erp.erp_tool import (
     get_client_policys_tool,
     get_policy_document_tool,
 )

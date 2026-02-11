@@ -1,28 +1,28 @@
-"""OCR service for document processing - internal use only, not an agent tool."""
+"""OCR service for document processing - uses google-genai SDK directly."""
 
 import os
 import json
+import base64
 import logging
 from typing import Dict, Any, Optional
 
-from langchain_core.messages import HumanMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
+from google import genai
+from google.genai.types import Part
 
 logger = logging.getLogger(__name__)
 
-def _get_ocr_model() -> ChatGoogleGenerativeAI:
-    """Return the configured Gemini model instance for OCR."""
+
+def _get_client() -> genai.Client:
+    """Return a configured google-genai client."""
     api_key = os.environ.get("GEMINI_API_KEY", "")
     if not api_key:
         raise ValueError("GEMINI_API_KEY environment variable not set")
-    
-    model_name = os.environ.get("GEMINI_OCR_MODEL", "gemini-1.5-flash")
-    
-    return ChatGoogleGenerativeAI(
-        model=model_name,
-        google_api_key=api_key,
-        temperature=0.0
-    )
+    return genai.Client(api_key=api_key)
+
+
+def _get_model_name() -> str:
+    return os.environ.get("GEMINI_OCR_MODEL", "gemini-2.0-flash")
+
 
 def extract_document_data(
     mime_type: str, 
@@ -32,8 +32,7 @@ def extract_document_data(
     """
     Extract structured data from a document using OCR.
     
-    This is the core OCR service function - called internally by tools,
-    NOT exposed as an agent tool.
+    Supports images (jpeg, png) and PDFs via google-genai SDK.
     
     Args:
         mime_type: MIME type of the document (e.g., 'application/pdf', 'image/jpeg')
@@ -46,8 +45,6 @@ def extract_document_data(
     if not b64_data:
         return {"error": "No document data provided", "status": "failed"}
 
-    llm = _get_ocr_model()
-    
     default_prompt = (
         "Analyze this document and extract ALL relevant information into a well-structured JSON object. "
         "Include names, dates, numbers, addresses, policy details, coverage information, and any other specific data points found. "
@@ -58,20 +55,24 @@ def extract_document_data(
     
     prompt = prompt_override or default_prompt
     
-    message = HumanMessage(
-        content=[
-            {"type": "text", "text": prompt},
-            {
-                "type": "image_url",
-                "image_url": f"data:{mime_type};base64,{b64_data}"
-            }
-        ]
-    )
-
     try:
-        logger.info(f"[OCR_SERVICE] Processing document with mime_type: {mime_type}")
-        response = llm.invoke([message])
-        content = response.content.strip()
+        client = _get_client()
+        model_name = _get_model_name()
+        
+        # Decode base64 to raw bytes
+        raw_bytes = base64.b64decode(b64_data)
+        
+        # Build content with Part.from_bytes (works for images AND PDFs)
+        file_part = Part.from_bytes(data=raw_bytes, mime_type=mime_type)
+        
+        logger.info(f"[OCR_SERVICE] Processing document with mime_type: {mime_type}, model: {model_name}")
+        
+        response = client.models.generate_content(
+            model=model_name,
+            contents=[prompt, file_part],
+        )
+        
+        content = response.text.strip()
         
         # Clean up markdown code blocks if present
         if content.startswith("```json"):
@@ -90,7 +91,7 @@ def extract_document_data(
         logger.error(f"[OCR_SERVICE] Failed to parse OCR output as JSON: {e}")
         return {
             "error": f"Failed to parse OCR output as JSON: {str(e)}",
-            "raw_output": response.content if 'response' in locals() else None,
+            "raw_output": content if 'content' in locals() else None,
             "status": "failed"
         }
     except Exception as e:
@@ -99,6 +100,7 @@ def extract_document_data(
             "error": str(e),
             "status": "failed"
         }
+
 
 def extract_policy_data(mime_type: str, b64_data: str) -> Dict[str, Any]:
     """

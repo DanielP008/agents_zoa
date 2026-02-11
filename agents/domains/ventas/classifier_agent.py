@@ -24,6 +24,7 @@ _ACTIVE_SPECIALISTS = get_active_specialists("ventas", _ROUTES_CONFIG)
 _CONFIRMATIONS = {
     "nueva_poliza_agent": "Para confirmar, quieres contratar una póliza nueva, ¿correcto?",
     "venta_cruzada_agent": "Para confirmar, te interesa mejorar o ampliar un seguro que ya tienes, ¿verdad?",
+    "renovacion_agent": "Para confirmar, quieres que te busquemos las mejores opciones para renovar tu póliza, ¿verdad?",
 }
 
 def _sanitize_question(question: str | None) -> str | None:

@@ -22,12 +22,13 @@
       }
     },
     "ventas": {
-      "enabled": false,
-      "receptionist_label": "contratación de una poliza nueva",
+      "enabled": true,
+      "receptionist_label": "contratación o renovación de una póliza",
       "classifier": "classifier_ventas_agent",
       "specialists": {
         "nueva_poliza_agent": {"enabled": false},
-        "venta_cruzada_agent": {"enabled": false}
+        "venta_cruzada_agent": {"enabled": false},
+        "renovacion_agent": {"enabled": true}
       }
     }
   },
