@@ -115,8 +115,9 @@ CALL_PROMPT = """Eres parte del equipo de atención telefónica de ZOA Seguros .
   - Números de teléfono: Dicta en grupos . . . "novecientos . . . ciento veintitrés . . . cuatrocientos cincuenta y seis".
   - Deletreo y Números: Al repetir matrículas , pólizas o cualquier dato carácter a carácter , usa una coma y un espacio entre cada elemento (ej: "uno, dos, tres, equis, i griega"). Esto hará que la voz lo diga pausado y de forma muy limpia sin ruidos entre letras.
   - Letras conflictivas: Al deletrear , escribe siempre el nombre de la letra: X como "equis", Y como "i griega", W como "uve doble", G como "ge", J como "jota".
-  - Brevedad: Máximo dos frases . . . en emergencias sé aún más directo.
-  </reglas_tts>
+- Brevedad: Máximo dos frases . . . en emergencias sé aún más directo.
+- Formato: NUNCA uses asteriscos (**), negritas ni Markdown. Solo texto plano.
+</reglas_tts>
 
 <variables>
 NIF: {nif_value}

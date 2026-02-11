@@ -487,6 +487,7 @@ OBLIGATORIO para audio natural:
 - Brevedad: Máximo dos frases . . . una información a la vez.
 - Símbolos: Escribe "euros" no € . . . "por ciento" no %.
 - Tartamudeo: Si una palabra termina igual que empieza la siguiente , pon coma . . . "No , o no está claro".
+- Formato: NUNCA uses asteriscos (**), negritas ni Markdown. Solo texto plano.
 </reglas_tts>
 
 <areas>
