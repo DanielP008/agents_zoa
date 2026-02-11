@@ -179,9 +179,10 @@ def process_message(payload: dict) -> dict:
             last_action=action,
             last_domain=session.get("domain"),
         )
-        # Persist target_agent + domain (may have changed during routing passthrough)
-        session_manager.set_target_agent(wa_id, target_agent, session.get("domain"), company_id)
-        session_manager.update_agent_memory(wa_id, memory, company_id)
+        # Persist all session changes in a single DB write (target_agent, domain, memory)
+        session["target_agent"] = target_agent
+        session["agent_memory"] = memory
+        session_manager.save_session(session_id, session)
         dump_trace(channel)
         result = {
             "type": "text",
@@ -206,7 +207,6 @@ def process_message(payload: dict) -> dict:
                 "agent": target_agent
             }
         
-        session_manager.set_target_agent(wa_id, new_target, new_domain, company_id)
         if agent_message:
             memory = append_turn(
                 memory,
@@ -224,7 +224,11 @@ def process_message(payload: dict) -> dict:
             last_action=action,
             last_domain=new_domain,
         )
-        session_manager.update_agent_memory(wa_id, memory, company_id)
+        # Persist all session changes in a single DB write
+        session["target_agent"] = new_target
+        session["domain"] = new_domain
+        session["agent_memory"] = memory
+        session_manager.save_session(session_id, session)
         
         dump_trace(channel)
         result = {
@@ -235,8 +239,6 @@ def process_message(payload: dict) -> dict:
         return result
             
     if action == "finish":
-        session_manager.set_target_agent(wa_id, "receptionist_agent", None, company_id)
-        
         if agent_message:
             memory = append_turn(
                 memory,
@@ -255,7 +257,11 @@ def process_message(payload: dict) -> dict:
             last_domain=session.get("domain"),
             consultation_completed=True,
         )
-        session_manager.update_agent_memory(wa_id, memory, company_id)
+        # Persist all session changes in a single DB write (reset to receptionist)
+        session["target_agent"] = "receptionist_agent"
+        session["domain"] = None
+        session["agent_memory"] = memory
+        session_manager.save_session(session_id, session)
         
         dump_trace(channel)
         result = {
