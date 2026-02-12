@@ -7,6 +7,7 @@ from core.memory_schema import update_global
 from services.zoa_client import (
     search_contact_by_phone,
     extract_nif_from_contact_search,
+    download_media,
 )
 
 logger = logging.getLogger(__name__)
@@ -14,8 +15,15 @@ session_manager = SessionManager()
 
 
 def extract_attachments(payload: dict) -> list:
-    """Extract media attachments from the incoming payload."""
+    """Extract media attachments from the incoming payload.
+    
+    Supports:
+    - media[].data / media[].base64  → inline base64
+    - media[].url                    → downloaded via ZOA (get_img) and returned as base64
+    - payload.image_base64           → legacy shorthand
+    """
     attachments = []
+    company_id = payload.get("phone_number_id") or payload.get("company_id") or "default"
     media = payload.get("media")
     if isinstance(media, dict):
         media = [media]
@@ -24,6 +32,15 @@ def extract_attachments(payload: dict) -> list:
             if not isinstance(item, dict):
                 continue
             data = item.get("data") or item.get("base64")
+            # If no inline data, download via ZOA
+            if not data:
+                url = item.get("url")
+                if url:
+                    logger.info(f"[ATTACHMENTS] Downloading media via ZOA: {url[:80]}...")
+                    result = download_media(url, company_id)
+                    data = result.get("data") or result.get("base64")
+                    if not data:
+                        logger.error(f"[ATTACHMENTS] ZOA get_img returned no data: {result}")
             if not data:
                 continue
             attachments.append(

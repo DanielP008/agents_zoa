@@ -9,15 +9,13 @@ COPY . /app
 ENV PORT=8080
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
-ENV WORKERS=4
 EXPOSE 8080
 
-# Use gunicorn with multiple workers for concurrent request handling.
-# functions-framework is single-threaded and queues requests.
-# --threads 2 gives each worker 2 threads for I/O-bound LLM calls.
+# Single worker, single thread – one instance per container.
+# Cloud Run scales horizontally by spinning up more container instances.
 CMD gunicorn \
     --bind 0.0.0.0:${PORT} \
-    --workers ${WORKERS} \
-    --threads 2 \
+    --workers 1 \
+    --threads 1 \
     --timeout 120 \
     "functions_framework:create_app(source='api/handler.py', target='handle_request')"
