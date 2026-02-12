@@ -1,6 +1,10 @@
 """Pre-processing helpers for the orchestrator: attachments, NIF extraction."""
+import base64
+import os
 import re
 import logging
+
+import requests
 
 from core.db import SessionManager
 from core.memory_schema import update_global
@@ -13,8 +17,29 @@ logger = logging.getLogger(__name__)
 session_manager = SessionManager()
 
 
+def _download_media_as_base64(url: str) -> str | None:
+    """Download media from a URL and return its base64 representation."""
+    try:
+        headers = {}
+        wa_token = os.environ.get("WHATSAPP_ACCESS_TOKEN")
+        if wa_token:
+            headers["Authorization"] = f"Bearer {wa_token}"
+        resp = requests.get(url, headers=headers, timeout=15)
+        resp.raise_for_status()
+        return base64.b64encode(resp.content).decode("utf-8")
+    except Exception as e:
+        logger.error(f"[ATTACHMENTS] Failed to download media from URL: {e}")
+        return None
+
+
 def extract_attachments(payload: dict) -> list:
-    """Extract media attachments from the incoming payload."""
+    """Extract media attachments from the incoming payload.
+    
+    Supports:
+    - media[].data / media[].base64  → inline base64
+    - media[].url                    → downloaded and converted to base64
+    - payload.image_base64           → legacy shorthand
+    """
     attachments = []
     media = payload.get("media")
     if isinstance(media, dict):
@@ -24,6 +49,12 @@ def extract_attachments(payload: dict) -> list:
             if not isinstance(item, dict):
                 continue
             data = item.get("data") or item.get("base64")
+            # If no inline data, try downloading from URL
+            if not data:
+                url = item.get("url")
+                if url:
+                    logger.info(f"[ATTACHMENTS] Downloading media from URL: {url[:80]}...")
+                    data = _download_media_as_base64(url)
             if not data:
                 continue
             attachments.append(
