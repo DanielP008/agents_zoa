@@ -3,6 +3,7 @@ import requests
 import uuid
 import json
 import os
+import time
 from dotenv import load_dotenv
 from datetime import datetime
 
@@ -82,6 +83,9 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"], avatar=message.get("avatar")):
         if "agent" in message:
             st.caption(f"🤖 {message['agent']}")
+        if "latency_ms" in message:
+            latency_ms = float(message["latency_ms"])
+            st.caption(f"⏱️ Total: {latency_ms/1000:.2f}s ({latency_ms:.0f}ms)")
         st.markdown(message["content"])
 
 # Chat Input
@@ -120,7 +124,9 @@ if prompt := st.chat_input("Escribe tu mensaje aquí..."):
     # 2. Call API
     try:
         with st.spinner("Pensando..."):
+            request_start = time.perf_counter()
             response = requests.post(API_URL, json=payload)
+            request_elapsed_ms = (time.perf_counter() - request_start) * 1000
             response.raise_for_status()
             data = response.json()
             
@@ -170,11 +176,13 @@ if prompt := st.chat_input("Escribe tu mensaje aquí..."):
             "role": "assistant", 
             "content": message_text, 
             "agent": f"{agent_name}{model_info}",
+            "latency_ms": request_elapsed_ms,
             "avatar": "🤖"
         })
         
         with st.chat_message("assistant", avatar="🤖"):
             st.caption(f"🤖 {agent_name}{model_info}")
+            st.caption(f"⏱️ Total: {request_elapsed_ms/1000:.2f}s ({request_elapsed_ms:.0f}ms)")
             st.markdown(message_text)
 
     except requests.exceptions.ConnectionError:

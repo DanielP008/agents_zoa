@@ -132,16 +132,15 @@ def get_global_history(memory: Dict[str, Any]) -> List[tuple]:
 
     # ── Short conversations: return everything as-is ──────────────────────
     if len(raw_history) <= RECENT_WINDOW:
-        # Even in short conversations, we print the persistent data if it exists
+        # Keep persistent data available in memory without noisy stdout prints.
         global_data = memory.get("global", {})
         if global_data.get("nif") or global_data.get("wa_id") or global_data.get("company_id"):
-            print("\n" + "="*50)
-            print("DATOS OBLIGATORIOS (Conversación Corta)")
-            print("="*50)
-            if global_data.get("nif"): print(f"- NIF/NIE: {global_data['nif']}")
-            if global_data.get("wa_id"): print(f"- Teléfono (wa_id): {global_data['wa_id']}")
-            if global_data.get("company_id"): print(f"- Company ID: {global_data['company_id']}")
-            print("="*50 + "\n")
+            logger.debug(
+                "[MEMORY] Datos obligatorios disponibles (conversación corta): "
+                f"nif={bool(global_data.get('nif'))}, "
+                f"wa_id={bool(global_data.get('wa_id'))}, "
+                f"company_id={bool(global_data.get('company_id'))}"
+            )
             
         return [
             (("human" if h.get("role") == "user" else "ai"), h.get("text", ""))
@@ -173,12 +172,8 @@ def get_global_history(memory: Dict[str, Any]) -> List[tuple]:
     if persistent_info:
         context_summary = "[DATOS OBLIGATORIOS DEL CLIENTE]\n" + "\n".join(persistent_info) + "\n\n" + context_summary
 
-    # Print summary to console for evolution monitoring
-    print("\n" + "="*50)
-    print("EVOLUCIÓN DEL RESUMEN DE MEMORIA")
-    print("="*50)
-    print(context_summary or "Sin historial antiguo todavía.")
-    print("="*50 + "\n")
+    # Keep summary evolution in structured logs (avoid noisy stdout prints).
+    logger.debug("[MEMORY] Evolución del resumen: %s", context_summary or "Sin historial antiguo todavía.")
 
     old_chars = sum(len(t.get("text", "")) for t in old_turns)
     summary_chars = len(context_summary)

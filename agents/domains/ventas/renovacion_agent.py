@@ -48,6 +48,7 @@ def _process_pending_attachments(memory: dict) -> tuple[list[dict], list[int]]:
 
         if result.get("status") == "success":
             ocr_results.append({
+                "attachment_index": i,
                 "filename": filename,
                 "mime_type": mime_type,
                 "data": result.get("data", {}),
@@ -55,6 +56,7 @@ def _process_pending_attachments(memory: dict) -> tuple[list[dict], list[int]]:
             logger.info(f"[RENOVACION] OCR success for {filename}")
         else:
             ocr_results.append({
+                "attachment_index": i,
                 "filename": filename,
                 "mime_type": mime_type,
                 "error": result.get("error", "OCR failed"),
@@ -64,6 +66,46 @@ def _process_pending_attachments(memory: dict) -> tuple[list[dict], list[int]]:
         newly_processed.append(i)
 
     return ocr_results, processed_indices + newly_processed
+
+
+def _prune_processed_attachment_data(memory: dict, processed_indices: list[int], ocr_results: list[dict]) -> int:
+    """Remove heavy base64 payloads from processed attachments and keep lightweight metadata."""
+    global_mem = memory.get("global", {})
+    attachments = global_mem.get("attachments", [])
+    if not isinstance(attachments, list):
+        return 0
+
+    ocr_by_index = {r.get("attachment_index"): r for r in ocr_results}
+    pruned_count = 0
+
+    for idx in processed_indices:
+        if idx < 0 or idx >= len(attachments):
+            continue
+        att = attachments[idx]
+        if not isinstance(att, dict):
+            continue
+
+        # Drop raw base64 once processed to avoid very large DB writes.
+        raw_data = att.pop("data", None)
+        if raw_data:
+            att["data_pruned"] = True
+            pruned_count += 1
+
+        # Keep only compact OCR metadata on the attachment record.
+        ocr_entry = ocr_by_index.get(idx)
+        if ocr_entry:
+            if "error" in ocr_entry:
+                att["ocr_status"] = "failed"
+                att["ocr_error"] = ocr_entry.get("error")
+            else:
+                extracted = ocr_entry.get("data", {})
+                att["ocr_status"] = "success"
+                if isinstance(extracted, dict):
+                    att["ocr_keys"] = list(extracted.keys())[:30]
+
+    global_mem["attachments"] = attachments
+    memory["global"] = global_mem
+    return pruned_count
 
 
 def renovacion_agent(payload: dict) -> dict:
@@ -76,6 +118,7 @@ def renovacion_agent(payload: dict) -> dict:
     wa_id = payload.get("wa_id")
     global_mem = memory.get("global", {})
     nif_value = global_mem.get("nif") or "NO_IDENTIFICADO"
+    previous_processed_indices = list(global_mem.get("processed_attachment_indices", []))
 
     now = datetime.now()
     current_date = now.strftime("%d/%m/%Y")
@@ -85,12 +128,20 @@ def renovacion_agent(payload: dict) -> dict:
     # Pre-process any pending attachments via OCR (before LLM call)
     ocr_results, updated_indices = _process_pending_attachments(memory)
 
-    if ocr_results:
-        # Save processed indices back to memory so we don't re-process
+    # Persist processed markers and prune heavy base64 payloads from memory.
+    if updated_indices != previous_processed_indices:
         global_mem["processed_attachment_indices"] = updated_indices
         memory["global"] = global_mem
+    pruned_count = _prune_processed_attachment_data(memory, updated_indices, ocr_results)
+    if updated_indices != previous_processed_indices or pruned_count > 0:
         session["agent_memory"] = memory
+        logger.info(
+            "[RENOVACION] Attachment cleanup: processed=%s, pruned_payloads=%s",
+            len(updated_indices),
+            pruned_count,
+        )
 
+    if ocr_results:
         # Inject OCR results into user message so the LLM can see them
         ocr_context = "\n\n[DOCUMENTOS PROCESADOS AUTOMÁTICAMENTE]:\n"
         for r in ocr_results:

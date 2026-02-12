@@ -27,7 +27,7 @@ def handle_request(request):
         event_type = event.get("type")
         text = event.get("text", "").strip()
         if event_type == "reply" and text:
-            print(f"\n[WILDIX_FINAL_MESSAGE] session={data.get('sessionId')} text='{text}'\n")
+            logger.info("[WILDIX_FINAL_MESSAGE] session=%s text='%s'", data.get("sessionId"), text)
         return handle_wildix(request)
     
     # Default to WhatsApp handler

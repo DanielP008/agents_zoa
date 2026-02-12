@@ -26,6 +26,8 @@ DEFAULT_KPIS = {
     "wildix_ms": 500,
 }
 
+TOOL_CATEGORIES = {"erp", "zoa", "tool"}
+
 
 def load_data() -> pd.DataFrame:
     """Load JSONL trace data into a DataFrame."""
@@ -56,6 +58,10 @@ def explode_agents(df: pd.DataFrame) -> pd.DataFrame:
     for _, row in df.iterrows():
         for agent in row.get("agents", []):
             model = agent.get("model", "") or "unknown"
+            tools = [
+                t for t in agent.get("tools", [])
+                if t.get("category") in TOOL_CATEGORIES
+            ]
             rows.append({
                 "timestamp": row["timestamp"],
                 "session_id": row["session_id"],
@@ -63,12 +69,69 @@ def explode_agents(df: pd.DataFrame) -> pd.DataFrame:
                 "agent_name": agent["name"],
                 "model": model,
                 "agent_ms": agent["duration_ms"],
-                "llm_ms": max(0, agent["duration_ms"] - sum(t["duration_ms"] for t in agent.get("tools", []))),
-                "num_tools": len(agent.get("tools", [])),
-                "tool_names": ", ".join(t["name"] for t in agent.get("tools", [])),
-                "tool_total_ms": sum(t["duration_ms"] for t in agent.get("tools", [])),
+                "llm_ms": max(0, agent["duration_ms"] - sum(t["duration_ms"] for t in tools)),
+                "num_tools": len(tools),
+                "tool_names": ", ".join(t["name"] for t in tools),
+                "tool_total_ms": sum(t["duration_ms"] for t in tools),
             })
     return pd.DataFrame(rows) if rows else pd.DataFrame()
+
+
+def explode_tools(df: pd.DataFrame) -> pd.DataFrame:
+    """Explode nested tool calls into individual rows."""
+    rows = []
+    for _, row in df.iterrows():
+        for agent in row.get("agents", []):
+            for tool in agent.get("tools", []):
+                rows.append({
+                    "timestamp": row["timestamp"],
+                    "session_id": row["session_id"],
+                    "channel": row["channel"],
+                    "agent_name": agent.get("name", "unknown"),
+                    "tool_name": tool.get("name", "unknown"),
+                    "category": tool.get("category", "unknown"),
+                    "tool_ms": tool.get("duration_ms", 0),
+                })
+    return pd.DataFrame(rows) if rows else pd.DataFrame()
+
+
+def trimmed_mean(series: pd.Series, trim: float = 0.05) -> float:
+    """Mean excluding the lowest/highest trim percent."""
+    clean = pd.to_numeric(series, errors="coerce").dropna()
+    if clean.empty:
+        return 0.0
+    if len(clean) < 3:
+        return float(clean.mean())
+    low = clean.quantile(trim)
+    high = clean.quantile(1 - trim)
+    trimmed = clean[(clean >= low) & (clean <= high)]
+    if trimmed.empty:
+        trimmed = clean
+    return float(trimmed.mean())
+
+
+def get_metric_series(df: pd.DataFrame, key: str) -> pd.Series:
+    """Resolve metric column with backward-compatible aliases."""
+    if key == "postgres_ms":
+        if "postgres_ms" in df.columns and "postgres_calls" in df.columns:
+            calls = pd.to_numeric(df["postgres_calls"], errors="coerce").fillna(0)
+            total = pd.to_numeric(df["postgres_ms"], errors="coerce").fillna(0)
+            per_call = total.div(calls.where(calls > 0), fill_value=0)
+            return per_call.fillna(0)
+        if "postgres_ms" in df.columns:
+            return df["postgres_ms"]
+        return pd.Series(dtype=float)
+
+    if key == "agent_llm_ms":
+        if "agent_pure_ms" in df.columns:
+            return df["agent_pure_ms"]
+        if "agent_llm_ms" in df.columns:
+            return df["agent_llm_ms"]
+        return pd.Series(dtype=float)
+
+    if key in df.columns:
+        return df[key]
+    return pd.Series(dtype=float)
 
 
 def kpi_card(label: str, value: float, target: float, unit: str = "ms"):
@@ -123,15 +186,19 @@ def main():
     cols = st.columns(len(kpis))
     for col, (key, target) in zip(cols, kpis.items()):
         with col:
-            avg = df[key].mean() if key in df.columns else 0
-            kpi_card(key.replace("_", " ").title(), avg, target)
+            avg = trimmed_mean(get_metric_series(df, key))
+            label = key.replace("_", " ").title()
+            if key == "postgres_ms":
+                label = "Postgres Call Ms"
+            kpi_card(label, avg, target)
 
     # ─── KPI Compliance ───
     st.subheader("KPI Compliance Rate")
     compliance = {}
     for key, target in kpis.items():
-        if key in df.columns:
-            compliance[key] = (df[key] <= target).mean() * 100
+        metric_series = get_metric_series(df, key)
+        if not metric_series.empty:
+            compliance[key] = (metric_series <= target).mean() * 100
     comp_df = pd.DataFrame({"KPI": list(compliance.keys()), "Compliance %": list(compliance.values())})
     comp_df["Status"] = comp_df["Compliance %"].apply(lambda x: "PASS" if x >= 80 else "FAIL")
 
@@ -148,7 +215,7 @@ def main():
     st.header("Overview")
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Total Requests", len(df))
-    col2.metric("Avg Total (ms)", f"{df['total_ms'].mean():.0f}")
+    col2.metric("Avg Total (ms)", f"{trimmed_mean(df['total_ms']):.0f}")
     col3.metric("P95 Total (ms)", f"{df['total_ms'].quantile(0.95):.0f}")
     col4.metric("Max Total (ms)", f"{df['total_ms'].max():.0f}")
 
@@ -203,18 +270,18 @@ def main():
     if not agent_df.empty:
         agent_stats = agent_df.groupby("agent_name").agg(
             count=("agent_ms", "count"),
-            avg_ms=("agent_ms", "mean"),
+            avg_ms_95=("agent_ms", lambda x: x.quantile(0.95)),
             p95_ms=("agent_ms", lambda x: x.quantile(0.95)),
             max_ms=("agent_ms", "max"),
             avg_tools=("num_tools", "mean"),
             avg_tool_ms=("tool_total_ms", "mean"),
-        ).round(1).sort_values("avg_ms", ascending=False)
+        ).round(1).sort_values("avg_ms_95", ascending=False)
 
         st.dataframe(agent_stats, use_container_width=True)
 
         fig_agents = px.bar(
-            agent_stats.reset_index(), x="agent_name", y=["avg_ms"],
-            title="Average Agent Duration",
+            agent_stats.reset_index(), x="agent_name", y=["avg_ms_95"],
+            title="Agent Duration (avg_ms_95)",
             labels={"value": "Time (ms)", "agent_name": "Agent"},
         )
         st.plotly_chart(fig_agents, use_container_width=True)
@@ -269,6 +336,34 @@ def main():
             st.info("No model data captured yet. Model tracking was added recently.")
     else:
         st.info("No agent data available.")
+
+    # ─── Per-Tool Performance ───
+    st.header("Per-Tool Performance")
+    tool_df = explode_tools(df)
+    if not tool_df.empty:
+        tool_stats = tool_df.groupby(["tool_name", "category"]).agg(
+            calls=("tool_ms", "count"),
+            avg_ms=("tool_ms", "mean"),
+            p95_ms=("tool_ms", lambda x: x.quantile(0.95)),
+            max_ms=("tool_ms", "max"),
+            min_ms=("tool_ms", "min"),
+        ).round(1).sort_values("avg_ms", ascending=False)
+
+        st.dataframe(tool_stats, use_container_width=True)
+
+        fig_tools = px.bar(
+            tool_stats.reset_index(),
+            x="tool_name",
+            y="avg_ms",
+            color="category",
+            text="avg_ms",
+            title="Average Tool Duration",
+            labels={"avg_ms": "Avg Time (ms)", "tool_name": "Tool"},
+        )
+        fig_tools.update_traces(texttemplate="%{text:.0f}ms", textposition="outside")
+        st.plotly_chart(fig_tools, use_container_width=True)
+    else:
+        st.info("No tool calls recorded yet.")
 
     # ─── Postgres Breakdown ───
     st.header("Postgres Operations")

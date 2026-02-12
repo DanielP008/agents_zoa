@@ -5,9 +5,11 @@ import os
 import json
 import threading
 import contextvars
+import logging
 from datetime import datetime, timezone
 
 TIMING_DIR = os.getenv("TIMING_DIR", "/tmp/timings")
+logger = logging.getLogger(__name__)
 
 # Request-scoped context variables
 _request_trace: contextvars.ContextVar["RequestTrace | None"] = contextvars.ContextVar("request_trace", default=None)
@@ -55,8 +57,15 @@ class RequestTrace:
         pg = by_cat.get("postgres", [])
         if pg:
             lines.append("[POSTGRES]")
-            for e in pg:
+            for idx, e in enumerate(pg, start=1):
                 lines.append(f"  {e['label']:.<35s} {e['duration_ms']}ms")
+                logger.info(
+                    "CALL %s POSTGRESS %s | TIME: %.1fms | session=%s",
+                    idx,
+                    e["label"],
+                    e["duration_ms"],
+                    self.session_id,
+                )
             pg_total = sum(e["duration_ms"] for e in pg)
             lines.append(f"  {'SUBTOTAL':.<35s} {round(pg_total, 1)}ms")
             lines.append("")
@@ -81,8 +90,9 @@ class RequestTrace:
         # External calls
         erp = by_cat.get("erp", [])
         zoa = by_cat.get("zoa", [])
+        generic_tools = by_cat.get("tool", [])
         wildix = by_cat.get("wildix", [])
-        if erp or zoa or wildix:
+        if erp or zoa or generic_tools or wildix:
             lines.append("[EXTERNAL CALLS]")
             if erp:
                 erp_total = sum(e["duration_ms"] for e in erp)
@@ -93,6 +103,11 @@ class RequestTrace:
                 zoa_total = sum(e["duration_ms"] for e in zoa)
                 lines.append(f"  ZOA total .................. {round(zoa_total, 1)}ms ({len(zoa)} calls)")
                 for e in zoa:
+                    lines.append(f"    └─ {e['label']:.<31s} {e['duration_ms']}ms")
+            if generic_tools:
+                generic_total = sum(e["duration_ms"] for e in generic_tools)
+                lines.append(f"  Tools total ................ {round(generic_total, 1)}ms ({len(generic_tools)} calls)")
+                for e in generic_tools:
                     lines.append(f"    └─ {e['label']:.<31s} {e['duration_ms']}ms")
             if wildix:
                 wdx_total = sum(e["duration_ms"] for e in wildix)
@@ -106,11 +121,12 @@ class RequestTrace:
         agent_total = sum(e["duration_ms"] for e in agents)
         erp_total = sum(e["duration_ms"] for e in erp)
         zoa_total = sum(e["duration_ms"] for e in zoa)
+        generic_tool_total = sum(e["duration_ms"] for e in generic_tools)
         wdx_total = sum(e["duration_ms"] for e in wildix)
-        tool_total = erp_total + zoa_total
+        tool_total = erp_total + zoa_total + generic_tool_total
         
         # Ensure LLM time is not negative (can happen with nested agents or timing overlaps)
-        agent_llm_ms = max(0, agent_total - tool_total)
+        agent_pure_ms = max(0, agent_total - tool_total)
         
         other = max(0, total_ms - pg_total - agent_total - wdx_total)
 
@@ -119,7 +135,7 @@ class RequestTrace:
 
         lines.append("[SUMMARY]")
         lines.append(f"  Postgres ......... {round(pg_total, 1)}ms ({pct(pg_total)})")
-        lines.append(f"  Agent LLM ........ {round(agent_llm_ms, 1)}ms ({pct(agent_llm_ms)})")
+        lines.append(f"  Agent LLM ........ {round(agent_pure_ms, 1)}ms ({pct(agent_pure_ms)})")
         lines.append(f"  Tool calls ....... {round(tool_total, 1)}ms ({pct(tool_total)})")
         lines.append(f"  Wildix API ....... {round(wdx_total, 1)}ms ({pct(wdx_total)})")
         lines.append(f"  Other ............ {round(other, 1)}ms ({pct(other)})")
@@ -140,7 +156,8 @@ class RequestTrace:
             "postgres_ms": round(pg_total, 1),
             "postgres_calls": len(pg),
             "agent_total_ms": round(agent_total, 1),
-            "agent_llm_ms": round(agent_llm_ms, 1),
+            "agent_pure_ms": round(agent_pure_ms, 1),
+            "agent_llm_ms": round(agent_pure_ms, 1),  # backward-compatible alias
             "tool_calls_ms": round(tool_total, 1),
             "erp_ms": round(erp_total, 1),
             "erp_calls": len(erp),

@@ -74,7 +74,7 @@ def handle_wildix(request):
     
     # Try to acquire session lock (prevents concurrent processing for same call)
     if not session_manager.try_lock_session(session_id, bot_id or "default"):
-        print(f"[WILDIX] Session {session_id} busy, ignoring: '{text}'")
+        logger.info("[WILDIX] Session %s busy, ignoring: '%s'", session_id, text)
         return _json_response({"status": "ignored", "reason": "session_busy"})
     
     try:
