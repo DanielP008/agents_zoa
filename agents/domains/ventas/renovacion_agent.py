@@ -10,7 +10,8 @@ from services.ocr_service import extract_document_data
 from tools.zoa.tasks_tool import create_task_activity_tool
 from tools.communication.end_chat_tool import end_chat_tool
 from tools.communication.redirect_to_receptionist_tool import redirect_to_receptionist_tool
-from tools.sales.retarificacion_tool import retarificacion_tool
+from tools.sales.retarificacion_tool import create_retarificacion_project_tool
+from tools.sales.dgt_tools import get_vehicle_info_dgt_tool
 
 from agents.domains.ventas.renovacion_agent_prompts import get_prompt
 
@@ -164,7 +165,8 @@ def renovacion_agent(payload: dict) -> dict:
 
     llm = get_llm()
     tools = [
-        retarificacion_tool,
+        create_retarificacion_project_tool,
+        get_vehicle_info_dgt_tool,
         create_task_activity_tool,
         end_chat_tool,
         redirect_to_receptionist_tool,
