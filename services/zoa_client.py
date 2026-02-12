@@ -1,6 +1,7 @@
 """ZOA client with backward-compatible function wrappers."""
 
 import re
+import logging
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List, Union
 
@@ -9,6 +10,8 @@ from services.interfaces.zoa_interfaces import (
     ConversationsInterface,
     CardActionsInterface,
 )
+
+logger = logging.getLogger(__name__)
 
 def extract_nif_from_contact_search(response: Dict[str, Any]) -> str:
     """Extract NIF from a ZOA contact search response."""
@@ -27,6 +30,7 @@ def send_whatsapp_response(
     wa_id: str = None,
 ) -> dict:
     """Send a WhatsApp message through ZOA."""
+    logger.info(f"ENVIANDO MENSAJE MEDIANTE ZOA: {text}")
     conversation_id = f"{company_id}_{wa_id}"
     
     interface = ConversationsInterface()
