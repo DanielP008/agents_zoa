@@ -8,7 +8,7 @@
       "specialists": {
         "telefonos_asistencia_agent": {"enabled": true},
         "apertura_siniestro_agent": {"enabled": true},
-        "consulta_estado_agent": {"enabled": true}
+        "consulta_estado_agent": {"enabled": false}
       }
     },
     "gestion": {
@@ -16,9 +16,9 @@
       "receptionist_label": "gestión de una poliza",
       "classifier": "classifier_gestion_agent",
       "specialists": {
-        "devolucion_agent": {"enabled": true},
+        "devolucion_agent": {"enabled": false},
         "consultar_poliza_agent": {"enabled": true},
-        "modificar_poliza_agent": {"enabled": true}
+        "modificar_poliza_agent": {"enabled": false}
       }
     },
     "ventas": {
