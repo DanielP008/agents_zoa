@@ -26,12 +26,20 @@ def extract_nif_from_contact_search(response: Dict[str, Any]) -> str:
 
 def download_media(wamid: str, company_id: str) -> Dict[str, Any]:
     """Download media via ZOA (action=conversations, option=search) using wamid."""
+    logger.info(f"[DOWNLOAD_MEDIA] Requesting image from ZOA: wamid={wamid}, company_id={company_id}")
     interface = ConversationsInterface()
     result, _ = interface.execute(
         company_id=company_id,
         option="search",
         request_data={"wamid": wamid},
     )
+    # Log response keys and data size (not the full base64)
+    if isinstance(result, dict):
+        data = result.get("data") or result.get("base64")
+        data_len = len(data) if data else 0
+        logger.info(f"[DOWNLOAD_MEDIA] ZOA response keys={list(result.keys())}, data_length={data_len}")
+    else:
+        logger.warning(f"[DOWNLOAD_MEDIA] ZOA unexpected response type: {type(result)}, value={str(result)[:200]}")
     return result
 
 def send_whatsapp_response(
