@@ -38,6 +38,8 @@ def handle_whatsapp(request):
     """Handle incoming ZOA Buffer System messages."""
     
     data = request.get_json(silent=True) or {}
+    logger.info(f"GETTED MESSAGE FROM WHATSAPP HANDLER: {json.dumps(data, ensure_ascii=False)}")
+    
     mensaje = data.get("mensaje", "").strip()
     
     # Handle session reset with "BORRAR TODO"
