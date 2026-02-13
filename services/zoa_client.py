@@ -9,9 +9,28 @@ from services.interfaces.zoa_interfaces import (
     ContactsInterface,
     ConversationsInterface,
     CardActionsInterface,
+    SchedulerInterface,
 )
 
 logger = logging.getLogger(__name__)
+
+def is_business_open(company_id: str) -> bool:
+    """Check if the business is currently open via ZOA scheduler.
+    
+    Returns True if open (AI should NOT process), False if closed (AI should process).
+    """
+    interface = SchedulerInterface()
+    result, _ = interface.execute(
+        company_id=company_id,
+        option="search",
+        request_data={},
+    )
+    logger.info(f"[SCHEDULER] ZOA response: {result}")
+    is_open = result.get("data", result.get("open", False))
+    if isinstance(is_open, str):
+        is_open = is_open.lower() in ("true", "1", "yes")
+    return bool(is_open)
+
 
 def extract_nif_from_contact_search(response: Dict[str, Any]) -> str:
     """Extract NIF from a ZOA contact search response."""
@@ -26,20 +45,12 @@ def extract_nif_from_contact_search(response: Dict[str, Any]) -> str:
 
 def download_media(wamid: str, company_id: str) -> Dict[str, Any]:
     """Download media via ZOA (action=conversations, option=search) using wamid."""
-    logger.info(f"[DOWNLOAD_MEDIA] Requesting image from ZOA: wamid={wamid}, company_id={company_id}")
     interface = ConversationsInterface()
     result, _ = interface.execute(
         company_id=company_id,
         option="search",
         request_data={"wamid": wamid},
     )
-    # Log response keys and data size (not the full base64)
-    if isinstance(result, dict):
-        data = result.get("data") or result.get("base64")
-        data_len = len(data) if data else 0
-        logger.info(f"[DOWNLOAD_MEDIA] ZOA response keys={list(result.keys())}, data_length={data_len}")
-    else:
-        logger.warning(f"[DOWNLOAD_MEDIA] ZOA unexpected response type: {type(result)}, value={str(result)[:200]}")
     return result
 
 def send_whatsapp_response(
@@ -48,7 +59,6 @@ def send_whatsapp_response(
     wa_id: str = None,
 ) -> dict:
     """Send a WhatsApp message through ZOA."""
-    logger.info(f"ENVIANDO MENSAJE MEDIANTE ZOA: {text}")
     conversation_id = f"{company_id}_{wa_id}"
     
     interface = ConversationsInterface()

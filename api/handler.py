@@ -5,6 +5,7 @@ from core.orchestrator import process_message
 from core.db import SessionManager
 from core.tracing import setup_tracing
 from api.wildix_handler import handle_wildix
+from services.zoa_client import is_business_open
 
 # Configure logging to stdout
 logging.basicConfig(
@@ -38,13 +39,24 @@ def handle_whatsapp(request):
     """Handle incoming ZOA Buffer System messages."""
     
     data = request.get_json(silent=True) or {}
-    logger.info(f"GETTED MESSAGE FROM WHATSAPP HANDLER: {json.dumps(data, ensure_ascii=False)}")
     
     mensaje = data.get("mensaje", "").strip()
     
     # Handle session reset with "BORRAR TODO"
     if mensaje == "BORRAR TODO":
         return handle_session_reset(data)
+    
+    # Check business hours — AI only processes when the office is closed
+    company_id = data.get("phone_number_id") or "default"
+    try:
+        if is_business_open(company_id):
+            return (
+                json.dumps({"status": "ok", "response": {"skipped": True, "reason": "business_open"}}, ensure_ascii=False),
+                200,
+                {"Content-Type": "application/json"},
+            )
+    except Exception as e:
+        logger.error(f"[HANDLER] Scheduler check failed: {e}, proceeding with AI processing")
     
     response = process_message(data)
 

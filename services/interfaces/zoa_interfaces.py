@@ -126,3 +126,9 @@ class CardActionsInterface(ZoaBaseInterface):
     def __init__(self):
         super().__init__()
         self.action_name = "cardact"
+
+class SchedulerInterface(ZoaBaseInterface):
+    """Interface for scheduler operations. Used for checking business hours."""
+    def __init__(self):
+        super().__init__()
+        self.action_name = "scheduler"
