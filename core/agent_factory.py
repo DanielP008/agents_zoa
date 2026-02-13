@@ -89,7 +89,12 @@ def run_langchain_agent(
     messages = []
     
     if history:
-        for msg_type, content in history:
+        for item in history:
+            # HumanMessage objects (e.g. multimodal with images) are passed through directly
+            if isinstance(item, HumanMessage):
+                messages.append(item)
+                continue
+            msg_type, content = item
             if msg_type == "human":
                 messages.append({"role": "user", "content": content})
             elif msg_type == "ai":

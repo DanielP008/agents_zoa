@@ -20,6 +20,43 @@ session_manager = SessionManager()
 _ROUTES_CONFIG = load_routes_config()
 _AGENT_ALLOWLIST = build_agent_allowlist(_ROUTES_CONFIG)
 
+_IMAGE_MIME_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+
+
+def _prune_image_attachments(memory: dict) -> dict:
+    """Mark image attachments as processed and remove heavy base64 data.
+
+    Called once after the agent has responded so the multimodal payload
+    is not persisted in the DB on every subsequent turn.
+    """
+    global_mem = memory.get("global", {})
+    attachments = global_mem.get("attachments", [])
+    if not attachments:
+        return memory
+
+    processed = set(global_mem.get("processed_attachment_indices", []))
+    pruned = 0
+    for i, att in enumerate(attachments):
+        if i in processed:
+            continue
+        if not isinstance(att, dict):
+            continue
+        mime = att.get("mime_type", "")
+        if mime in _IMAGE_MIME_TYPES and att.get("data"):
+            att.pop("data", None)
+            att["data_pruned"] = True
+            att["ocr_status"] = "multimodal"
+            processed.add(i)
+            pruned += 1
+
+    if pruned:
+        global_mem["processed_attachment_indices"] = sorted(processed)
+        global_mem["attachments"] = attachments
+        memory["global"] = global_mem
+        logger.info(f"[ORCHESTRATOR] Pruned {pruned} image attachment(s) base64 data")
+
+    return memory
+
 def process_message(payload: dict) -> dict:
     
     wa_id = payload.get("wa_id")
@@ -132,6 +169,10 @@ def process_message(payload: dict) -> dict:
         
         break
     
+    # Prune image base64 from attachments after the agent has seen them.
+    # This prevents huge base64 blobs from persisting in the DB.
+    memory = _prune_image_attachments(memory)
+
     # Append user turn to memory AFTER routing chain resolved
     # (agents already include user_text in their own LLM context,
     #  appending before caused every message to appear twice)
