@@ -18,12 +18,38 @@ def extract_attachments(payload: dict) -> list:
     """Extract media attachments from the incoming payload.
     
     Supports:
-    - media[].data / media[].base64  → inline base64
-    - media[].url                    → downloaded via ZOA (get_img) and returned as base64
-    - payload.image_base64           → legacy shorthand
+    - type "image"/"document" → downloads base64 via ZOA using wamid
+    - media[].data / media[].base64 → inline base64 (legacy/tests)
+    - payload.image_base64 → legacy shorthand
     """
     attachments = []
     company_id = payload.get("phone_number_id") or payload.get("company_id") or "default"
+    msg_type = payload.get("type")
+
+    # Handle image/document from WhatsApp (real payloads)
+    if msg_type in ("image", "document"):
+        media_obj = payload.get(msg_type, {})
+        mime_type = media_obj.get("mime_type", "application/octet-stream")
+        message_ids = payload.get("message_ids", [])
+        wamid = message_ids[0] if message_ids else payload.get("id")
+        if wamid:
+            logger.info(f"[ATTACHMENTS] Downloading {msg_type} via ZOA, wamid={wamid}")
+            result = download_media(wamid, company_id)
+            data = result.get("data") or result.get("base64")
+            if data:
+                attachments.append({
+                    "mime_type": mime_type,
+                    "data": data,
+                    "filename": media_obj.get("filename"),
+                    "source": msg_type,
+                })
+            else:
+                logger.error(f"[ATTACHMENTS] ZOA returned no data: {result}")
+        else:
+            logger.error("[ATTACHMENTS] No wamid found to download media")
+        return attachments
+
+    # Legacy: media[] with inline base64 (tests / old format)
     media = payload.get("media")
     if isinstance(media, dict):
         media = [media]
@@ -32,35 +58,24 @@ def extract_attachments(payload: dict) -> list:
             if not isinstance(item, dict):
                 continue
             data = item.get("data") or item.get("base64")
-            # If no inline data, download via ZOA
-            if not data:
-                url = item.get("url")
-                if url:
-                    logger.info(f"[ATTACHMENTS] Downloading media via ZOA: {url[:80]}...")
-                    result = download_media(url, company_id)
-                    data = result.get("data") or result.get("base64")
-                    if not data:
-                        logger.error(f"[ATTACHMENTS] ZOA get_img returned no data: {result}")
             if not data:
                 continue
-            attachments.append(
-                {
-                    "mime_type": item.get("mime_type") or item.get("type") or "application/octet-stream",
-                    "data": data,
-                    "filename": item.get("filename"),
-                    "source": "media",
-                }
-            )
+            attachments.append({
+                "mime_type": item.get("mime_type") or item.get("type") or "application/octet-stream",
+                "data": data,
+                "filename": item.get("filename"),
+                "source": "media",
+            })
+
+    # Legacy: image_base64 shorthand
     image_b64 = payload.get("image_base64")
     if image_b64:
-        attachments.append(
-            {
-                "mime_type": payload.get("image_mime_type") or "image/jpeg",
-                "data": image_b64,
-                "filename": payload.get("image_filename"),
-                "source": "image_base64",
-            }
-        )
+        attachments.append({
+            "mime_type": payload.get("image_mime_type") or "image/jpeg",
+            "data": image_b64,
+            "filename": payload.get("image_filename"),
+            "source": "image_base64",
+        })
     return attachments
 
 

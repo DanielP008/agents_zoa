@@ -24,16 +24,15 @@ def extract_nif_from_contact_search(response: Dict[str, Any]) -> str:
         return data.get("nif", "") or ""
     return response.get("nif", "") or ""
 
-def download_media(url: str, company_id: str) -> Dict[str, Any]:
-    """Download media via ZOA (action=conversations, option=get_img)."""
+def download_media(wamid: str, company_id: str) -> Dict[str, Any]:
+    """Download media via ZOA (action=conversations, option=search) using wamid."""
     interface = ConversationsInterface()
     result, _ = interface.execute(
         company_id=company_id,
-        option="get_img",
-        request_data={"url": url},
+        option="search",
+        request_data={"wamid": wamid},
     )
     return result
-
 
 def send_whatsapp_response(
     text: str,
