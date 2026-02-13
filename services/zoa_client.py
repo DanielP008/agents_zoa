@@ -26,7 +26,7 @@ def is_business_open(company_id: str) -> bool:
         request_data={},
     )
     logger.info(f"[SCHEDULER] ZOA response: {result}")
-    is_open = result.get("data", result.get("open", False))
+    is_open = result.get("data", result.get("is_open", False))
     if isinstance(is_open, str):
         is_open = is_open.lower() in ("true", "1", "yes")
     return bool(is_open)
