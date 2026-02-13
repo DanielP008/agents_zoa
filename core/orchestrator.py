@@ -1,3 +1,4 @@
+import json
 import logging
 import threading
 from core.db import SessionManager
@@ -12,6 +13,7 @@ from core.memory_schema import (
 )
 from core.routing.main_router import route_request
 from services.zoa_client import send_whatsapp_response
+from services.ocr_service import extract_document_data
 from core.routing.allowlist import build_agent_allowlist, load_routes_config
 from core.preprocessors import extract_attachments, try_silent_nif_lookup
 
@@ -20,42 +22,67 @@ session_manager = SessionManager()
 _ROUTES_CONFIG = load_routes_config()
 _AGENT_ALLOWLIST = build_agent_allowlist(_ROUTES_CONFIG)
 
-_IMAGE_MIME_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 
+def _process_attachments_ocr(memory: dict) -> tuple[dict, str]:
+    """Run OCR on all unprocessed attachments and return extracted text.
 
-def _prune_image_attachments(memory: dict) -> dict:
-    """Mark image attachments as processed and remove heavy base64 data.
-
-    Called once after the agent has responded so the multimodal payload
-    is not persisted in the DB on every subsequent turn.
+    Returns:
+        (updated_memory, ocr_context_text)
     """
     global_mem = memory.get("global", {})
     attachments = global_mem.get("attachments", [])
     if not attachments:
-        return memory
+        return memory, ""
 
     processed = set(global_mem.get("processed_attachment_indices", []))
-    pruned = 0
+    ocr_texts = []
+
     for i, att in enumerate(attachments):
         if i in processed:
             continue
         if not isinstance(att, dict):
             continue
-        mime = att.get("mime_type", "")
-        if mime in _IMAGE_MIME_TYPES and att.get("data"):
-            att.pop("data", None)
-            att["data_pruned"] = True
-            att["ocr_status"] = "multimodal"
-            processed.add(i)
-            pruned += 1
+        b64_data = att.get("data")
+        if not b64_data:
+            continue
 
-    if pruned:
+        mime_type = att.get("mime_type", "application/octet-stream")
+        filename = att.get("filename", f"adjunto_{i+1}")
+
+        logger.info(f"[ORCHESTRATOR_OCR] Processing attachment {i}: {filename} ({mime_type})")
+        result = extract_document_data(mime_type, b64_data)
+
+        if result.get("status") == "success":
+            extracted = result.get("data", {})
+            ocr_texts.append(
+                f"[Contenido extraído de '{filename}' ({mime_type})]:\n"
+                f"{json.dumps(extracted, ensure_ascii=False, indent=2)}"
+            )
+            att["ocr_status"] = "success"
+            logger.info(f"[ORCHESTRATOR_OCR] OCR success for {filename}")
+        else:
+            raw = result.get("raw_output")
+            if raw:
+                ocr_texts.append(
+                    f"[Contenido extraído de '{filename}' ({mime_type})]:\n{raw}"
+                )
+                att["ocr_status"] = "raw"
+            else:
+                att["ocr_status"] = "failed"
+                att["ocr_error"] = result.get("error", "OCR failed")
+                logger.error(f"[ORCHESTRATOR_OCR] OCR failed for {filename}: {result.get('error')}")
+
+        # Prune base64 after processing
+        att.pop("data", None)
+        att["data_pruned"] = True
+        processed.add(i)
+
+    if processed:
         global_mem["processed_attachment_indices"] = sorted(processed)
         global_mem["attachments"] = attachments
         memory["global"] = global_mem
-        logger.info(f"[ORCHESTRATOR] Pruned {pruned} image attachment(s) base64 data")
 
-    return memory
+    return memory, "\n\n".join(ocr_texts)
 
 def process_message(payload: dict) -> dict:
     
@@ -77,7 +104,7 @@ def process_message(payload: dict) -> dict:
     target_agent = session.get("target_agent", "receptionist_agent")
     memory = ensure_memory_shape(session.get("agent_memory", {}))
 
-    # Handle attachments
+    # Handle attachments: extract, OCR, and inject text into mensaje
     attachments = extract_attachments(payload)
     if attachments:
         global_mem = memory.get("global", {})
@@ -87,9 +114,18 @@ def process_message(payload: dict) -> dict:
         memory = update_global(memory, attachments=existing + attachments)
         session["agent_memory"] = memory
 
-        if not mensaje:
-            mensaje = "[imagen adjunta]"
-            payload["mensaje"] = mensaje
+    # Run OCR on any unprocessed attachments (images + PDFs)
+    memory, ocr_text = _process_attachments_ocr(memory)
+    if ocr_text:
+        if mensaje:
+            mensaje = f"{mensaje}\n\n{ocr_text}"
+        else:
+            mensaje = ocr_text
+        payload["mensaje"] = mensaje
+        session["agent_memory"] = memory
+    elif attachments and not mensaje:
+        mensaje = "[adjunto sin contenido extraíble]"
+        payload["mensaje"] = mensaje
 
     # Silent CRM lookup for NIF (no user interaction)
     memory, nif_value = try_silent_nif_lookup(memory, wa_id, company_id)
@@ -169,10 +205,6 @@ def process_message(payload: dict) -> dict:
         
         break
     
-    # Prune image base64 from attachments after the agent has seen them.
-    # This prevents huge base64 blobs from persisting in the DB.
-    memory = _prune_image_attachments(memory)
-
     # Append user turn to memory AFTER routing chain resolved
     # (agents already include user_text in their own LLM context,
     #  appending before caused every message to appear twice)

@@ -3,9 +3,7 @@ from __future__ import annotations
 import logging
 from copy import deepcopy
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
-
-from langchain_core.messages import HumanMessage
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -99,30 +97,6 @@ def apply_memory_patch(memory: Dict[str, Any], patch: Optional[Dict[str, Any]]) 
 RECENT_WINDOW = 6          # last 3 exchanges sent in full
 ASSISTANT_TRUNCATE = 100   # max chars for assistant msgs in summary
 
-# MIME types that can be sent directly to multimodal LLMs (images).
-# PDFs and other document types should go through OCR instead.
-_MULTIMODAL_MIME_TYPES = frozenset({
-    "image/jpeg", "image/png", "image/gif", "image/webp",
-})
-
-
-def _get_pending_image_attachments(memory: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Return unprocessed image attachments that have base64 data."""
-    global_mem = memory.get("global", {})
-    attachments = global_mem.get("attachments", [])
-    processed = set(global_mem.get("processed_attachment_indices", []))
-    pending = []
-    for i, att in enumerate(attachments):
-        if i in processed:
-            continue
-        if not isinstance(att, dict):
-            continue
-        mime = att.get("mime_type", "")
-        if mime in _MULTIMODAL_MIME_TYPES and att.get("data"):
-            pending.append(att)
-    return pending
-
-
 def _build_context_summary(old_turns: List[Dict[str, Any]]) -> str:
     """Build a compact summary of older conversation turns.
 
@@ -144,16 +118,13 @@ def _build_context_summary(old_turns: List[Dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
-def get_global_history(memory: Dict[str, Any]) -> List[Union[tuple, HumanMessage]]:
+def get_global_history(memory: Dict[str, Any]) -> List[tuple]:
     """Get conversation history formatted for LangChain.
 
     When the history is longer than RECENT_WINDOW messages the function
     compresses older turns into a lightweight context block and only sends the
     most recent messages in full.  This reduces input tokens dramatically on
     long conversations (10+ turns) without losing any client-provided data.
-
-    If there are unprocessed image attachments in memory, a multimodal
-    HumanMessage is appended at the end so the LLM can "see" the images.
     """
     memory = ensure_memory_shape(memory)
     raw_history = memory.get("conversation_history", [])
@@ -170,12 +141,10 @@ def get_global_history(memory: Dict[str, Any]) -> List[Union[tuple, HumanMessage
                 f"company_id={bool(global_data.get('company_id'))}"
             )
             
-        formatted: List[Union[tuple, HumanMessage]] = [
+        return [
             (("human" if h.get("role") == "user" else "ai"), h.get("text", ""))
             for h in raw_history
         ]
-        _maybe_append_image_message(formatted, memory)
-        return formatted
 
     # ── Long conversations: compress old turns + recent window ────────────
     old_turns = raw_history[:-RECENT_WINDOW]
@@ -214,7 +183,7 @@ def get_global_history(memory: Dict[str, Any]) -> List[Union[tuple, HumanMessage
         f"({100 - round(summary_chars / max(old_chars, 1) * 100)}% reduction)"
     )
 
-    formatted: List[Union[tuple, HumanMessage]] = []
+    formatted: List[tuple] = []
 
     if context_summary:
         formatted.append((
@@ -232,37 +201,7 @@ def get_global_history(memory: Dict[str, Any]) -> List[Union[tuple, HumanMessage
         role = "human" if turn.get("role") == "user" else "ai"
         formatted.append((role, turn.get("text", "")))
 
-    _maybe_append_image_message(formatted, memory)
     return formatted
-
-
-def _maybe_append_image_message(
-    formatted: List[Union[tuple, HumanMessage]],
-    memory: Dict[str, Any],
-) -> None:
-    """Append a multimodal HumanMessage with pending images (if any).
-
-    This is appended at the END of history, right before the agent adds
-    its own current-turn user message.  Both ChatPromptTemplate (Tipo A)
-    and run_langchain_agent (Tipo B) handle HumanMessage objects natively.
-    """
-    pending = _get_pending_image_attachments(memory)
-    if not pending:
-        return
-
-    blocks: List[Dict[str, Any]] = [
-        {"type": "text", "text": "El cliente ha enviado la(s) siguiente(s) imagen(es):"},
-    ]
-    for att in pending:
-        mime = att.get("mime_type", "image/jpeg")
-        b64 = att["data"]
-        blocks.append({
-            "type": "image_url",
-            "image_url": {"url": f"data:{mime};base64,{b64}"},
-        })
-
-    logger.info(f"[MEMORY] Appending multimodal message with {len(pending)} image(s)")
-    formatted.append(HumanMessage(content=blocks))
 
 def get_agent_memory(memory: Dict[str, Any], agent_name: str, default: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Get agent-specific memory namespace."""
