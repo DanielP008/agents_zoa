@@ -46,11 +46,13 @@ def extract_document_data(
         return {"error": "No document data provided", "status": "failed"}
 
     default_prompt = (
-        "Analyze this document and extract ALL relevant information into a well-structured JSON object. "
-        "Include names, dates, numbers, addresses, policy details, coverage information, and any other specific data points found. "
-        "Use descriptive keys in Spanish (e.g., 'numero_poliza', 'titular', 'coberturas'). "
-        "If the document has multiple sections, reflect that in the JSON structure. "
-        "Return ONLY the JSON object, no other text."
+        "Analiza este archivo adjunto. Puede ser un documento (póliza, DNI, factura, recibo) o una fotografía.\n\n"
+        "- Si es un DOCUMENTO con texto: extrae TODA la información relevante en un JSON estructurado con claves en español "
+        "(ej: 'numero_poliza', 'titular', 'nif', 'coberturas', 'fecha_vencimiento'). Devuelve SOLO el JSON.\n"
+        "- Si es una FOTOGRAFÍA (daño en vehículo, hogar, accidente, objeto, etc.): devuelve un JSON con la clave "
+        "'descripcion_imagen' con una descripción detallada de lo que ves (2-4 frases), y 'tipo_contenido' indicando "
+        "qué tipo de imagen es (ej: 'daño_vehiculo', 'daño_hogar', 'documento', 'foto_personal', 'otro').\n\n"
+        "Devuelve SOLO el JSON, sin texto adicional."
     )
     
     prompt = prompt_override or default_prompt
