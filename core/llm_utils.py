@@ -44,30 +44,93 @@ def _get_model_name(obj: Any) -> str:
     return ""
 
 
+def _is_empty_response(obj: Any) -> bool:
+    """Check if a structured response object is essentially empty.
+    
+    Returns True if:
+    - All string attributes are empty/whitespace
+    - All numeric attributes are 0/None
+    - All list attributes are empty
+    - All dict attributes are empty
+    """
+    if obj is None:
+        return True
+    
+    # If it's a Pydantic model or dataclass
+    if hasattr(obj, '__dict__'):
+        attrs = obj.__dict__
+    elif hasattr(obj, 'dict') and callable(obj.dict):
+        attrs = obj.dict()
+    else:
+        # Can't introspect, assume not empty
+        return False
+    
+    has_content = False
+    for key, value in attrs.items():
+        # Skip private/internal fields
+        if key.startswith('_'):
+            continue
+            
+        # Check string fields (most common for message/text)
+        if isinstance(value, str) and value.strip():
+            has_content = True
+            break
+        # Check lists
+        elif isinstance(value, (list, tuple)) and len(value) > 0:
+            has_content = True
+            break
+        # Check dicts
+        elif isinstance(value, dict) and len(value) > 0:
+            has_content = True
+            break
+        # Check numbers (but 0 is still "content" for confidence scores)
+        # Only consider positive numbers as content
+        elif isinstance(value, (int, float)) and value != 0:
+            has_content = True
+            break
+    
+    return not has_content
+
+
 def safe_structured_invoke(
     chain: Any,
     inputs: Dict[str, Any],
     fallback_factory: Callable[[], T],
-    error_context: Optional[str] = None
+    error_context: Optional[str] = None,
+    max_retries: int = 3
 ) -> T:
-    """Safely invoke a structured output chain."""
+    """Safely invoke a structured output chain with retry on empty responses."""
     context_msg = f" [{error_context}]" if error_context else ""
     agent_label = error_context or "unknown_classifier"
     
-    try:
-        model_name_str = _extract_model_from_chain(chain)
+    for attempt in range(max_retries):
+        try:
+            model_name_str = _extract_model_from_chain(chain)
 
-        with Timer("agent", agent_label, model=model_name_str):
-            result = chain.invoke(inputs)
-        
-        if result is None:
-            logger.warning(f"Structured output returned None{context_msg}, using fallback")
+            with Timer("agent", agent_label, model=model_name_str):
+                result = chain.invoke(inputs)
+            
+            if result is None:
+                logger.warning(f"Structured output returned None{context_msg} (attempt {attempt + 1}/{max_retries})")
+                if attempt < max_retries - 1:
+                    continue
+                return fallback_factory()
+            
+            # Check if result is "empty" (no useful content)
+            if _is_empty_response(result):
+                logger.warning(f"Structured output returned empty response{context_msg} (attempt {attempt + 1}/{max_retries})")
+                if attempt < max_retries - 1:
+                    continue
+                return fallback_factory()
+            
+            return result
+        except Exception as e:
+            logger.error(f"Structured output error{context_msg} (attempt {attempt + 1}/{max_retries}): {e}")
+            if attempt < max_retries - 1:
+                continue
             return fallback_factory()
-        
-        return result
-    except Exception as e:
-        logger.error(f"Structured output error{context_msg}: {e}")
-        return fallback_factory()
+    
+    return fallback_factory()
 
 def safe_llm_invoke(
     chain_callable: Callable,
