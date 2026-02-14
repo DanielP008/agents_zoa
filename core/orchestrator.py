@@ -21,6 +21,7 @@ from core.memory import (
 from core.preprocessors import extract_attachments, process_attachments_ocr, try_silent_nif_lookup
 from core.routing.allowlist import build_agent_allowlist, load_routes_config
 from core.routing.main_router import route_request
+from infra.agent_runner import set_wa_context
 from infra.db import SessionManager
 from infra.timing import start_trace, dump_trace
 from services.zoa_client import send_whatsapp_response
@@ -186,6 +187,9 @@ def process_message(payload: dict) -> dict:
     # 2. Preprocessing
     memory, session, mensaje = _preprocess_message(payload, session)
     payload["session"] = session
+
+    # Set WhatsApp context so agent_runner can send "please wait" on tool use
+    set_wa_context(wa_id, phone_number_id, channel)
 
     # 3. Routing chain
     response, memory, target_agent, chain_depth = _run_routing_chain(
