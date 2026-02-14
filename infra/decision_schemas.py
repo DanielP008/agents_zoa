@@ -1,4 +1,8 @@
+"""Pydantic models for structured LLM output (agent decisions)."""
+
 from pydantic import BaseModel, Field
+
+
 class ReceptionistDecision(BaseModel):
     """Decision model for the receptionist agent."""
     domain: str | None = Field(
@@ -19,6 +23,8 @@ class ReceptionistDecision(BaseModel):
         ge=0.0,
         le=1.0
     )
+
+
 class ClassificationDecision(BaseModel):
     """Generic decision model for domain classifier agents."""
     route: str = Field(

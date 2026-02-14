@@ -1,9 +1,11 @@
-"""Pre-processing helpers for the orchestrator: attachments, NIF extraction."""
-import re
-import logging
+"""Pre-processing helpers for the orchestrator: attachments, NIF extraction, OCR."""
 
-from core.db import SessionManager
-from core.memory_schema import update_global
+import json
+import logging
+import re
+
+from core.memory import update_global
+from services.ocr_service import extract_document_data
 from services.zoa_client import (
     search_contact_by_phone,
     extract_nif_from_contact_search,
@@ -11,7 +13,6 @@ from services.zoa_client import (
 )
 
 logger = logging.getLogger(__name__)
-session_manager = SessionManager()
 
 
 def extract_attachments(payload: dict) -> list:
@@ -77,6 +78,68 @@ def extract_attachments(payload: dict) -> list:
             "source": "image_base64",
         })
     return attachments
+
+
+def process_attachments_ocr(memory: dict) -> tuple[dict, str]:
+    """Run OCR on all unprocessed attachments and return extracted text.
+
+    Returns:
+        (updated_memory, ocr_context_text)
+    """
+    global_mem = memory.get("global", {})
+    attachments = global_mem.get("attachments", [])
+    if not attachments:
+        return memory, ""
+
+    processed = set(global_mem.get("processed_attachment_indices", []))
+    ocr_texts = []
+
+    for i, att in enumerate(attachments):
+        if i in processed:
+            continue
+        if not isinstance(att, dict):
+            continue
+        b64_data = att.get("data")
+        if not b64_data:
+            continue
+
+        mime_type = att.get("mime_type", "application/octet-stream")
+        filename = att.get("filename", f"adjunto_{i+1}")
+
+        logger.info(f"[OCR] Processing attachment {i}: {filename} ({mime_type})")
+        result = extract_document_data(mime_type, b64_data)
+
+        if result.get("status") == "success":
+            extracted = result.get("data", {})
+            ocr_texts.append(
+                f"[Contenido extraído de '{filename}' ({mime_type})]:\n"
+                f"{json.dumps(extracted, ensure_ascii=False, indent=2)}"
+            )
+            att["ocr_status"] = "success"
+            logger.info(f"[OCR] OCR success for {filename}")
+        else:
+            raw = result.get("raw_output")
+            if raw:
+                ocr_texts.append(
+                    f"[Contenido extraído de '{filename}' ({mime_type})]:\n{raw}"
+                )
+                att["ocr_status"] = "raw"
+            else:
+                att["ocr_status"] = "failed"
+                att["ocr_error"] = result.get("error", "OCR failed")
+                logger.error(f"[OCR] OCR failed for {filename}: {result.get('error')}")
+
+        # Prune base64 after processing
+        att.pop("data", None)
+        att["data_pruned"] = True
+        processed.add(i)
+
+    if processed:
+        global_mem["processed_attachment_indices"] = sorted(processed)
+        global_mem["attachments"] = attachments
+        memory["global"] = global_mem
+
+    return memory, "\n\n".join(ocr_texts)
 
 
 def extract_nif_from_text(text: str) -> str:

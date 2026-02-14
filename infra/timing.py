@@ -1,11 +1,11 @@
 """Request-scoped timing/profiler for measuring performance across the stack."""
 
-import time
-import os
-import json
-import threading
 import contextvars
+import json
 import logging
+import os
+import threading
+import time
 from datetime import datetime, timezone
 
 TIMING_DIR = os.getenv("TIMING_DIR", "/tmp/timings")
@@ -60,7 +60,7 @@ class RequestTrace:
             for idx, e in enumerate(pg, start=1):
                 lines.append(f"  {e['label']:.<35s} {e['duration_ms']}ms")
                 logger.info(
-                    "CALL %s POSTGRESS %s | TIME: %.1fms | session=%s",
+                    "CALL %s POSTGRES %s | TIME: %.1fms | session=%s",
                     idx,
                     e["label"],
                     e["duration_ms"],
@@ -75,7 +75,6 @@ class RequestTrace:
         if agents:
             lines.append("[AGENTS]")
             for e in agents:
-                # Find tool calls that belong to this agent
                 agent_name = e["label"]
                 model_info = f" [{e['model']}]" if e.get("model") else ""
                 child_tools = [t for t in self.entries if t["category"] in ("erp", "zoa", "tool") and t["parent"] == agent_name]
@@ -124,10 +123,8 @@ class RequestTrace:
         generic_tool_total = sum(e["duration_ms"] for e in generic_tools)
         wdx_total = sum(e["duration_ms"] for e in wildix)
         tool_total = erp_total + zoa_total + generic_tool_total
-        
-        # Ensure LLM time is not negative (can happen with nested agents or timing overlaps)
+
         agent_pure_ms = max(0, agent_total - tool_total)
-        
         other = max(0, total_ms - pg_total - agent_total - wdx_total)
 
         def pct(v):
@@ -146,9 +143,9 @@ class RequestTrace:
             with open(filepath, "a") as f:
                 f.write(text)
 
-        # Also write structured JSONL for analytics
+        # Structured JSONL for analytics
         jsonl_path = os.path.join(TIMING_DIR, "request_trace.jsonl")
-        record = {
+        record_data = {
             "timestamp": ts,
             "session_id": self.session_id,
             "channel": self.channel,
@@ -157,7 +154,7 @@ class RequestTrace:
             "postgres_calls": len(pg),
             "agent_total_ms": round(agent_total, 1),
             "agent_pure_ms": round(agent_pure_ms, 1),
-            "agent_llm_ms": round(agent_pure_ms, 1),  # backward-compatible alias
+            "agent_llm_ms": round(agent_pure_ms, 1),
             "tool_calls_ms": round(tool_total, 1),
             "erp_ms": round(erp_total, 1),
             "erp_calls": len(erp),
@@ -183,7 +180,7 @@ class RequestTrace:
         }
         with _file_lock:
             with open(jsonl_path, "a") as f:
-                f.write(json.dumps(record, ensure_ascii=False) + "\n")
+                f.write(json.dumps(record_data, ensure_ascii=False) + "\n")
 
 
 def start_trace(session_id: str, channel: str = "unknown") -> RequestTrace:
@@ -199,7 +196,7 @@ def get_trace() -> "RequestTrace | None":
 
 
 def dump_trace(channel: str = "whatsapp"):
-    """Dump the current request trace if active. Skip for call channel (handler dumps later)."""
+    """Dump the current request trace if active. Skip for call channel."""
     if channel == "call":
         return
     trace = get_trace()

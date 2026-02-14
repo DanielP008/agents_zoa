@@ -1,7 +1,10 @@
-import os
+"""LangSmith tracing setup."""
+
 import logging
+import os
 
 logger = logging.getLogger(__name__)
+
 
 def setup_tracing():
     """Configure LangSmith tracing from environment variables."""

@@ -1,4 +1,5 @@
 """Shared utilities for dynamic prompt assembly based on active agents config."""
+
 import re
 
 

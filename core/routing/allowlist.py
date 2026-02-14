@@ -1,6 +1,6 @@
 import json
 
-from core.config import get_routes_path
+from infra.config import get_routes_path
 
 _ROUTES_PATH = get_routes_path()
 

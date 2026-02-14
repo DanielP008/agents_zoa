@@ -2,8 +2,8 @@ import json
 import logging
 import sys
 from core.orchestrator import process_message
-from core.db import SessionManager
-from core.tracing import setup_tracing
+from infra.db import SessionManager
+from infra.tracing import setup_tracing
 from api.wildix_handler import handle_wildix
 from services.zoa_client import is_business_open
 

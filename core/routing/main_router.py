@@ -1,7 +1,6 @@
-import json
-import os
-from pathlib import Path
-from typing import Dict, Any
+"""Agent dispatch: maps agent names to handler functions."""
+
+import logging
 
 from agents.receptionist_agent import receptionist_agent
 
@@ -20,50 +19,38 @@ from agents.domains.ventas.renovacion_agent import renovacion_agent
 from agents.domains.ventas.nueva_poliza_agent import nueva_poliza_agent
 from agents.domains.ventas.venta_cruzada_agent import venta_cruzada_agent
 
-_ROUTES_PATH = Path(__file__).parent / "routes.json"
+logger = logging.getLogger(__name__)
 
-if os.path.exists(_ROUTES_PATH):
-    with open(_ROUTES_PATH, "r") as f:
-        ROUTES_CONFIG = json.load(f)
-else:
-    ROUTES_CONFIG = {}
+# ---------------------------------------------------------------------------
+# Agent registry: name → handler callable
+# ---------------------------------------------------------------------------
+_AGENT_REGISTRY: dict[str, callable] = {
+    "receptionist_agent": receptionist_agent,
+    # Siniestros
+    "classifier_siniestros_agent": classifier_siniestros_agent,
+    "apertura_siniestro_agent": apertura_siniestro_agent,
+    "consulta_estado_agent": consulta_estado_agent,
+    "telefonos_asistencia_agent": telefonos_asistencia_agent,
+    # Gestión
+    "classifier_gestion_agent": classifier_gestion_agent,
+    "devolucion_agent": devolucion_agent,
+    "consultar_poliza_agent": consultar_poliza_agent,
+    "modificar_poliza_agent": modificar_poliza_agent,
+    # Ventas
+    "classifier_ventas_agent": classifier_ventas_agent,
+    "renovacion_agent": renovacion_agent,
+    "nueva_poliza_agent": nueva_poliza_agent,
+    "venta_cruzada_agent": venta_cruzada_agent,
+}
 
-def get_accessible_agents() -> Dict[str, Any]:
-    """Return the accessible agents tree."""
-    return ROUTES_CONFIG
 
 def route_request(target_agent: str, payload: dict) -> dict:
     """Dispatch a request to the target agent."""
-
-    if target_agent == "receptionist_agent":
-        return receptionist_agent(payload)
-    if target_agent == "classifier_siniestros_agent":
-        return classifier_siniestros_agent(payload)
-    if target_agent == "apertura_siniestro_agent":
-        return apertura_siniestro_agent(payload)
-    if target_agent == "consulta_estado_agent":
-        return consulta_estado_agent(payload)
-    if target_agent == "telefonos_asistencia_agent":
-        return telefonos_asistencia_agent(payload)
-    if target_agent == "classifier_gestion_agent":
-        return classifier_gestion_agent(payload)
-    if target_agent == "devolucion_agent":
-        return devolucion_agent(payload)
-    if target_agent == "consultar_poliza_agent":
-        return consultar_poliza_agent(payload)
-    if target_agent == "modificar_poliza_agent":
-        return modificar_poliza_agent(payload)
-
-    if target_agent == "classifier_ventas_agent":
-        return classifier_ventas_agent(payload)
-    if target_agent == "renovacion_agent":
-        return renovacion_agent(payload)
-    if target_agent == "nueva_poliza_agent":
-        return nueva_poliza_agent(payload)
-    if target_agent == "venta_cruzada_agent":
-        return venta_cruzada_agent(payload)
-
-    return {
-        "action": "finish",
-        "message": f"Error: Agent {target_agent} not found. Resetting."
-    }
+    handler = _AGENT_REGISTRY.get(target_agent)
+    if handler is None:
+        logger.error(f"[ROUTER] Agent not found: {target_agent}")
+        return {
+            "action": "finish",
+            "message": f"Error: Agent {target_agent} not found. Resetting.",
+        }
+    return handler(payload)

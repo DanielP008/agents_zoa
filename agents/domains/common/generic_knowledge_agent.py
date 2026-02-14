@@ -1,5 +1,5 @@
-from core.agent_factory import create_langchain_agent, run_langchain_agent
-from core.llm import get_llm_fast
+from infra.agent_runner import create_langchain_agent, run_langchain_agent
+from infra.llm import get_llm_fast
 from tools.communication.end_chat_tool import end_chat_tool
 from agents.domains.common.generic_knowledge_agent_prompts import get_prompt
 

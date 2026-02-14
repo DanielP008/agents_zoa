@@ -9,8 +9,8 @@ import hashlib
 import logging
 import requests
 from core.orchestrator import process_message
-from core.db import SessionManager
-from core.timing import Timer, get_trace
+from infra.db import SessionManager
+from infra.timing import Timer, get_trace
 
 logger = logging.getLogger(__name__)
 

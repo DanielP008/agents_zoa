@@ -1,6 +1,7 @@
-"""Common utilities and hooks."""
+"""Project paths and configuration helpers."""
+
 import pathlib
-from typing import Optional
+
 
 def get_project_root() -> pathlib.Path:
     """Get the project root directory."""
@@ -14,13 +15,16 @@ def get_project_root() -> pathlib.Path:
 
     return current_dir.parent
 
+
 def get_contracts_path(filename: str) -> pathlib.Path:
     """Get path to a contracts file."""
     return get_project_root() / "contracts" / filename
 
+
 def get_routes_path() -> pathlib.Path:
     """Get path to routes configuration."""
     return get_project_root() / "core" / "routing" / "routes.json"
+
 
 def get_config_path(filename: str = ".env") -> pathlib.Path:
     """Get path to a config file in the project root."""

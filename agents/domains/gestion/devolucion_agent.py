@@ -1,7 +1,7 @@
 """Devolucion agent for LangChain 1.x."""
-from core.agent_factory import create_langchain_agent, run_langchain_agent
-from core.memory_schema import get_global_history
-from core.llm import get_llm
+from infra.agent_runner import create_langchain_agent, run_langchain_agent
+from core.memory import get_global_history
+from infra.llm import get_llm
 from tools.communication.end_chat_tool import end_chat_tool
 from tools.communication.redirect_to_receptionist_tool import redirect_to_receptionist_tool
 from tools.zoa.tasks_tool import create_task_activity_tool

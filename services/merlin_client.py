@@ -16,7 +16,7 @@ import logging
 import requests
 from typing import Dict, Any, Optional, List
 
-from core.timing import Timer, get_current_agent
+from infra.timing import Timer, get_current_agent
 
 logger = logging.getLogger(__name__)
 
