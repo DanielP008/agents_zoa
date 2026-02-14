@@ -1,6 +1,8 @@
 import json
 import logging
 import sys
+from datetime import datetime, timezone, timedelta
+
 from core.orchestrator import process_message
 from infra.db import SessionManager
 from infra.tracing import setup_tracing
@@ -47,16 +49,21 @@ def handle_whatsapp(request):
         return handle_session_reset(data)
     
     # Check business hours — AI only processes when the office is closed
+    # Weekends (Sat/Sun) are always treated as closed → AI processes
     company_id = data.get("phone_number_id") or "default"
-    try:
-        if is_business_open(company_id):
-            return (
-                json.dumps({"status": "ok", "response": {"skipped": True, "reason": "business_open"}}, ensure_ascii=False),
-                200,
-                {"Content-Type": "application/json"},
-            )
-    except Exception as e:
-        logger.error(f"[HANDLER] Scheduler check failed: {e}, proceeding with AI processing")
+    now_madrid = datetime.now(timezone(timedelta(hours=1)))
+    is_weekend = now_madrid.weekday() >= 5  # 5=Saturday, 6=Sunday
+
+    if not is_weekend:
+        try:
+            if is_business_open(company_id):
+                return (
+                    json.dumps({"status": "ok", "response": {"skipped": True, "reason": "business_open"}}, ensure_ascii=False),
+                    200,
+                    {"Content-Type": "application/json"},
+                )
+        except Exception as e:
+            logger.error(f"[HANDLER] Scheduler check failed: {e}, proceeding with AI processing")
     
     response = process_message(data)
 
