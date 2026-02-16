@@ -11,11 +11,12 @@ import logging
 from langchain.tools import tool
 from services.merlin_client import create_merlin_project, get_vehicle_info_by_matricula, get_town_by_cp
 from services.erp_client import get_policy_by_risk_from_erp
+from services.catastro_client import consultar_catastro_por_direccion
 
 logger = logging.getLogger(__name__)
 
 _REQUIRED_FIELDS_AUTO = ["dni", "matricula", "fecha_efecto"]
-_REQUIRED_FIELDS_HOGAR = ["dni", "codigo_postal", "anio_construccion", "superficie_vivienda", "fecha_efecto"]
+_REQUIRED_FIELDS_HOGAR = ["dni", "codigo_postal", "fecha_efecto", "nombre_via", "numero_calle"]
 
 
 # ============================================================================
@@ -101,14 +102,114 @@ def get_town_by_cp_tool(cp: str) -> dict:
 
 
 # ============================================================================
-# TOOL 3: Creación de proyecto en Merlin (Auto o Hogar)
+# TOOL 3: Consulta de Catastro (Hogar)
+# ============================================================================
+
+@tool
+def consultar_catastro_tool(
+    provincia: str,
+    municipio: str,
+    tipo_via: str,
+    nombre_via: str,
+    numero: str,
+    bloque: str = "",
+    escalera: str = "",
+    planta: str = "",
+    puerta: str = "",
+    piso: str = "",  # Alias for planta
+    numero_personas: str = "3",
+) -> str:
+    """
+    Consulta los datos de una vivienda en el Catastro (superficie, año construcción, uso).
+
+    Usa esta herramienta en cuanto el cliente proporcione la dirección completa en Hogar.
+    Muestra los datos recuperados (año y superficie) al cliente y pregúntale si son correctos.
+
+    Args:
+        provincia: Nombre de la provincia (ej: "MADRID")
+        municipio: Nombre del municipio/población (ej: "MADRID")
+        tipo_via: Código del tipo de vía (CL, AV, PZ, PO, RD, CLZ, CM)
+        nombre_via: Nombre de la vía (ej: "ALCALA")
+        numero: Número de la vía (ej: "5")
+        bloque: Bloque (opcional)
+        escalera: Escalera (opcional)
+        planta: Planta (ej: "5")
+        puerta: Puerta (ej: "A")
+        piso: Alias para planta (opcional)
+        numero_personas: Número de personas en la vivienda (ej: "3")
+    """
+    # Combine planta/piso
+    final_planta = planta or piso
+    
+    logger.info(f"[CONSULTAR_CATASTRO] Looking up: {tipo_via} {nombre_via} {numero} {final_planta} {puerta} in {municipio}")
+    
+    try:
+        result = consultar_catastro_por_direccion(
+            provincia=provincia,
+            municipio=municipio,
+            tipo_via=tipo_via,
+            nombre_via=nombre_via,
+            numero=numero,
+            bloque=bloque,
+            escalera=escalera,
+            planta=final_planta,
+            puerta=puerta,
+        )
+        
+        if result.get("success"):
+            anio = result.get("anio_construccion", "NO DISPONIBLE")
+            superficie = result.get("superficie", "NO DISPONIBLE")
+            ref = result.get("referencia_catastral", "")
+            uso_catastro = result.get("uso", "")
+            
+            # Inferencia básica de uso
+            uso_vivienda = "VIVIENDA_HABITUAL"
+            utilizacion = "VIVIENDA_EXCLUSIVAMENTE"
+            if uso_catastro and not uso_catastro.startswith("R"):
+                 # Si no es residencial, podría ser otro uso, pero por defecto asumimos vivienda para el seguro de hogar
+                 pass
+
+            logger.info(f"[CONSULTAR_CATASTRO] SUCCESS - Año: {anio}, Superficie: {superficie}m², Ref: {ref}")
+            
+            # Construimos un string con los datos encontrados y los valores por defecto para que el LLM los presente
+            return (
+                f"DATOS ENCONTRADOS: Año: {anio}, Superficie: {superficie}, Ref: {ref}\n"
+                f"VALORES SUGERIDOS (CONFIRMAR CON CLIENTE):\n"
+                f"- Situación: NUCLEO_URBANO\n"
+                f"- Régimen: PROPIEDAD\n"
+                f"- Uso: {uso_vivienda}\n"
+                f"- Utilización: {utilizacion}\n"
+                f"- Nº Personas: {numero_personas}\n"
+                f"- Calidad: NORMAL\n"
+                f"- Materiales: SOLIDA_PIEDRAS_LADRILLOS_ETC\n"
+                f"- Tuberías: POLIPROPILENO\n"
+                f"PROTECCIONES (POR DEFECTO):\n"
+                f"- Puerta principal: DE_MADERA_PVC_METALICA_ETC\n"
+                f"- Puerta secundaria: NO_TIENE\n"
+                f"- Ventanas: SIN_PROTECCION\n"
+                f"- Alarmas (Robo/Incendio/Agua): SIN_ALARMA\n"
+                f"- Caja fuerte: NO_TIENE\n"
+                f"- Vigilancia: SIN_VIGILANCIA"
+            )
+        else:
+            err = result.get('error', 'Desconocido')
+            logger.error(f"[CONSULTAR_CATASTRO] Failed: {err}")
+            return f"NO SE ENCONTRARON DATOS: {err}. Usa valores por defecto."
+            
+    except Exception as e:
+        logger.error(f"[CONSULTAR_CATASTRO] EXCEPTION: {e}", exc_info=True)
+        return f"ERROR TECNICO: {str(e)}. Usa valores por defecto."
+
+
+# ============================================================================
+# TOOL 4: Creación de proyecto en Merlin (Auto o Hogar)
 # ============================================================================
 
 @tool
 def create_retarificacion_project_tool(data: str) -> dict:
     """
     Crea un proyecto de tarificación de seguro (Auto o Hogar) en Merlin.
-    Enriquece automáticamente los datos usando la DGT, el ERP y servicios de localización.
+    Enriquece automáticamente los datos usando la DGT, el ERP, el Catastro y servicios de localización.
 
     Input: JSON string con los datos recopilados.
 
@@ -122,13 +223,32 @@ def create_retarificacion_project_tool(data: str) -> dict:
     Campos adicionales para AUTO:
     - matricula: str (matrícula del vehículo)
 
-    Campos adicionales para HOGAR:
+    Campos adicionales para HOGAR (obligatorios):
     - codigo_postal: str
-    - anio_construccion: int (año de construcción)
-    - superficie_vivienda: int (metros cuadrados)
-    - tipo_vivienda: str ("PISO", "UNIFAMILIAR", "ADOSADO", etc. - por defecto "PISO")
-    - capital_continente: int (valor de la construcción - por defecto 100000)
-    - capital_contenido: int (valor del mobiliario - por defecto 10000)
+    - nombre_via: str (nombre de la calle, ej: "Gran Vía")
+    - numero_calle: str (número del edificio, ej: "3")
+    - piso: str (opcional, ej: "3")
+    - puerta: str (opcional, ej: "Izquierda")
+    - numero_personas_vivienda: str (ej: "3")
+
+    Campos adicionales para HOGAR (opcionales, se obtienen automáticamente del Catastro si no se proporcionan):
+    - id_tipo_via: str ("CL", "AV", "PZ", etc. - por defecto "CL")
+    - anio_construccion: int (año de construcción - auto del Catastro)
+    - superficie_vivienda: int (metros cuadrados - auto del Catastro)
+    - tipo_vivienda: str ("PISO_EN_ALTO", "CHALET_O_VIVIENDA_UNIFAMILIAR", etc. - por defecto "PISO_EN_ALTO")
+    - capital_continente: int (valor reconstrucción confirmado por el cliente, ej: 240000)
+    - capital_contenido: int (valor mobiliario confirmado por el cliente, ej: 25000)
+    - situacion_vivienda: str (ej: "NUCLEO_URBANO")
+    - regimen_ocupacion: str (ej: "PROPIEDAD")
+    - uso_vivienda: str (ej: "VIVIENDA_HABITUAL")
+    - utilizacion_vivienda: str (ej: "VIVIENDA_EXCLUSIVAMENTE")
+    - calidad_construccion: str (ej: "NORMAL")
+    - materiales_construccion: str (ej: "SOLIDA_PIEDRAS_LADRILLOS_ETC")
+    - tipo_tuberias: str (ej: "POLIPROPILENO")
+    - bloque: str (opcional)
+    - escalera: str (opcional)
+    - planta: str (opcional)
+    - puerta: str (opcional)
     """
     try:
         payload = json.loads(data)
@@ -196,10 +316,65 @@ def create_retarificacion_project_tool(data: str) -> dict:
                 "descripcion_provincia": town_result.get("descripcion_provincia"),
             })
 
-    # 3. Default values for HOGAR
+    # 3. Catastro enrichment for HOGAR (superficie, año construcción)
+    if ramo == "HOGAR":
+        nombre_via = payload.get("nombre_via", "")
+        numero_calle = str(payload.get("numero_calle", ""))
+        tipo_via = payload.get("id_tipo_via", "CL")
+        provincia_desc = payload.get("descripcion_provincia", "")
+        municipio_desc = payload.get("poblacion", "")
+        piso = payload.get("piso", "")
+        puerta = payload.get("puerta", "")
+
+        if nombre_via and numero_calle and provincia_desc and municipio_desc:
+            logger.info(f"[RETARIFICACION] Enriching with Catastro: "
+                        f"{tipo_via} {nombre_via} {numero_calle} {piso} {puerta}, {municipio_desc} ({provincia_desc})")
+            catastro_result = consultar_catastro_por_direccion(
+                provincia=provincia_desc,
+                municipio=municipio_desc,
+                tipo_via=tipo_via,
+                nombre_via=nombre_via,
+                numero=numero_calle,
+                bloque=payload.get("bloque", ""),
+                escalera=payload.get("escalera", ""),
+                planta=piso,
+                puerta=puerta,
+            )
+
+            if catastro_result.get("success"):
+                cat_superficie = catastro_result.get("superficie")
+                cat_anio = catastro_result.get("anio_construccion")
+                cat_ref = catastro_result.get("referencia_catastral")
+
+                if cat_superficie and "superficie_vivienda" not in payload:
+                    payload["superficie_vivienda"] = int(cat_superficie)
+                    logger.info(f"[RETARIFICACION] Catastro -> superficie: {cat_superficie}m²")
+
+                if cat_anio and "anio_construccion" not in payload:
+                    payload["anio_construccion"] = int(cat_anio)
+                    logger.info(f"[RETARIFICACION] Catastro -> año construcción: {cat_anio}")
+
+                if cat_ref:
+                    payload["referencia_catastral"] = cat_ref
+                    logger.info(f"[RETARIFICACION] Catastro -> ref catastral: {cat_ref}")
+            else:
+                logger.warning(f"[RETARIFICACION] Catastro lookup failed: {catastro_result.get('error')}")
+                if catastro_result.get("multiple_results"):
+                    logger.info("[RETARIFICACION] Multiple properties found - may need planta/puerta")
+
+        # Ensure superficie and anio have fallback values if Catastro didn't provide them
+        if "superficie_vivienda" not in payload:
+            payload["superficie_vivienda"] = 90
+            logger.warning("[RETARIFICACION] Using default superficie (90m²) - Catastro unavailable")
+        if "anio_construccion" not in payload:
+            payload["anio_construccion"] = 2000
+            logger.warning("[RETARIFICACION] Using default año construcción (2000) - Catastro unavailable")
+
+    # 4. Default values for HOGAR
     if ramo == "HOGAR":
         defaults = {
-            "tipo_situacion": "NUCLEO_URBANO",
+            "tipo_vivienda": "PISO_EN_ALTO",
+            "situacion_vivienda": "NUCLEO_URBANO",
             "regimen_ocupacion": "PROPIEDAD",
             "uso_vivienda": "VIVIENDA_HABITUAL",
             "utilizacion_vivienda": "VIVIENDA_EXCLUSIVAMENTE",
@@ -218,7 +393,7 @@ def create_retarificacion_project_tool(data: str) -> dict:
             if k not in payload:
                 payload[k] = v
 
-    # 4. Create project in Merlin
+    # 5. Create project in Merlin
     logger.info(f"[RETARIFICACION] Creating {ramo} project in Merlin for DNI: {dni}")
     result = create_merlin_project(payload)
 

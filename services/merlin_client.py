@@ -133,6 +133,8 @@ def _build_riesgo_hogar(data: dict) -> dict:
             "id_tipo_via": data.get("id_tipo_via", "CL"),
             "nombre_via": data.get("nombre_via", ""),
             "numero": data.get("numero_calle", "1"),
+            "piso": data.get("piso", ""),
+            "puerta": data.get("puerta", ""),
             "id_provincia": data.get("id_provincia", ""),
             "id_pais": data.get("id_pais", "108-6"),
             "descripcion_provincia": data.get("descripcion_provincia", ""),

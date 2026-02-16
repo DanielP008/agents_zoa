@@ -12,6 +12,7 @@ from tools.communication.redirect_to_receptionist_tool import redirect_to_recept
 from tools.sales.retarificacion_tool import (
     consulta_vehiculo_tool,
     get_town_by_cp_tool,
+    consultar_catastro_tool,
     create_retarificacion_project_tool,
 )
 
@@ -50,6 +51,7 @@ def renovacion_agent(payload: dict) -> dict:
     tools = [
         consulta_vehiculo_tool,
         get_town_by_cp_tool,
+        consultar_catastro_tool,
         create_retarificacion_project_tool,
         create_task_activity_tool,
         end_chat_tool,
