@@ -1,6 +1,17 @@
 import json
+import logging
+import re
 from langchain.tools import tool
 from services.zoa_client import create_task_activity
+
+logger = logging.getLogger(__name__)
+
+def _clean_json_string(raw: str) -> str:
+    """Strip markdown fences, leading/trailing whitespace, and common LLM artifacts."""
+    s = raw.strip()
+    s = re.sub(r"^```(?:json)?\s*", "", s)
+    s = re.sub(r"\s*```$", "", s)
+    return s.strip()
 
 @tool
 def create_task_activity_tool(data: str) -> dict:
@@ -10,7 +21,7 @@ def create_task_activity_tool(data: str) -> dict:
     - company_id: str (required)
     - title: str (required, title of the card)
     - description: str (optional)
-    - card_type: str (optional, OBLIGATORIO: 'task' para siniestros/gestión, 'opportunity' para ventas)
+    - card_type: str (optional, 'task' para siniestros/gestión, 'opportunity' para ventas)
     - amount: float (optional)
     - tags_name: List[str] or str (optional, comma separated)
     - type_of_activity: str (optional, one of: "llamada", "reunion", "whatsapp", "email", "tarea". If present, creates activity)
@@ -29,11 +40,13 @@ def create_task_activity_tool(data: str) -> dict:
     - phone: str (optional, to link contact)
     - email: str (optional, to link contact)
     - mobile: str (optional, to link contact)
+    - pipeline_name: str (optional, 'Principal' para tasks, 'Cotizaciones'/'Renovaciones' para opportunities)
     """
     VALID_ACTIVITY_TYPES = ["llamada", "reunion", "whatsapp", "email", "tarea"]
     
     try:
-        payload = json.loads(data)
+        cleaned = _clean_json_string(data)
+        payload = json.loads(cleaned)
         
         # Validate required fields
         if "company_id" not in payload:
@@ -47,9 +60,14 @@ def create_task_activity_tool(data: str) -> dict:
             return {
                 "error": f"type_of_activity must be one of {VALID_ACTIVITY_TYPES}, got '{type_of_activity}'"
             }
+
+        # Remove stage_name — ZOA auto-assigns to first stage
+        payload.pop("stage_name", None)
             
         return create_task_activity(**payload)
-    except json.JSONDecodeError:
-        return {"error": "Invalid JSON format"}
+    except json.JSONDecodeError as e:
+        logger.error(f"[TASKS_TOOL] JSON parse error: {e} | raw data: {data[:200]}")
+        return {"error": f"Invalid JSON format: {e}"}
     except Exception as e:
+        logger.error(f"[TASKS_TOOL] Error: {e}")
         return {"error": str(e)}

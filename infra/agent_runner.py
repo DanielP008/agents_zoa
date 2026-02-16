@@ -112,6 +112,12 @@ def create_langchain_agent(
     return agent
 
 
+_EMPTY_RESPONSE_FALLBACK = (
+    "Disculpa, tuve un problema procesando tu mensaje. ¿Podrías repetirlo?"
+)
+_MAX_EMPTY_RETRIES = 2
+
+
 def run_langchain_agent(
     agent,
     user_text: str,
@@ -241,6 +247,37 @@ def run_langchain_agent(
 
         if action == "end_chat":
             logger.info("[AGENT_RUNNER] end_chat detected!")
+
+        # --- Empty response guard: retry once, then fallback ---
+        if not output or not output.strip():
+            if not tool_calls_executed:
+                logger.warning(
+                    f"[AGENT_RUNNER] Empty response from {agent_name}, retrying once..."
+                )
+                try:
+                    with Timer("agent", f"{agent_name}_retry", model=model_name_str):
+                        retry_result = agent.invoke({"messages": messages}, **invoke_kwargs)
+                    retry_output = ""
+                    if isinstance(retry_result, dict):
+                        retry_msgs = retry_result.get("messages", [])
+                        if retry_msgs:
+                            last_msg = retry_msgs[-1]
+                            if hasattr(last_msg, 'content'):
+                                retry_output = _extract_text_from_content(last_msg.content)
+                            elif isinstance(last_msg, dict):
+                                retry_output = _extract_text_from_content(last_msg.get("content", ""))
+                    elif hasattr(retry_result, 'content'):
+                        retry_output = _extract_text_from_content(retry_result.content)
+
+                    if retry_output and retry_output.strip():
+                        logger.info(f"[AGENT_RUNNER] Retry succeeded for {agent_name}")
+                        output = retry_output
+                    else:
+                        logger.warning(f"[AGENT_RUNNER] Retry also empty for {agent_name}, using fallback")
+                        output = _EMPTY_RESPONSE_FALLBACK
+                except Exception as retry_err:
+                    logger.error(f"[AGENT_RUNNER] Retry failed for {agent_name}: {retry_err}")
+                    output = _EMPTY_RESPONSE_FALLBACK
 
         return {
             "output": output,

@@ -215,6 +215,12 @@ def process_message(payload: dict) -> dict:
     action = response.get("action")
     agent_message = response.get("message")
 
+    # Guard: if agent returned ask/finish with empty message, use fallback
+    if action in ("ask", "finish") and (not agent_message or not agent_message.strip()):
+        logger.warning(f"[ORCHESTRATOR] Agent '{target_agent}' returned empty message with action='{action}'. Using fallback.")
+        agent_message = "Disculpa, tuve un problema procesando tu mensaje. ¿Podrías repetirlo?"
+        response["message"] = agent_message
+
     # 3a. end_chat can happen inside the loop
     if action == "end_chat":
         return handle_end_chat(wa_id, company_id, agent_message, channel,

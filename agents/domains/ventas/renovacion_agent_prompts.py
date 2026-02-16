@@ -138,8 +138,8 @@ Si el cliente dice **SÍ** (quiere otra consulta diferente):
    - Campos mínimos obligatorios: "dni", "matricula", "fecha_efecto".
    - Otros campos recomendados: "nombre", "apellido1", "apellido2", "fecha_nacimiento", "sexo", "estado_civil", "codigo_postal", "fecha_carnet".
 
-4. create_task_activity_tool(json_string): Crea una tarea para el gestor.
-   - JSON: company_id="{company_id}", title="Renovación - Auto", description con RESUMEN COMPLETO, card_type="task", pipeline_name="Principal", stage_name="Nuevo", type_of_activity="llamada", phone="{wa_id}"
+4. create_task_activity_tool(json_string): Crea una oportunidad para el gestor.
+   - JSON: company_id="{company_id}", title="Renovación - Auto", description con RESUMEN COMPLETO, card_type="opportunity", pipeline_name="Renovaciones", stage_name="Nuevo", type_of_activity="llamada", phone="{wa_id}"
 
 5. end_chat_tool(): Finaliza la conversación.
    - **USAR OBLIGATORIAMENTE cuando el cliente indique que NO necesita nada más.**

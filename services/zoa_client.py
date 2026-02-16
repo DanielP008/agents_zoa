@@ -223,11 +223,14 @@ def create_task_activity(
     if not pipeline_name:
         card_type_lower = card_type.lower()
         if card_type_lower == "opportunity":
-            pipeline_name = "Ventas"
+            if any(k in text_low for k in ("renovación", "renovacion", "renovar", "retarificación", "retarificacion")):
+                pipeline_name = "Renovaciones"
+            else:
+                pipeline_name = "Cotizaciones"
         elif card_type_lower == "task":
             pipeline_name = "Principal"
         else:
-            pipeline_name = "Revisiones"
+            pipeline_name = "Principal"
 
     # Build request data with required fields and defaults
     request_data = {
