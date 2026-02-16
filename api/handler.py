@@ -7,6 +7,7 @@ from core.orchestrator import process_message
 from infra.db import SessionManager
 from infra.tracing import setup_tracing
 from api.wildix_handler import handle_wildix
+from api.aichat_handler import handle_aichat
 from services.zoa_client import is_business_open
 
 # Configure logging to stdout
@@ -32,6 +33,10 @@ def handle_request(request):
         if event_type == "reply" and text:
             logger.info("[WILDIX_FINAL_MESSAGE] session=%s text='%s'", data.get("sessionId"), text)
         return handle_wildix(request)
+    
+    # AiChat webhook detection
+    if data.get("source") == "ai-chat" or data.get("is_aichat"):
+        return handle_aichat(request)
     
     # Default to WhatsApp handler
     return handle_whatsapp(request)

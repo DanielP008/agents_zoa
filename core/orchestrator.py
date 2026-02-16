@@ -182,7 +182,15 @@ def process_message(payload: dict) -> dict:
 
     # 1. Session
     session = session_manager.get_session(wa_id, company_id)
-    target_agent = session.get("target_agent", _DEFAULT_AGENT)
+    
+    # Use specialized receptionist for AiChat
+    is_aichat = payload.get("is_aichat", False)
+    default_agent = "aichat_receptionist_agent" if is_aichat else _DEFAULT_AGENT
+    target_agent = session.get("target_agent") or default_agent
+
+    # If AiChat but session has the WhatsApp receptionist (stale/default), override
+    if is_aichat and target_agent == _DEFAULT_AGENT:
+        target_agent = default_agent
 
     # 2. Preprocessing
     memory, session, mensaje = _preprocess_message(payload, session)
@@ -210,7 +218,7 @@ def process_message(payload: dict) -> dict:
     # 3a. end_chat can happen inside the loop
     if action == "end_chat":
         return handle_end_chat(wa_id, company_id, agent_message, channel,
-                               session_manager)
+                               session_manager, is_aichat=payload.get("is_aichat", False))
 
     # Append user turn AFTER routing chain resolved
     memory = append_turn(
@@ -235,7 +243,7 @@ def process_message(payload: dict) -> dict:
     common = dict(
         response=response, session=session, session_id=session_id,
         memory=memory, target_agent=target_agent, channel=channel,
-        session_manager=session_manager,
+        session_manager=session_manager, is_aichat=payload.get("is_aichat", False),
     )
 
     if action == "ask":

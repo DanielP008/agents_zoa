@@ -68,7 +68,8 @@ def persist_session(session: dict, session_id: str, *, target_agent: str,
 # ---------------------------------------------------------------------------
 
 def handle_end_chat(wa_id: str, company_id: str, agent_message: str | None,
-                    channel: str, session_manager) -> dict:
+                    channel: str, session_manager, 
+                    is_aichat: bool = False) -> dict:
     """Handle the end_chat action: delete session and return."""
     logger.info(f"[ORCHESTRATOR] end_chat triggered for wa_id={wa_id}")
     deleted = session_manager.delete_session(wa_id, company_id)
@@ -78,17 +79,20 @@ def handle_end_chat(wa_id: str, company_id: str, agent_message: str | None,
         logger.warning(f"[ORCHESTRATOR] Failed to delete session for wa_id={wa_id}")
 
     dump_trace(channel)
+    
+    default_receptionist = "aichat_receptionist_agent" if is_aichat else _DEFAULT_AGENT
     return {
         "type": "text",
         "message": agent_message,
-        "agent": _DEFAULT_AGENT,
+        "agent": default_receptionist,
         "status": "completed",
         "session_deleted": deleted,
     }
 
 
 def handle_ask(response: dict, session: dict, session_id: str, memory: dict,
-               target_agent: str, channel: str, session_manager) -> dict:
+               target_agent: str, channel: str, session_manager,
+               is_aichat: bool = False) -> dict:
     """Handle the ask action: persist and return message."""
     agent_message = response.get("message")
     memory = record_assistant_turn(
@@ -112,7 +116,7 @@ def handle_ask(response: dict, session: dict, session_id: str, memory: dict,
 
 def handle_route(response: dict, session: dict, session_id: str, memory: dict,
                  target_agent: str, channel: str, session_manager,
-                 allowlist: dict) -> dict:
+                 allowlist: dict, is_aichat: bool = False) -> dict:
     """Handle the route action (with user-facing message)."""
     new_target = response.get("next_agent")
     new_domain = resolve_domain(response, session)
@@ -145,7 +149,8 @@ def handle_route(response: dict, session: dict, session_id: str, memory: dict,
 
 
 def handle_finish(response: dict, session: dict, session_id: str, memory: dict,
-                  target_agent: str, channel: str, session_manager) -> dict:
+                  target_agent: str, channel: str, session_manager,
+                  is_aichat: bool = False) -> dict:
     """Handle the finish action: reset to receptionist."""
     agent_message = response.get("message")
     memory = record_assistant_turn(
@@ -160,7 +165,9 @@ def handle_finish(response: dict, session: dict, session_id: str, memory: dict,
         last_domain=session.get("domain"),
         consultation_completed=True,
     )
-    persist_session(session, session_id, target_agent=_DEFAULT_AGENT,
+    
+    default_receptionist = "aichat_receptionist_agent" if is_aichat else _DEFAULT_AGENT
+    persist_session(session, session_id, target_agent=default_receptionist,
                     domain=None, memory=memory,
                     session_manager=session_manager)
     dump_trace(channel)

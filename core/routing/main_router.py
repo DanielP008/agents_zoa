@@ -3,6 +3,7 @@
 import logging
 
 from agents.receptionist_agent import receptionist_agent
+from agents.aichat_receptionist_agent import aichat_receptionist_agent
 
 from agents.domains.siniestros.classifier_agent import classifier_siniestros_agent
 from agents.domains.siniestros.apertura_siniestro_agent import apertura_siniestro_agent
@@ -26,6 +27,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 _AGENT_REGISTRY: dict[str, callable] = {
     "receptionist_agent": receptionist_agent,
+    "aichat_receptionist_agent": aichat_receptionist_agent,
     # Siniestros
     "classifier_siniestros_agent": classifier_siniestros_agent,
     "apertura_siniestro_agent": apertura_siniestro_agent,

@@ -47,8 +47,16 @@ def build_agent_allowlist(routes_config: dict) -> dict:
         specialists = _get_enabled_specialist_names(domain.get("specialists", {}))
         if classifier:
             allowlist[classifier] = specialists
-        # Allow specialists to route back to receptionist_agent
+        # Allow specialists to route back to receptionist_agent (and aichat variant)
         for specialist in specialists:
-            allowlist.setdefault(specialist, ["receptionist_agent"])
+            allowlist.setdefault(specialist, [
+                "receptionist_agent",
+                "aichat_receptionist_agent",
+            ])
+
+    # Explicit transitions from routes.json (e.g. aichat_receptionist_agent)
+    for agent, targets in routes_config.get("transitions", {}).items():
+        existing = allowlist.get(agent, [])
+        allowlist[agent] = list(set(existing + targets))
 
     return allowlist

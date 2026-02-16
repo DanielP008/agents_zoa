@@ -10,6 +10,7 @@ from services.interfaces.zoa_interfaces import (
     ConversationsInterface,
     CardActionsInterface,
     SchedulerInterface,
+    AiChatInterface,
 )
 
 logger = logging.getLogger(__name__)
@@ -69,6 +70,24 @@ def send_whatsapp_response(
             "type": "text",
             "text": text,
             "conversation_id": conversation_id
+        }
+    )
+    return result
+
+def send_aichat_response(
+    text: str,
+    company_id: str,
+    wa_id: str = None,
+) -> dict:
+    """Send an AiChat message through ZOA."""
+    interface = AiChatInterface()
+    result, _ = interface.execute(
+        company_id=company_id,
+        option="send",
+        request_data={
+            "type": "text",
+            "text": text,
+            "wa_id": wa_id
         }
     )
     return result

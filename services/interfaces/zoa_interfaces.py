@@ -132,3 +132,9 @@ class SchedulerInterface(ZoaBaseInterface):
     def __init__(self):
         super().__init__()
         self.action_name = "scheduler"
+
+class AiChatInterface(ZoaBaseInterface):
+    """Interface for AiChat operations. Used for sending chat responses."""
+    def __init__(self):
+        super().__init__()
+        self.action_name = "aichat"
