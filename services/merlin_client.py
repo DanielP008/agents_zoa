@@ -1,14 +1,15 @@
 """Merlin Multitarificador API client.
 
-Creates auto insurance projects in Merlin and launches multi-insurer pricing.
+Creates auto and home insurance projects in Merlin and launches multi-insurer pricing.
 API Docs: https://drseguros.merlin.insure/multi/multitarificador4-servicios/doc.html
 
 Flow:
   1. POST /login                         -> JWT token
   2. GET  /aseguradoras?subramo=...      -> Available insurer templates
   3. GET  /proyecto/nuevo?ids...         -> In-memory project template
-  4. Fill datos_basicos (vehiculo, tomador, conductor, historial)
+  4. Fill datos_basicos (vehiculo/riesgo_hogar, tomador, conductor/propietario, historial)
   5. PUT  /proyecto                      -> Save project to DB
+  6. (Hogar only) PUT /proyectos-hogar/{idPasarela}/datosAdicionales
 """
 
 import os
@@ -20,8 +21,31 @@ from infra.timing import Timer, get_current_agent
 
 logger = logging.getLogger(__name__)
 
-SUBRAMO = "AUTOS_PRIMERA"
-DATOS_BASICOS_CLASS = "ebroker.multi4.data.proyectos.autos1.DatosBasicosAutos1"
+SUBRAMO_AUTO = "AUTOS_PRIMERA"
+SUBRAMO_HOGAR = "HOGAR"
+DATOS_BASICOS_AUTO_CLASS = "ebroker.multi4.data.proyectos.autos1.DatosBasicosAutos1"
+DATOS_BASICOS_HOGAR_CLASS = "ebroker.multi4.data.proyectos.hogar.DatosBasicosHogar"
+
+# Province code -> description mapping (INE system, first 2 digits of Spanish CP)
+PROVINCIAS_ES: Dict[str, str] = {
+    "01": "Araba/Álava", "02": "Albacete", "03": "Alicante/Alacant",
+    "04": "Almería", "05": "Ávila", "06": "Badajoz",
+    "07": "Illes Balears", "08": "Barcelona", "09": "Burgos",
+    "10": "Cáceres", "11": "Cádiz", "12": "Castellón/Castelló",
+    "13": "Ciudad Real", "14": "Córdoba", "15": "A Coruña",
+    "16": "Cuenca", "17": "Girona", "18": "Granada",
+    "19": "Guadalajara", "20": "Gipuzkoa", "21": "Huelva",
+    "22": "Huesca", "23": "Jaén", "24": "León",
+    "25": "Lleida", "26": "La Rioja", "27": "Lugo",
+    "28": "Madrid", "29": "Málaga", "30": "Murcia",
+    "31": "Navarra", "32": "Ourense", "33": "Asturias",
+    "34": "Palencia", "35": "Las Palmas", "36": "Pontevedra",
+    "37": "Salamanca", "38": "Santa Cruz de Tenerife", "39": "Cantabria",
+    "40": "Segovia", "41": "Sevilla", "42": "Soria",
+    "43": "Tarragona", "44": "Teruel", "45": "Toledo",
+    "46": "Valencia/València", "47": "Valladolid", "48": "Bizkaia",
+    "49": "Zamora", "50": "Zaragoza", "51": "Ceuta", "52": "Melilla",
+}
 
 
 # =============================================================================
@@ -34,7 +58,7 @@ class MerlinClientError(Exception):
 
 
 # =============================================================================
-# Helper builders (adapted from merlin.py)
+# Helper builders
 # =============================================================================
 
 def _parse_date(date_str: Optional[str]) -> Optional[List[int]]:
@@ -74,13 +98,53 @@ def _build_vehiculo(data: dict) -> dict:
         v["fecha_primera_matriculacion"] = fecha_mat
         v["fecha_de_compra"] = fecha_mat
 
-    # Technical IDs (optional – may come from vehicle lookup)
     for key in ("id_auto_base7", "id_tipo_base7", "id_categoria_base7", "id_clase_base7"):
         val = data.get(key)
         if val:
             v[key] = val
 
     return v
+
+
+def _build_riesgo_hogar(data: dict) -> dict:
+    """Build riesgo_hogar dict for datos_basicos (Hogar projects)."""
+    return {
+        "caracteristicas": {
+            "tipo_vivienda": data.get("tipo_vivienda", "PISO"),
+            "situacion_vivienda": data.get("situacion_vivienda", "NUCLEO_URBANO"),
+            "regimen_ocupacion": data.get("regimen_ocupacion", "PROPIEDAD"),
+            "alquiler_vacacional": data.get("alquiler_vacacional", False),
+            "uso_vivienda": data.get("uso_vivienda", "VIVIENDA_HABITUAL"),
+            "utilizacion_vivienda": data.get("utilizacion_vivienda", "VIVIENDA_EXCLUSIVAMENTE"),
+            "numero_personas_vivienda": str(data.get("numero_personas_vivienda", "3")),
+        },
+        "datos_construccion": {
+            "anio_construccion": int(data.get("anio_construccion", 2010)),
+            "superficie_vivienda": int(data.get("superficie_vivienda", 90)),
+            "numero_habitaciones": str(data.get("numero_habitaciones", "3")),
+            "calidad_construccion": data.get("calidad_construccion", "NORMAL"),
+            "materiales_construccion": data.get("materiales_construccion", "SOLIDA_PIEDRAS_LADRILLOS_ETC"),
+            "tipo_tuberias": data.get("tipo_tuberias", "POLIPROPILENO"),
+            "vivienda_rehabilitada": data.get("vivienda_rehabilitada", False),
+        },
+        "direccion": {
+            "codigo_postal": data.get("codigo_postal", ""),
+            "poblacion": data.get("poblacion", ""),
+            "id_tipo_via": data.get("id_tipo_via", "CL"),
+            "nombre_via": data.get("nombre_via", ""),
+            "numero": data.get("numero_calle", "1"),
+            "id_provincia": data.get("id_provincia", ""),
+            "id_pais": data.get("id_pais", "108-6"),
+            "descripcion_provincia": data.get("descripcion_provincia", ""),
+        },
+        "dependencias_anexas": {
+            "piscinas": data.get("tiene_piscina", False),
+        },
+        "protecciones": {
+            "puerta_principal": data.get("tipo_puerta", "DE_MADERA_PVC_METALICA_ETC"),
+            "alarma": data.get("alarma", "SIN_ALARMA"),
+        },
+    }
 
 
 def _build_persona(data: dict, tipo_figura: str) -> dict:
@@ -166,22 +230,13 @@ def _build_historial(data: dict) -> dict:
 # =============================================================================
 
 class MerlinClient:
-    """Client for the Merlin Multitarificador API.
-
-    Handles JWT authentication and the full project creation flow.
-    Configuration is read from environment variables:
-      - MERLIN_BASE_URL
-      - MERLIN_USERNAME
-      - MERLIN_PASSWORD
-      - MERLIN_TIMEOUT (seconds, default 30)
-    """
+    """Client for the Merlin Multitarificador API."""
 
     def __init__(self):
         self.base_url = os.environ.get(
             "MERLIN_BASE_URL",
             "https://drseguros.merlin.insure/multi/multitarificador4-servicios",
         ).rstrip("/")
-        # e-nfocar-services base URL (DGT vehicle lookup)
         self._enfocar_base_url = self.base_url.replace(
             "/multi/multitarificador4-servicios",
             "/e-nfocar-services",
@@ -192,27 +247,17 @@ class MerlinClient:
         self._session = requests.Session()
         self._token: Optional[str] = None
 
-    # -- Internal helpers -------------------------------------------------
-
     def _ensure_config(self):
-        """Validate that required config is present."""
         if not self.username or not self.password:
-            raise MerlinClientError(
-                "MERLIN_USERNAME and MERLIN_PASSWORD must be configured"
-            )
+            raise MerlinClientError("MERLIN_USERNAME and MERLIN_PASSWORD must be configured")
 
     def _request(self, method: str, path: str, timer_label: str, **kwargs) -> Any:
-        """Execute an HTTP request with timing and error handling."""
         url = f"{self.base_url}{path}"
         parent = get_current_agent()
-
         with Timer("merlin", timer_label, parent=parent):
             try:
-                response = self._session.request(
-                    method, url, timeout=self.timeout, **kwargs
-                )
+                response = self._session.request(method, url, timeout=self.timeout, **kwargs)
                 response.raise_for_status()
-                # Some endpoints return empty body
                 if not response.content:
                     return {}
                 return response.json()
@@ -221,26 +266,16 @@ class MerlinClient:
             except requests.exceptions.ConnectionError as exc:
                 raise MerlinClientError(f"Connection error ({timer_label}): {exc}")
             except requests.exceptions.HTTPError as exc:
-                body = ""
-                if exc.response is not None:
-                    body = exc.response.text[:300]
+                body = exc.response.text[:300] if exc.response is not None else ""
                 raise MerlinClientError(
-                    f"HTTP {exc.response.status_code if exc.response else '?'} "
-                    f"on {timer_label}: {body}"
+                    f"HTTP {exc.response.status_code if exc.response else '?'} on {timer_label}: {body}"
                 )
 
-    # -- Public API -------------------------------------------------------
+    # -- Public API -----------------------------------------------------------
 
     def login(self) -> str:
-        """Authenticate and store JWT token. Returns the token string.
-
-        Note: this does NOT use ``_request`` because we need access to
-        the *response headers* (the JWT token is returned there, not in
-        the response body).
-        """
         self._ensure_config()
         logger.info("[MERLIN] Logging in...")
-
         parent = get_current_agent()
         with Timer("merlin", "merlin_login", parent=parent):
             try:
@@ -264,29 +299,15 @@ class MerlinClient:
         logger.info("[MERLIN] Login successful.")
         return self._token
 
-    def obtener_aseguradoras(self, subramo: str = SUBRAMO) -> Dict[str, Any]:
-        """Get available insurers and their active template IDs.
-
-        Returns: { dgs: { nombre, plantilla_id, plantilla_nombre } }
-        """
+    def obtener_aseguradoras(self, subramo: str) -> Dict[str, Any]:
         logger.info(f"[MERLIN] Fetching insurers for '{subramo}'...")
-
-        items = self._request(
-            "GET",
-            "/aseguradoras",
-            "merlin_aseguradoras",
-            params={"subramo": subramo},
-        )
-
+        items = self._request("GET", "/aseguradoras", "merlin_aseguradoras", params={"subramo": subramo})
         aseguradoras: Dict[str, Any] = {}
         for item in items:
             dgs = item.get("id", "")
             nombre = item.get("nombre", "")
             plantillas = item.get("plantillas", [])
-            activa = next(
-                (p for p in plantillas if p.get("activa")),
-                plantillas[0] if plantillas else None,
-            )
+            activa = next((p for p in plantillas if p.get("activa")), plantillas[0] if plantillas else None)
             if activa:
                 aseguradoras[dgs] = {
                     "nombre": nombre,
@@ -297,82 +318,118 @@ class MerlinClient:
         return aseguradoras
 
     def obtener_proyecto_nuevo(self, plantillas_ids: List[str]) -> Dict[str, Any]:
-        """Get a new in-memory project template for the given insurer template IDs."""
         ids_str = ",".join(str(i) for i in plantillas_ids)
         logger.info(f"[MERLIN] Creating new project template (ids={ids_str[:60]}...)")
-
         proyecto = self._request(
-            "GET",
-            "/proyecto/nuevo",
-            "merlin_proyecto_nuevo",
-            params={"ids": ids_str},
+            "GET", "/proyecto/nuevo", "merlin_proyecto_nuevo",
+            params={"idsPlantillasSeleccionadas": ids_str},
         )
-
         logger.info(f"[MERLIN] Got project template with {len(proyecto.get('aseguradoras', []))} insurers.")
         return proyecto
 
     def guardar_proyecto(self, proyecto: Dict[str, Any]) -> Dict[str, Any]:
-        """Save project to DB via PUT /proyecto."""
         logger.info("[MERLIN] Saving project...")
         result = self._request("PUT", "/proyecto", "merlin_guardar_proyecto", json=proyecto)
         logger.info(f"[MERLIN] Project saved. ID={result.get('id', 'unknown')}")
         return result
 
-    def obtener_proyecto_por_id(self, proyecto_id: int) -> Dict[str, Any]:
-        """Get a project by ID."""
-        logger.info(f"[MERLIN] Fetching project {proyecto_id}...")
-        return self._request("GET", f"/proyecto/{proyecto_id}", "merlin_get_proyecto")
+    def guardar_datos_adicionales_hogar(self, id_pasarela: str, data: dict) -> Dict[str, Any]:
+        """Save additional data for Hogar projects (capitals, questionnaire).
+        This uses a dedicated endpoint that Merlin requires for Hogar projects.
+        """
+        logger.info(f"[MERLIN] Saving additional Hogar data for pasarela ID {id_pasarela}...")
+        fecha_efecto = _parse_date(data.get("fecha_efecto")) or [2026, 3, 1]
 
-    def actualizar_riesgo_autos(self, proyecto_id: int, riesgo: Dict[str, Any]) -> Dict[str, Any]:
-        """Update the riesgoAutos section of a project."""
-        logger.info(f"[MERLIN] Updating riesgoAutos for project {proyecto_id}...")
+        datos_adicionales = {
+            "fecha": fecha_efecto,
+            "capitales": {
+                "continente": int(data.get("capital_continente", 100000)),
+                "continente_primer_riesgo": None,
+                "obras_reforma": None,
+                "mobiliario_general": int(data.get("capital_contenido", 10000)),
+                "mobiliario_dependencias_anexas": None,
+                "mobiliario_profesional": None,
+                "vehiculos_en_garaje": None,
+                "descripcion_garaje": "",
+            },
+            "capitales_recomendados": [],
+            "otros_capitales": {
+                "joyas_dentro_caja_fuerte": None,
+                "joyas_fuera_caja_fuerte": None,
+                "dinero_dentro_caja_fuerte": None,
+                "dinero_fuera_caja_fuerte": None,
+                "objetos_valor": None,
+                "joyas_en_banco": None,
+            },
+            "cuestionario_hogar": {
+                "numero_gatos_dom": None,
+                "numero_perros_dom": None,
+                "animales": False,
+                "num_perros_peligrosos": None,
+                "num_otros_animales_domesticos": None,
+            },
+        }
+
         return self._request(
             "PUT",
-            f"/proyecto/{proyecto_id}/riesgoAutos",
-            "merlin_update_riesgo",
-            json=riesgo,
+            f"/proyectos-hogar/{id_pasarela}/datosAdicionales",
+            "merlin_hogar_datos_adicionales",
+            json=datos_adicionales,
         )
 
     def crear_proyecto_completo(self, datos: dict) -> Dict[str, Any]:
-        """Create a complete auto insurance project in Merlin.
-
-        This is the main entry point: login -> insurers -> template -> fill -> save.
-        """
+        """Create a complete insurance project in Merlin (Auto or Hogar)."""
         try:
             self.login()
+            ramo = str(datos.get("ramo", "AUTO")).upper()
+            subramo = SUBRAMO_AUTO if ramo == "AUTO" else SUBRAMO_HOGAR
 
-            # Step 1: Get available insurers
-            aseguradoras = self.obtener_aseguradoras()
+            aseguradoras = self.obtener_aseguradoras(subramo)
             if not aseguradoras:
-                return {"success": False, "error": "No insurers available"}
+                return {"success": False, "error": f"No insurers available for {ramo}"}
 
             plantillas_ids = [a["plantilla_id"] for a in aseguradoras.values()]
-
-            # Step 2: Get a new project template
             proyecto = self.obtener_proyecto_nuevo(plantillas_ids)
 
-            # Step 3: Fill datos_basicos
             datos_basicos = proyecto.get("datosBasicos") or proyecto.get("datos_basicos", {})
 
-            datos_basicos["vehiculo"] = _build_vehiculo(datos)
-            datos_basicos["tomador"] = _build_persona(datos, "TOMADOR")
-            datos_basicos["conductor"] = _build_persona(datos, "CONDUCTOR")
-            datos_basicos["historial_asegurador"] = _build_historial(datos)
-            datos_basicos["@class"] = DATOS_BASICOS_CLASS
+            if ramo == "AUTO":
+                datos_basicos["vehiculo"] = _build_vehiculo(datos)
+                datos_basicos["conductor"] = _build_persona(datos, "CONDUCTOR")
+                datos_basicos["historial_asegurador"] = _build_historial(datos)
+                datos_basicos["@class"] = DATOS_BASICOS_AUTO_CLASS
+            else:
+                datos_basicos["riesgo_hogar"] = _build_riesgo_hogar(datos)
+                datos_basicos["propietario"] = _build_persona(datos, "PROPIETARIO")
+                datos_basicos["asegurado"] = _build_persona(datos, "ASEGURADO")
+                datos_basicos["class_name"] = DATOS_BASICOS_HOGAR_CLASS
+                datos_basicos["@class"] = DATOS_BASICOS_HOGAR_CLASS
 
-            # Set back on project (handle both camelCase and snake_case)
+            datos_basicos["tomador"] = _build_persona(datos, "TOMADOR")
+
             if "datosBasicos" in proyecto:
                 proyecto["datosBasicos"] = datos_basicos
             else:
                 proyecto["datos_basicos"] = datos_basicos
 
-            # Step 4: Save project
             result = self.guardar_proyecto(proyecto)
+
+            mongo_id = result.get("id")
+            id_pasarela = result.get("id_proyecto_en_pasarela")
+
+            # Hogar requires a second call for capitals and questionnaire
+            if ramo == "HOGAR" and id_pasarela:
+                try:
+                    self.guardar_datos_adicionales_hogar(id_pasarela, datos)
+                    logger.info("[MERLIN] Hogar additional data saved successfully.")
+                except Exception as exc:
+                    logger.warning(f"[MERLIN] Hogar additional data save failed: {exc}")
 
             return {
                 "success": True,
-                "proyecto_id": result.get("id"),
-                "mensaje": f"Proyecto creado con {len(plantillas_ids)} aseguradoras",
+                "proyecto_id": mongo_id,
+                "id_pasarela": id_pasarela,
+                "mensaje": f"Proyecto de {ramo} creado con {len(plantillas_ids)} aseguradoras",
                 "num_aseguradoras": len(plantillas_ids),
             }
 
@@ -384,20 +441,11 @@ class MerlinClient:
             return {"success": False, "error": f"Error inesperado: {exc}"}
 
     def consultar_dgt_por_matricula(self, matricula: str) -> Dict[str, Any]:
-        """Consulta los datos del vehiculo en la DGT/Base7 directamente por matricula.
-
-        Uses GET /e-nfocar-services/v1/vehiculos/{matricula}?categoria=1
-        with Basic Auth (separate from multitarificador JWT).
-
-        Returns:
-            {"success": True, "vehiculo": {...}} o {"success": False, "error": "..."}
-        """
+        """Consulta datos del vehiculo en la DGT via e-nfocar-services."""
         try:
             dgt_url = f"{self._enfocar_base_url}/v1/vehiculos/{matricula}"
             logger.info(f"[MERLIN] DGT lookup: {dgt_url}")
 
-            # e-nfocar-services uses Basic Auth (ebroker:ebrokerPM),
-            # NOT the multitarificador JWT token.
             enfocar_auth = (
                 os.environ.get("ENFOCAR_USERNAME", "ebroker"),
                 os.environ.get("ENFOCAR_PASSWORD", "ebrokerPM"),
@@ -413,48 +461,33 @@ class MerlinClient:
                         headers={"Accept": "application/json"},
                         timeout=self.timeout,
                     )
-                    logger.info(
-                        f"[MERLIN] DGT response status: {resp.status_code}"
-                    )
+                    logger.info(f"[MERLIN] DGT response status: {resp.status_code}")
                     resp.raise_for_status()
                     results = resp.json()
                 except requests.exceptions.RequestException as exc:
                     raise MerlinClientError(f"DGT lookup failed: {exc}")
 
-            # Response is an array of matching vehicles
             if not results or not isinstance(results, list) or len(results) == 0:
-                logger.warning(f"[MERLIN] DGT returned no results for {matricula}")
                 return {"success": False, "error": f"No se encontraron datos para la matricula {matricula}"}
 
-            # Take the first (and usually only) result
             vehiculo = results[0]
-            logger.info(f"[MERLIN] DGT raw response: {vehiculo}")
-            
-            # Use data from 'base7' if available, as it's more complete
-            base7 = vehiculo.get("base7", {}) or {}
-            
-            logger.info(
-                f"[MERLIN] DGT found: {base7.get('marca') or vehiculo.get('marca')} "
-                f"{base7.get('modelo') or vehiculo.get('modelo')} "
-                f"({base7.get('version') or vehiculo.get('version')})"
-            )
+            logger.info(f"[MERLIN] DGT raw response keys: {list(vehiculo.keys())}")
 
-            # Extract motor/combustible info
+            base7 = vehiculo.get("base7", {}) or {}
             motor = base7.get("motor", {}) or vehiculo.get("motor", {})
             combustible_id = motor.get("id", "") if isinstance(motor, dict) else ""
             combustible_desc = motor.get("descripcion", "") if isinstance(motor, dict) else ""
-
-            # Extract Base7 IDs (needed for accurate pricing later)
             categoria = base7.get("categoria", {}) or {}
             tipo = base7.get("tipo", {}) or {}
             clase = base7.get("clase", {}) or {}
-
-            # Extract additional vehicle data
             datos_adicionales = vehiculo.get("datosAdicionalesVehiculo", {}) or {}
-            
-            # Extract garage info if present
             garaje_info = datos_adicionales.get("garaje", {}) or {}
             garaje_desc = garaje_info.get("descripcion", "") if isinstance(garaje_info, dict) else ""
+
+            logger.info(
+                f"[MERLIN] DGT found: {base7.get('marca')} {base7.get('modelo')} "
+                f"({base7.get('version')}) - {combustible_desc}"
+            )
 
             return {
                 "success": True,
@@ -464,19 +497,17 @@ class MerlinClient:
                     "version": base7.get("version") or vehiculo.get("version"),
                     "combustible": combustible_id,
                     "combustible_descripcion": combustible_desc,
-                    "fecha_matriculacion": datos_adicionales.get("fechaMatriculacion") or base7.get("fechaMatriculacion") or vehiculo.get("fechaMatriculacion"),
-                    "fecha_primera_matriculacion": datos_adicionales.get("fechaPrimeraMatriculacion") or base7.get("fechaPrimeraMatriculacion") or vehiculo.get("fechaPrimeraMatriculacion"),
-                    "fecha_compra": datos_adicionales.get("fechaCompra") or base7.get("fechaCompra") or vehiculo.get("fechaCompra"),
+                    "fecha_matriculacion": datos_adicionales.get("fechaMatriculacion") or base7.get("fechaMatriculacion"),
+                    "fecha_primera_matriculacion": datos_adicionales.get("fechaPrimeraMatriculacion"),
+                    "fecha_compra": datos_adicionales.get("fechaCompra"),
                     "cilindrada": base7.get("cilindrada") or vehiculo.get("cilindrada"),
                     "potencia_cv": base7.get("cv") or vehiculo.get("cv"),
                     "precio_vp": base7.get("precioVp") or vehiculo.get("precioVp"),
                     "descripcion_completa": base7.get("descripcion") or vehiculo.get("descripcion"),
-                    # Base7 IDs for project creation
                     "id_auto_base7": base7.get("id", ""),
                     "id_tipo_base7": tipo.get("id", ""),
                     "id_categoria_base7": categoria.get("id", ""),
                     "id_clase_base7": clase.get("idClase", ""),
-                    # Additional data
                     "km_anuales": datos_adicionales.get("kilometrosAnuales"),
                     "km_totales": datos_adicionales.get("kilometrosTotales"),
                     "garaje": garaje_desc,
@@ -491,58 +522,61 @@ class MerlinClient:
             return {"success": False, "error": str(exc)}
 
     def obtener_poblacion_por_cp(self, cp: str) -> Dict[str, Any]:
-        """Obtiene la población a partir del código postal.
-        
-        Uses GET /towns/{postCode}
+        """Obtiene la población y provincia a partir del código postal.
+
+        Uses the free zippopotam.us API for Spanish postal codes.
+        The province ID (id_provincia) is derived from the first two digits
+        of the postal code, which corresponds to the Spanish INE standard.
         """
         try:
-            url = f"{self.base_url}/towns/{cp}"
-            logger.info(f"[MERLIN] Towns lookup: {url}")
+            cp = str(cp).strip().zfill(5)
+            url = f"https://api.zippopotam.us/es/{cp}"
+            logger.info(f"[MERLIN] Postal code lookup: {url}")
 
             parent = get_current_agent()
             with Timer("merlin", "merlin_towns_lookup", parent=parent):
-                # Towns endpoint typically requires the same JWT as other multi services
-                if not self._token:
-                    self.login()
-                
-                resp = self._session.get(url, timeout=self.timeout)
-                logger.info(f"[MERLIN] Towns response status: {resp.status_code}")
-                # Log raw response for debugging
-                logger.info(f"[MERLIN] Towns raw response: {resp.text}")
-                resp.raise_for_status()
-                results = resp.json()
+                resp = requests.get(url, timeout=10)
+                logger.info(f"[MERLIN] Postal code response status: {resp.status_code}")
 
-            # The response is usually a list of towns for that CP
-            if not results or not isinstance(results, list) or len(results) == 0:
-                logger.warning(f"[MERLIN] No towns found for CP {cp}")
+            if resp.status_code == 404:
                 return {"success": False, "error": f"No se encontró población para el CP {cp}"}
 
-            # Take the first one or return the list
-            town = results[0]
-            logger.info(f"[MERLIN] Selected town: {town}")
+            resp.raise_for_status()
+            data = resp.json()
+
+            places = data.get("places", [])
+            if not places:
+                return {"success": False, "error": f"No se encontró población para el CP {cp}"}
+
+            place = places[0]
+            poblacion = place.get("place name", "")
+            id_provincia = cp[:2]
+            descripcion_provincia = PROVINCIAS_ES.get(id_provincia, place.get("state", ""))
+
+            logger.info(
+                f"[MERLIN] Postal code resolved: {poblacion} ({descripcion_provincia}) - "
+                f"id_provincia={id_provincia}"
+            )
+
             return {
                 "success": True,
-                "poblacion": town.get("poblacion") or town.get("nombre") or town.get("descripcion"),
-                "id_poblacion": town.get("id"),
-                "id_provincia": town.get("idProvincia"),
-                "provincia": town.get("provincia"),
-                "all_towns": results
+                "poblacion": poblacion,
+                "id_provincia": id_provincia,
+                "descripcion_provincia": descripcion_provincia,
+                "codigo_postal": cp,
             }
 
         except Exception as exc:
-            logger.error(f"[MERLIN] Towns lookup failed: {exc}")
+            logger.error(f"[MERLIN] Postal code lookup failed: {exc}")
             return {"success": False, "error": str(exc)}
 
 
 # =============================================================================
-# Wrapper functions for tools (same pattern as erp_client.py)
+# Wrapper functions for tools
 # =============================================================================
 
 def create_merlin_project(datos: dict) -> Dict[str, Any]:
-    """Create a complete Merlin auto insurance project.
-
-    This is the main entry point used by the retarificacion tool.
-    """
+    """Create a complete Merlin insurance project (Auto or Hogar)."""
     client = MerlinClient()
     return client.crear_proyecto_completo(datos)
 
