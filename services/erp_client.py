@@ -208,6 +208,27 @@ class ERPClient(ERPBaseInterface):
 
         return {"success": True, "status": result.get("Status")}
 
+    def get_policy_by_num(self, num_poliza: str) -> Dict[str, Any]:
+        """Get full policy details by policy number."""
+        interface = PoliciesInterface(self.company_id)
+        result, status = interface.get_policy_by_num(num_poliza)
+        if status != 200 or "error" in result:
+            return {"success": False, "error": result.get("error", "Unknown error"), "policy": None}
+        return {"success": True, "policy": result}
+
+    def get_policy_by_risk(self, nif: str, risk: str) -> Dict[str, Any]:
+        """Find a policy by risk (e.g. matricula) for AUTOS ramo."""
+        result = self.get_client_policies_with_phones(nif, ramo="AUTOS")
+        if not result.get("success"):
+            return result
+        policies = result.get("policies", [])
+        for p in policies:
+            p_risk = str(p.get("risk", "")).strip().upper()
+            if p_risk == risk.strip().upper():
+                return self.get_policy_by_num(p.get("number"))
+        return {"success": False, "error": f"No se encontró ninguna póliza activa para el riesgo {risk}", "policy": None}
+
+
 # =============================================================================
 # Backward-compatible function wrappers
 # =============================================================================
@@ -290,3 +311,12 @@ def get_claim_status_from_erp(
     """Fetch status of a specific claim by ID."""
     client = ERPClient(company_id)
     return client.get_claim_status(id_siniestro)
+
+def get_policy_by_risk_from_erp(
+    nif: str,
+    risk: str,
+    company_id: str
+) -> Dict[str, Any]:
+    """Find a policy by risk (e.g. matricula) in the ERP."""
+    client = ERPClient(company_id)
+    return client.get_policy_by_risk(nif, risk)

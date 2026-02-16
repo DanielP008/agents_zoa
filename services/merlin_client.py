@@ -490,6 +490,49 @@ class MerlinClient:
             logger.error(f"[MERLIN] DGT lookup unexpected error: {exc}")
             return {"success": False, "error": str(exc)}
 
+    def obtener_poblacion_por_cp(self, cp: str) -> Dict[str, Any]:
+        """Obtiene la población a partir del código postal.
+        
+        Uses GET /towns/{postCode}
+        """
+        try:
+            url = f"{self.base_url}/towns/{cp}"
+            logger.info(f"[MERLIN] Towns lookup: {url}")
+
+            parent = get_current_agent()
+            with Timer("merlin", "merlin_towns_lookup", parent=parent):
+                # Towns endpoint typically requires the same JWT as other multi services
+                if not self._token:
+                    self.login()
+                
+                resp = self._session.get(url, timeout=self.timeout)
+                logger.info(f"[MERLIN] Towns response status: {resp.status_code}")
+                # Log raw response for debugging
+                logger.info(f"[MERLIN] Towns raw response: {resp.text}")
+                resp.raise_for_status()
+                results = resp.json()
+
+            # The response is usually a list of towns for that CP
+            if not results or not isinstance(results, list) or len(results) == 0:
+                logger.warning(f"[MERLIN] No towns found for CP {cp}")
+                return {"success": False, "error": f"No se encontró población para el CP {cp}"}
+
+            # Take the first one or return the list
+            town = results[0]
+            logger.info(f"[MERLIN] Selected town: {town}")
+            return {
+                "success": True,
+                "poblacion": town.get("poblacion") or town.get("nombre") or town.get("descripcion"),
+                "id_poblacion": town.get("id"),
+                "id_provincia": town.get("idProvincia"),
+                "provincia": town.get("provincia"),
+                "all_towns": results
+            }
+
+        except Exception as exc:
+            logger.error(f"[MERLIN] Towns lookup failed: {exc}")
+            return {"success": False, "error": str(exc)}
+
 
 # =============================================================================
 # Wrapper functions for tools (same pattern as erp_client.py)
@@ -508,3 +551,9 @@ def get_vehicle_info_by_matricula(matricula: str) -> Dict[str, Any]:
     """Get vehicle info from DGT via Merlin e-nfocar-services."""
     client = MerlinClient()
     return client.consultar_dgt_por_matricula(matricula)
+
+
+def get_town_by_cp(cp: str) -> Dict[str, Any]:
+    """Get town/poblacion info by postal code from Merlin."""
+    client = MerlinClient()
+    return client.obtener_poblacion_por_cp(cp)
