@@ -141,7 +141,9 @@ def consultar_catastro_tool(
     # Combine planta/piso
     final_planta = planta or piso
     
-    logger.info(f"[CONSULTAR_CATASTRO] Looking up: {tipo_via} {nombre_via} {numero} {final_planta} {puerta} in {municipio}")
+    # La normalización de provincia ahora se maneja internamente en consultar_catastro_por_direccion
+
+    logger.info(f"[CONSULTAR_CATASTRO] Looking up: {tipo_via} {nombre_via} {numero} {final_planta} {puerta} in {municipio} ({provincia})")
     
     try:
         result = consultar_catastro_por_direccion(
@@ -210,6 +212,9 @@ def create_retarificacion_project_tool(data: str) -> dict:
     """
     Crea un proyecto de tarificación de seguro (Auto o Hogar) en Merlin.
     Enriquece automáticamente los datos usando la DGT, el ERP, el Catastro y servicios de localización.
+    
+    Si la tarificación tiene éxito, devuelve el objeto 'proyecto' completo con las ofertas de las aseguradoras
+    en el campo 'tarificaciones' o 'afinaciones'.
 
     Input: JSON string con los datos recopilados.
 
@@ -362,7 +367,7 @@ def create_retarificacion_project_tool(data: str) -> dict:
                 if catastro_result.get("multiple_results"):
                     logger.info("[RETARIFICACION] Multiple properties found - may need planta/puerta")
 
-        # Ensure superficie and anio have fallback values if Catastro didn't provide them
+        # Fallback values if Catastro didn't provide them
         if "superficie_vivienda" not in payload:
             payload["superficie_vivienda"] = 90
             logger.warning("[RETARIFICACION] Using default superficie (90m²) - Catastro unavailable")

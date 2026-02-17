@@ -12,7 +12,9 @@ Flow:
   6. (Hogar only) PUT /proyectos-hogar/{idPasarela}/datosAdicionales
 """
 
+import json
 import os
+import time
 import logging
 import requests
 from typing import Dict, Any, Optional, List
@@ -43,7 +45,7 @@ PROVINCIAS_ES: Dict[str, str] = {
     "37": "Salamanca", "38": "Santa Cruz de Tenerife", "39": "Cantabria",
     "40": "Segovia", "41": "Sevilla", "42": "Soria",
     "43": "Tarragona", "44": "Teruel", "45": "Toledo",
-    "46": "Valencia/València", "47": "Valladolid", "48": "Bizkaia",
+    "46": "Valencia", "47": "Valladolid", "48": "Bizkaia",
     "49": "Zamora", "50": "Zaragoza", "51": "Ceuta", "52": "Melilla",
 }
 
@@ -126,6 +128,7 @@ def _build_riesgo_hogar(data: dict) -> dict:
             "materiales_construccion": data.get("materiales_construccion", "SOLIDA_PIEDRAS_LADRILLOS_ETC"),
             "tipo_tuberias": data.get("tipo_tuberias", "POLIPROPILENO"),
             "vivienda_rehabilitada": data.get("vivienda_rehabilitada", False),
+            "referencia_catastral": data.get("referencia_catastral", ""),
         },
         "direccion": {
             "codigo_postal": data.get("codigo_postal", ""),
@@ -133,18 +136,32 @@ def _build_riesgo_hogar(data: dict) -> dict:
             "id_tipo_via": data.get("id_tipo_via", "CL"),
             "nombre_via": data.get("nombre_via", ""),
             "numero": data.get("numero_calle", "1"),
+            "portal": data.get("portal", ""),
+            "escalera": data.get("escalera", ""),
             "piso": data.get("piso", ""),
             "puerta": data.get("puerta", ""),
             "id_provincia": data.get("id_provincia", ""),
             "id_pais": data.get("id_pais", "108-6"),
             "descripcion_provincia": data.get("descripcion_provincia", ""),
+            "ajuste_poblacion": {
+                "codigo": "", "descripcion": "", "codigo_postal": "",
+                "provincia": "", "nombre_via": "", "id_municipio": "",
+                "id_poblacion": "", "id_provincia": "", "nombre_municipio": "",
+                "id_zona": "",
+            },
         },
         "dependencias_anexas": {
             "piscinas": data.get("tiene_piscina", False),
         },
         "protecciones": {
             "puerta_principal": data.get("tipo_puerta", "DE_MADERA_PVC_METALICA_ETC"),
+            "puerta_secundaria": data.get("puerta_secundaria", "NO_TIENE"),
+            "ventanas": data.get("ventanas", "SIN_PROTECCION"),
             "alarma": data.get("alarma", "SIN_ALARMA"),
+            "alarma_incendio": data.get("alarma_incendio", "SIN_ALARMA"),
+            "alarma_agua": data.get("alarma_agua", "SIN_ALARMA"),
+            "caja_fuerte": data.get("caja_fuerte", "NO_TIENE"),
+            "vigilancia": data.get("vigilancia", "SIN_VIGILANCIA"),
         },
     }
 
@@ -185,11 +202,20 @@ def _build_persona(data: dict, tipo_figura: str) -> dict:
             "codigo_postal": codigo_postal,
             "id_tipo_via": data.get("id_tipo_via", "CL"),
             "nombre_via": nombre_via,
+            "numero": data.get("numero_calle", ""),
+            "portal": data.get("portal", ""),
+            "escalera": data.get("escalera", ""),
             "piso": data.get("piso", ""),
             "puerta": data.get("puerta", ""),
             "poblacion": poblacion,
             "id_provincia": id_provincia,
             "descripcion_provincia": data.get("descripcion_provincia", ""),
+            "ajuste_poblacion": {
+                "codigo": "", "descripcion": "", "codigo_postal": "",
+                "provincia": "", "nombre_via": "", "id_municipio": "",
+                "id_poblacion": "", "id_provincia": "", "nombre_municipio": "",
+                "id_zona": "",
+            },
         },
     }
 
@@ -329,6 +355,13 @@ class MerlinClient:
         logger.info(f"[MERLIN] Got project template with {len(proyecto.get('aseguradoras', []))} insurers.")
         return proyecto
 
+    def obtener_proyecto(self, id_proyecto: str) -> Dict[str, Any]:
+        """Get full project details by MongoDB ID."""
+        logger.info(f"[MERLIN] Fetching project {id_proyecto}...")
+        return self._request(
+            "GET", f"/proyecto/{id_proyecto}", "merlin_obtener_proyecto"
+        )
+
     def guardar_proyecto(self, proyecto: Dict[str, Any]) -> Dict[str, Any]:
         logger.info("[MERLIN] Saving project...")
         result = self._request("PUT", "/proyecto", "merlin_guardar_proyecto", json=proyecto)
@@ -379,8 +412,79 @@ class MerlinClient:
             json=datos_adicionales,
         )
 
+    def iniciar_tarificacion(self, id_pasarela: str) -> Dict[str, Any]:
+        """Launch the multi-insurer tarification process for a saved project.
+
+        Calls GET /tarificacion/iniciar?id={id_pasarela}.
+        """
+        logger.info(f"[MERLIN] Launching tarification for pasarela ID {id_pasarela}...")
+        return self._request(
+            "GET", "/tarificacion/iniciar", "merlin_iniciar_tarificacion",
+            params={"id": id_pasarela},
+        )
+
+    def consultar_estado_tarificacion(self, process_id: str, mongo_id: str, subramo: str) -> Dict[str, Any]:
+        """Check tarification process status and save results to project.
+
+        Uses Spring-style nested query params:
+          GET /tarificacion/estado?idProcesoPasarela.idPasarela2={process_id}&idProyecto.id={mongo_id}&subramo={subramo}
+
+        IMPORTANT: each call to this endpoint persists the latest results
+        into the project document.  The project estado flips to TARIFICADO
+        only after the backend writes the insurer responses.
+        """
+        logger.info(
+            f"[MERLIN] Checking tarification status for process={process_id}, "
+            f"project={mongo_id}, subramo={subramo}..."
+        )
+        return self._request(
+            "GET", "/tarificacion/estado", "merlin_estado_tarificacion",
+            params={
+                "idProcesoPasarela.idPasarela2": process_id,
+                "idProyecto.id": mongo_id,
+                "subramo": subramo,
+            },
+        )
+
+    def _poll_tarificacion(
+        self,
+        process_id: str,
+        mongo_id: str,
+        subramo: str,
+        max_wait: int = 60,
+        interval: int = 5,
+    ) -> bool:
+        """Poll tarificacion/estado until finished or timeout.
+
+        Each poll saves insurer results into the project document.
+        Returns True if tarification completed, False on timeout/error.
+        """
+        elapsed = 0
+        while elapsed < max_wait:
+            time.sleep(interval)
+            elapsed += interval
+            try:
+                resp = self.consultar_estado_tarificacion(
+                    process_id, mongo_id, subramo
+                )
+                logger.debug(f"[MERLIN] Estado response: {resp}")
+                finished = resp.get("tarificacionFinalizada", False)
+                logger.info(
+                    f"[MERLIN] Tarification poll ({elapsed}s): "
+                    f"finished={finished}"
+                )
+                if finished:
+                    logger.info("[MERLIN] Tarification completed successfully.")
+                    return True
+            except Exception as exc:
+                logger.warning(f"[MERLIN] Tarification poll error ({elapsed}s): {exc}")
+                break
+        if elapsed >= max_wait:
+            logger.warning(f"[MERLIN] Tarification timed out after {max_wait}s.")
+        return False
+
     def crear_proyecto_completo(self, datos: dict) -> Dict[str, Any]:
-        """Create a complete insurance project in Merlin (Auto or Hogar)."""
+        """Create a complete insurance project in Merlin and launch tarification."""
         try:
             self.login()
             ramo = str(datos.get("ramo", "AUTO")).upper()
@@ -403,9 +507,7 @@ class MerlinClient:
             else:
                 datos_basicos["riesgo_hogar"] = _build_riesgo_hogar(datos)
                 datos_basicos["propietario"] = _build_persona(datos, "PROPIETARIO")
-                datos_basicos["asegurado"] = _build_persona(datos, "ASEGURADO")
                 datos_basicos["class_name"] = DATOS_BASICOS_HOGAR_CLASS
-                datos_basicos["@class"] = DATOS_BASICOS_HOGAR_CLASS
 
             datos_basicos["tomador"] = _build_persona(datos, "TOMADOR")
 
@@ -427,12 +529,60 @@ class MerlinClient:
                 except Exception as exc:
                     logger.warning(f"[MERLIN] Hogar additional data save failed: {exc}")
 
+            # Launch tarification and poll until complete
+            tarificacion_ok = False
+            if mongo_id:
+                try:
+                    tar_resp = self.iniciar_tarificacion(mongo_id)
+                    process_id = (
+                        tar_resp.get("id_proceso_pasarela", {}).get("id_pasarela2", "")
+                    )
+                    if process_id:
+                        tarificacion_ok = self._poll_tarificacion(
+                            process_id, mongo_id, subramo
+                        )
+                    else:
+                        logger.warning("[MERLIN] No process ID returned from iniciar.")
+                except Exception as exc:
+                    logger.warning(f"[MERLIN] Tarification launch failed: {exc}")
+
+            # Always fetch final project – polling calls persist insurer
+            # results, so the project may be tarified even on timeout.
+            proyecto_final = {}
+            if mongo_id:
+                try:
+                    proyecto_final = self.obtener_proyecto(mongo_id)
+                    logger.info(f"[MERLIN] Final project keys: {list(proyecto_final.keys())}")
+                    estado = proyecto_final.get("estado", proyecto_final.get("estadoProyecto", "DESCONOCIDO"))
+                    logger.info(f"[MERLIN] Final project estado: {estado}")
+                    ofertas = proyecto_final.get("ofertas", proyecto_final.get("aseguradoras", []))
+                    logger.info(f"[MERLIN] Final project ofertas count: {len(ofertas) if isinstance(ofertas, list) else 'N/A'}")
+                    if estado == "TARIFICADO":
+                        tarificacion_ok = True
+                    # Dump project JSON to test/json_renovaciones/
+                    try:
+                        dump_dir = os.path.join(os.path.dirname(__file__), "..", "test", "json_renovaciones")
+                        os.makedirs(dump_dir, exist_ok=True)
+                        dump_path = os.path.join(dump_dir, f"proyecto_tarificado_{mongo_id}.json")
+                        with open(dump_path, "w", encoding="utf-8") as f:
+                            json.dump(proyecto_final, f, ensure_ascii=False, indent=2, default=str)
+                        logger.info(f"[MERLIN] Project JSON dumped to {dump_path}")
+                    except Exception as dump_exc:
+                        logger.warning(f"[MERLIN] Failed to dump project JSON: {dump_exc}")
+
+                except Exception as exc:
+                    logger.warning(f"[MERLIN] Failed to fetch final project: {exc}")
+
             return {
                 "success": True,
                 "proyecto_id": mongo_id,
                 "id_pasarela": id_pasarela,
-                "mensaje": f"Proyecto de {ramo} creado con {len(plantillas_ids)} aseguradoras",
+                "tarificacion_iniciada": tarificacion_ok,
+                "subramo": subramo,
+                "mensaje": f"Proyecto de {ramo} creado con {len(plantillas_ids)} aseguradoras"
+                           + (" y tarificación iniciada" if tarificacion_ok else ""),
                 "num_aseguradoras": len(plantillas_ids),
+                "proyecto": proyecto_final,
             }
 
         except MerlinClientError as exc:

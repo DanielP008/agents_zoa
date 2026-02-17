@@ -98,7 +98,7 @@ def apply_memory_patch(memory: Dict[str, Any], patch: Optional[Dict[str, Any]]) 
 # ---------------------------------------------------------------------------
 # History compression
 # ---------------------------------------------------------------------------
-RECENT_WINDOW = 6          # last 3 exchanges sent in full
+RECENT_WINDOW = 12          # last 3 exchanges sent in full
 ASSISTANT_TRUNCATE = 100   # max chars for assistant msgs in summary
 
 
@@ -106,7 +106,7 @@ def _build_context_summary(old_turns: List[Dict[str, Any]]) -> str:
     """Build a compact summary of older conversation turns."""
     lines: List[str] = []
     for turn in old_turns:
-        text = (turn.get("text") or "").strip()
+        text = turn.get("text", "").strip()
         if not text:
             continue
         if turn.get("role") == "user":
