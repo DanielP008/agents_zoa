@@ -26,6 +26,18 @@ session_manager = SessionManager()
 
 def handle_request(request):
     """Main entry point - routes to appropriate handler based on request."""
+    logger.info(f"[HANDLER] Incoming request: {request.method} {request.url}")
+    logger.info(f"[HANDLER] Headers: {dict(request.headers)}")
+    
+    # Handle CORS preflight
+    if request.method == 'OPTIONS':
+        return ('', 204, {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            'Access-Control-Max-Age': '3600'
+        })
+
     data = request.get_json(silent=True) or {}
 
     # Status toggle endpoint
