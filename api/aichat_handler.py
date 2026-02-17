@@ -1,6 +1,14 @@
 """
 AiChat message webhook handler.
-Receives messages from AiChat source and responds via ZOA AiChat API.
+Receives messages from AiChat and responds via ZOA AiChat API.
+
+Incoming format:
+{
+    "user_id": "uuid-del-usuario",
+    "body_type": "text",
+    "body": { "data": "mensaje del usuario" },
+    "origin": "ai_chat"
+}
 """
 import json
 import logging
@@ -14,42 +22,46 @@ session_manager = SessionManager()
 def handle_aichat(request):
     """Handle incoming AiChat webhook."""
     data = request.get_json(silent=True) or {}
+    logger.info(f"[AICHAT] Received webhook payload: {json.dumps(data, ensure_ascii=False)}")
     
-    wa_id = data.get("wa_id")
+    user_id = data.get("user_id")
     company_id = data.get("phone_number_id") or "default"
-    text = data.get("mensaje", "").strip()
     
-    if not wa_id or not text:
-        logger.warning(f"[AICHAT] Missing wa_id or text: wa_id={wa_id}, text={text}")
+    # Extract text from body.data
+    body = data.get("body", {})
+    text = (body.get("data", "") if isinstance(body, dict) else "").strip()
+    
+    if not user_id or not text:
+        logger.warning(f"[AICHAT] Missing user_id or text: user_id={user_id}, text={text}")
         return _json_response({"status": "ignored", "reason": "missing_data"})
 
     # Handle session reset
     if text.upper() == "BORRAR TODO":
-        return _handle_session_reset(wa_id, company_id)
+        return _handle_session_reset(user_id, company_id)
     
-    # Try to acquire session lock
-    if not session_manager.try_lock_session(wa_id, company_id):
-        logger.info("[AICHAT] Session %s busy, ignoring: '%s'", wa_id, text)
+    # Try to acquire session lock (use user_id as wa_id for session key)
+    if not session_manager.try_lock_session(user_id, company_id):
+        logger.info("[AICHAT] Session %s busy, ignoring: '%s'", user_id, text)
         return _json_response({"status": "ignored", "reason": "session_busy"})
     
     try:
-        # Build payload compatible with orchestrator
-        # We use a NEW dict to avoid modifying the original request data in a way that could affect routing
         orchestrator_payload = {
-            "wa_id": wa_id,
+            "wa_id": user_id,
             "mensaje": text,
             "phone_number_id": company_id,
             "company_id": company_id,
             "channel": "aichat",
-            "is_aichat": True
+            "is_aichat": True,
+            "aichat_user_id": user_id,
         }
+        logger.info(f"[AICHAT] Processing with orchestrator payload: {json.dumps(orchestrator_payload, ensure_ascii=False)}")
         
-        # Process through orchestrator
         response = process_message(orchestrator_payload)
+        logger.info(f"[AICHAT] Orchestrator response: {json.dumps(response, ensure_ascii=False)}")
         agent_message = response.get("message", "")
         
         if agent_message:
-            aichat_response = send_aichat_response(agent_message, company_id, wa_id)
+            aichat_response = send_aichat_response(agent_message, company_id, user_id)
             logger.info(f"[AICHAT] Sent response: {agent_message[:50]}... aichat_status={aichat_response}")
         
         return _json_response({
@@ -58,7 +70,7 @@ def handle_aichat(request):
             "aichat_sent": bool(agent_message)
         })
     finally:
-        session_manager.unlock_session(wa_id, company_id)
+        session_manager.unlock_session(user_id, company_id)
 
 def _handle_session_reset(wa_id: str, company_id: str):
     """Reset user session."""

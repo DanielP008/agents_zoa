@@ -52,10 +52,13 @@ with st.sidebar:
         if st.button("🔄 Reset Memory", type="primary", use_container_width=True, help="Reinicia la sesión en la base de datos"):
             try:
                 payload = {
-                    "wa_id": user_id,
-                    "mensaje": "BORRAR TODO",
-                    "phone_number_id": company_id,
-                    "source": "ai-chat"
+                    "user_id": user_id,
+                    "body_type": "text",
+                    "body": {
+                        "data": "BORRAR TODO"
+                    },
+                    "origin": "ai_chat",
+                    "phone_number_id": company_id
                 }
                 requests.post(API_URL, json=payload)
                 st.session_state.messages = []
@@ -83,13 +86,15 @@ for message in st.session_state.messages:
 
 # Chat Input
 if prompt := st.chat_input("Escribe tu mensaje de chat aquí..."):
-    # 1. Prepare Payload for AiChat
+    # 1. Prepare Payload for AiChat (New Format)
     payload = {
-        "wa_id": user_id,
-        "mensaje": prompt,
-        "phone_number_id": company_id,
-        "name": user_name,
-        "source": "ai-chat" # Crucial for routing to aichat_handler
+        "user_id": user_id,
+        "body_type": "text",
+        "body": {
+            "data": prompt
+        },
+        "origin": "ai_chat",
+        "phone_number_id": company_id # Optional but useful for context
     }
 
     # 1. Display User Message

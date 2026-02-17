@@ -77,17 +77,18 @@ def send_whatsapp_response(
 def send_aichat_response(
     text: str,
     company_id: str,
-    wa_id: str = None,
+    user_id: str = None,
 ) -> dict:
     """Send an AiChat message through ZOA."""
+    logger.info(f"[ZOA_CLIENT] Sending AiChat response. User: {user_id}, Company: {company_id}, Text: {text[:50]}...")
     interface = AiChatInterface()
     result, _ = interface.execute(
         company_id=company_id,
         option="send",
         request_data={
-            "type": "text",
-            "text": text,
-            "wa_id": wa_id
+            "user_id": user_id,
+            "body_type": "text",
+            "body": {"data": text},
         }
     )
     return result

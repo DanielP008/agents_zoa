@@ -35,7 +35,7 @@ def handle_request(request):
         return handle_wildix(request)
     
     # AiChat webhook detection
-    if data.get("source") == "ai-chat" or data.get("is_aichat"):
+    if data.get("origin") == "ai_chat" or data.get("source") == "ai-chat" or data.get("is_aichat"):
         return handle_aichat(request)
     
     # Default to WhatsApp handler
