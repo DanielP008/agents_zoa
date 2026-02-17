@@ -36,6 +36,7 @@ def handle_request(request):
     
     # AiChat webhook detection
     if data.get("origin") == "ai_chat" or data.get("source") == "ai-chat" or data.get("is_aichat"):
+        logger.info(f"[HANDLER] Routing to AiChat handler. Origin: {data.get('origin')}, Source: {data.get('source')}")
         return handle_aichat(request)
     
     # Default to WhatsApp handler

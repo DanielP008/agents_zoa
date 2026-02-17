@@ -31,18 +31,26 @@ def _make_zoa_request(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     action = payload.get("action", "unknown")
     option = payload.get("option", "unknown")
+    
+    # Increase log level for AiChat to make it visible in production
+    if action == "aichat":
+        log_func = logger.info
+    else:
+        log_func = logger.debug
+
     parent = get_current_agent()
     with Timer("zoa", f"zoa_{action}_{option}", parent=parent):
         try:
             headers = _get_zoa_headers()
-            logger.debug(f"ZOA request: {payload}")
+            log_func(f"ZOA request: {payload}")
             response = requests.post(zoa_endpoint, headers=headers, data=json.dumps(payload), timeout=10)
             
             try:
                 result = response.json()
-                logger.debug(f"ZOA response: {result}")
+                log_func(f"ZOA response: {result}")
                 return result
             except json.JSONDecodeError:
+                logger.error(f"ZOA response is not JSON: {response.text}")
                 return {"status": response.status_code, "text": response.text}
         except requests.exceptions.Timeout:
             return {"error": "Request timeout"}

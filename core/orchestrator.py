@@ -188,6 +188,9 @@ def process_message(payload: dict) -> dict:
     default_agent = "aichat_receptionist_agent" if is_aichat else _DEFAULT_AGENT
     target_agent = session.get("target_agent") or default_agent
 
+    if is_aichat:
+        logger.info(f"[ORCHESTRATOR] Processing AiChat message for user {wa_id}. Target agent: {target_agent}")
+
     # If AiChat but session has the WhatsApp receptionist (stale/default), override
     if is_aichat and target_agent == _DEFAULT_AGENT:
         target_agent = default_agent
@@ -203,6 +206,9 @@ def process_message(payload: dict) -> dict:
     response, memory, target_agent, chain_depth = _run_routing_chain(
         payload, session, memory, target_agent,
     )
+    
+    if is_aichat:
+        logger.info(f"[ORCHESTRATOR] Routing chain finished for AiChat. Final agent: {target_agent}, Action: {response.get('action')}")
 
     # Handle routing-loop validation errors
     if "_routing_error" in response:
