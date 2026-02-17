@@ -239,8 +239,8 @@ class SessionManager:
         session_id = self._get_composite_id(user_id, company_id)
 
         query = text("""
-            INSERT INTO sessions (session_id, processing, target_agent, updated_at)
-            VALUES (:sid, TRUE, 'receptionist_agent', NOW())
+            INSERT INTO sessions (session_id, processing, status, target_agent, updated_at)
+            VALUES (:sid, TRUE, 'on', 'receptionist_agent', NOW())
             ON CONFLICT (session_id) DO UPDATE
             SET processing = TRUE, updated_at = NOW()
             WHERE sessions.processing = FALSE
