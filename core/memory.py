@@ -106,7 +106,7 @@ def _build_context_summary(old_turns: List[Dict[str, Any]]) -> str:
     """Build a compact summary of older conversation turns."""
     lines: List[str] = []
     for turn in old_turns:
-        text = turn.get("text", "").strip()
+        text = (turn.get("text") or "").strip()
         if not text:
             continue
         if turn.get("role") == "user":
