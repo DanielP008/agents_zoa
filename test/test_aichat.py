@@ -58,7 +58,7 @@ with st.sidebar:
                         "data": "BORRAR TODO"
                     },
                     "origin": "ai_chat",
-                    "phone_number_id": company_id
+                    "company_id": company_id
                 }
                 requests.post(API_URL, json=payload)
                 st.session_state.messages = []
@@ -94,7 +94,7 @@ if prompt := st.chat_input("Escribe tu mensaje de chat aquí..."):
             "data": prompt
         },
         "origin": "ai_chat",
-        "phone_number_id": company_id # Optional but useful for context
+        "company_id": company_id
     }
 
     # 1. Display User Message

@@ -172,7 +172,7 @@ def process_message(payload: dict) -> dict:
     """
     wa_id = payload.get("wa_id")
     phone_number_id = payload.get("phone_number_id")
-    company_id = phone_number_id or "default"
+    company_id = payload.get("company_id") or phone_number_id or "default"
     channel = payload.get("channel", "whatsapp")
 
     session_id = _build_session_id(company_id, wa_id)

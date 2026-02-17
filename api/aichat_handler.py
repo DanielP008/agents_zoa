@@ -25,7 +25,7 @@ def handle_aichat(request):
     logger.info(f"[AICHAT] Received webhook payload: {json.dumps(data, ensure_ascii=False)}")
     
     user_id = data.get("user_id")
-    company_id = data.get("phone_number_id") or "default"
+    company_id = data.get("company_id") or request.args.get("company_id") or "default"
     
     # Extract text from body.data
     body = data.get("body", {})
@@ -48,7 +48,6 @@ def handle_aichat(request):
         orchestrator_payload = {
             "wa_id": user_id,
             "mensaje": text,
-            "phone_number_id": company_id,
             "company_id": company_id,
             "channel": "aichat",
             "is_aichat": True,
