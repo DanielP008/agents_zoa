@@ -205,15 +205,17 @@ class SessionManager:
 
     # -- Status -------------------------------------------------------------
 
-    def get_session_status(self, user_id: str, company_id: str) -> str:
-        """Get the AI processing status for a session. Returns 'on' or 'off'."""
+    def get_session_status(self, user_id: str, company_id: str) -> str | None:
+        """Get the AI processing status for a session. Returns 'on', 'off', or None if no session exists."""
         session_id = self._get_composite_id(user_id, company_id)
         query = text("SELECT status FROM sessions WHERE session_id = :sid")
         row = _execute_with_retry(
             self.pool, "get_status", query, {"sid": session_id},
             fetch=True, error_prefix="DB Status",
         )
-        return (row[0] if row and row[0] else "off")
+        if row is None:
+            return None
+        return row[0] if row[0] else "off"
 
     def set_session_status(self, user_id: str, company_id: str, status: str) -> None:
         """Set the AI processing status ('on' or 'off') for a session."""
@@ -239,8 +241,8 @@ class SessionManager:
         session_id = self._get_composite_id(user_id, company_id)
 
         query = text("""
-            INSERT INTO sessions (session_id, processing, target_agent, updated_at)
-            VALUES (:sid, TRUE, 'receptionist_agent', NOW())
+            INSERT INTO sessions (session_id, processing, status, target_agent, updated_at)
+            VALUES (:sid, TRUE, 'on', 'receptionist_agent', NOW())
             ON CONFLICT (session_id) DO UPDATE
             SET processing = TRUE, updated_at = NOW()
             WHERE sessions.processing = FALSE

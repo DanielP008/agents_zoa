@@ -26,6 +26,18 @@ session_manager = SessionManager()
 
 def handle_request(request):
     """Main entry point - routes to appropriate handler based on request."""
+    logger.info(f"[HANDLER] Incoming request: {request.method} {request.url}")
+    logger.info(f"[HANDLER] Headers: {dict(request.headers)}")
+    
+    # Handle CORS preflight
+    if request.method == 'OPTIONS':
+        return ('', 204, {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            'Access-Control-Max-Age': '3600'
+        })
+
     data = request.get_json(silent=True) or {}
 
     # Status toggle endpoint
@@ -84,7 +96,11 @@ def handle_whatsapp(request):
     status = session_manager.get_session_status(wa_id, company_id)
     logger.info(f"[HANDLER] wa_id={wa_id} outside_hours={outside_hours} status={status}")
 
-    if outside_hours:
+    if status is None:
+        # New user — create session with status='on'
+        session_manager.set_session_status(wa_id, company_id, "on")
+        logger.info(f"[HANDLER] New user — created session with status='on' for {wa_id}")
+    elif outside_hours:
         if status != "on":
             session_manager.set_session_status(wa_id, company_id, "on")
             logger.info(f"[HANDLER] Outside hours — flipped status to 'on' for {wa_id}")
