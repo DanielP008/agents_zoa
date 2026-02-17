@@ -33,7 +33,7 @@ def _make_zoa_request(payload: Dict[str, Any]) -> Dict[str, Any]:
     option = payload.get("option", "unknown")
     
     # Increase log level for AiChat to make it visible in production
-    if action == "aichat":
+    if action in ("ai_chat"):
         log_func = logger.info
     else:
         log_func = logger.debug
@@ -145,4 +145,4 @@ class AiChatInterface(ZoaBaseInterface):
     """Interface for AiChat operations. Used for sending chat responses."""
     def __init__(self):
         super().__init__()
-        self.action_name = "aichat"
+        self.action_name = "ai_chat"
