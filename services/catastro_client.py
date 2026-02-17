@@ -439,6 +439,10 @@ def _parse_catastro_response(xml_text: str) -> Dict[str, Any]:
                     result["escalera"] = _find_text(lourb, "es", ns) or ""
                     result["planta"] = _find_text(lourb, "pt", ns) or ""
                     result["puerta"] = _find_text(lourb, "pu", ns) or ""
+                    # Código postal (dp element)
+                    dp = _find_text(lourb, "dp", ns)
+                    if dp:
+                        result["codigo_postal"] = dp
 
     # Economic/construction data
     if debi is not None:
@@ -483,7 +487,8 @@ def _parse_catastro_response(xml_text: str) -> Dict[str, Any]:
         f"[CATASTRO] Found: ref={result.get('referencia_catastral', '?')}, "
         f"superficie={result.get('superficie', '?')}m², "
         f"año={result.get('anio_construccion', '?')}, "
-        f"uso={result.get('uso', '?')}"
+        f"uso={result.get('uso', '?')}, "
+        f"CP={result.get('codigo_postal', '?')}"
     )
     return result
 

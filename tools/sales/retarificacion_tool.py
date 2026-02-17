@@ -163,19 +163,19 @@ def consultar_catastro_tool(
             superficie = result.get("superficie", "NO DISPONIBLE")
             ref = result.get("referencia_catastral", "")
             uso_catastro = result.get("uso", "")
+            cp_catastro = result.get("codigo_postal", "")
             
             # Inferencia básica de uso
             uso_vivienda = "VIVIENDA_HABITUAL"
             utilizacion = "VIVIENDA_EXCLUSIVAMENTE"
             if uso_catastro and not uso_catastro.startswith("R"):
-                 # Si no es residencial, podría ser otro uso, pero por defecto asumimos vivienda para el seguro de hogar
                  pass
 
-            logger.info(f"[CONSULTAR_CATASTRO] SUCCESS - Año: {anio}, Superficie: {superficie}m², Ref: {ref}")
+            logger.info(f"[CONSULTAR_CATASTRO] SUCCESS - Año: {anio}, Superficie: {superficie}m², Ref: {ref}, CP: {cp_catastro}")
             
             # Construimos un string con los datos encontrados y los valores por defecto para que el LLM los presente
             return (
-                f"DATOS ENCONTRADOS: Año: {anio}, Superficie: {superficie}, Ref: {ref}\n"
+                f"DATOS ENCONTRADOS: Año: {anio}, Superficie: {superficie}, Ref: {ref}, CP: {cp_catastro}\n"
                 f"VALORES SUGERIDOS (CONFIRMAR CON CLIENTE):\n"
                 f"- Situación: NUCLEO_URBANO\n"
                 f"- Régimen: PROPIEDAD\n"
