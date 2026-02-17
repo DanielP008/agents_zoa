@@ -96,7 +96,11 @@ def handle_whatsapp(request):
     status = session_manager.get_session_status(wa_id, company_id)
     logger.info(f"[HANDLER] wa_id={wa_id} outside_hours={outside_hours} status={status}")
 
-    if outside_hours:
+    if status is None:
+        # New user — create session with status='on'
+        session_manager.set_session_status(wa_id, company_id, "on")
+        logger.info(f"[HANDLER] New user — created session with status='on' for {wa_id}")
+    elif outside_hours:
         if status != "on":
             session_manager.set_session_status(wa_id, company_id, "on")
             logger.info(f"[HANDLER] Outside hours — flipped status to 'on' for {wa_id}")
