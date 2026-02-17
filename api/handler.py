@@ -115,14 +115,14 @@ def handle_whatsapp(request):
 def handle_status_toggle(data: dict):
     """Toggle session AI status on/off.
 
-    POST body: {"action": "set_status", "conversation_id": "{company_id}_{user_id}", "status": "on|off"}
+    POST body: {"action": "set_status", "conversationId": "{company_id}_{user_id}", "status": "on|off"}
     """
-    conversation_id = data.get("conversation_id", "")
+    conversation_id = data.get("conversationId", "")
     new_status = data.get("status", "").lower()
 
     parts = conversation_id.split("_", 1)
     if len(parts) != 2 or not parts[0] or not parts[1]:
-        return _json_response({"error": "Required: conversation_id ({company_id}_{user_id}), status (on|off)"}, 400)
+        return _json_response({"error": "Required: conversationId ({company_id}_{user_id}), status (on|off)"}, 400)
 
     company_id, wa_id = parts[0], parts[1]
 
@@ -130,9 +130,9 @@ def handle_status_toggle(data: dict):
         return _json_response({"error": "Required: status must be 'on' or 'off'"}, 400)
 
     session_manager.set_session_status(wa_id, company_id, new_status)
-    logger.info(f"[HANDLER] Status toggled: conversation_id={conversation_id} → {new_status}")
+    logger.info(f"[HANDLER] Status toggled: conversationId={conversation_id} → {new_status}")
 
-    return _json_response({"status": "ok", "conversation_id": conversation_id, "new_status": new_status})
+    return _json_response({"status": "ok", "conversationId": conversation_id, "new_status": new_status})
 
 
 def handle_session_reset(data):
