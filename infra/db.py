@@ -203,6 +203,35 @@ class SessionManager:
         logger.info(f"Session deletion: session_id={session_id}, deleted={deleted}")
         return deleted
 
+    # -- Status -------------------------------------------------------------
+
+    def get_session_status(self, user_id: str, company_id: str) -> str:
+        """Get the AI processing status for a session. Returns 'on' or 'off'."""
+        session_id = self._get_composite_id(user_id, company_id)
+        query = text("SELECT status FROM sessions WHERE session_id = :sid")
+        row = _execute_with_retry(
+            self.pool, "get_status", query, {"sid": session_id},
+            fetch=True, error_prefix="DB Status",
+        )
+        return (row[0] if row and row[0] else "off")
+
+    def set_session_status(self, user_id: str, company_id: str, status: str) -> None:
+        """Set the AI processing status ('on' or 'off') for a session."""
+        session_id = self._get_composite_id(user_id, company_id)
+        query = text("""
+            INSERT INTO sessions (session_id, status, target_agent, updated_at)
+            VALUES (:sid, :status, 'receptionist_agent', NOW())
+            ON CONFLICT (session_id) DO UPDATE SET
+                status = EXCLUDED.status,
+                updated_at = NOW();
+        """)
+        _execute_with_retry(
+            self.pool, "set_status", query,
+            {"sid": session_id, "status": status},
+            commit=True, error_prefix="DB Status Write",
+        )
+        logger.info(f"[DB] Session {session_id} status set to '{status}'")
+
     # -- Locking ------------------------------------------------------------
 
     def try_lock_session(self, user_id: str, company_id: str) -> bool:

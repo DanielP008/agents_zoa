@@ -21,9 +21,16 @@ logger = logging.getLogger(__name__)
 setup_tracing()
 
 
+session_manager = SessionManager()
+
+
 def handle_request(request):
     """Main entry point - routes to appropriate handler based on request."""
     data = request.get_json(silent=True) or {}
+
+    # Status toggle endpoint
+    if data.get("action") == "set_status":
+        return handle_status_toggle(data)
     
     # Wildix webhook detection
     if "sessionId" in data and "botId" in data and "event" in data:
@@ -44,53 +51,83 @@ def handle_request(request):
 
 
 def handle_whatsapp(request):
-    """Handle incoming ZOA Buffer System messages."""
-    
+    """Handle incoming ZOA Buffer System messages.
+
+    Business hours + status logic:
+    - Outside hours → always process. Flip status to 'on' if it was 'off'.
+    - Inside hours + status='on'  → process (AI active).
+    - Inside hours + status='off' → ignore (humans handling).
+    """
     data = request.get_json(silent=True) or {}
-    
+
     mensaje = data.get("mensaje", "").strip()
-    
-    # Handle session reset with "BORRAR TODO"
     if mensaje == "BORRAR TODO":
         return handle_session_reset(data)
-    
-    # Check business hours — AI only processes when the office is closed
-    # Weekends (Sat/Sun) are always treated as closed → AI processes
+
+    wa_id = data.get("wa_id")
     company_id = data.get("phone_number_id") or "default"
+
+    # Step 1: Determine if we're outside business hours
     now_madrid = datetime.now(timezone(timedelta(hours=1)))
-    is_weekend = now_madrid.weekday() >= 5  # 5=Saturday, 6=Sunday
+    is_weekend = now_madrid.weekday() >= 5
 
-    if not is_weekend:
+    if is_weekend:
+        outside_hours = True
+    else:
         try:
-            if is_business_open(company_id):
-                return (
-                    json.dumps({"status": "ok", "response": {"skipped": True, "reason": "business_open"}}, ensure_ascii=False),
-                    200,
-                    {"Content-Type": "application/json"},
-                )
+            outside_hours = not is_business_open(company_id)
         except Exception as e:
-            logger.error(f"[HANDLER] Scheduler check failed: {e}, proceeding with AI processing")
-    
-    response = process_message(data)
+            logger.error(f"[HANDLER] Scheduler check failed: {e}, treating as outside hours")
+            outside_hours = True
 
-    return (
-        json.dumps({"status": "ok", "response": response}, ensure_ascii=False),
-        200,
-        {"Content-Type": "application/json"},
-    )
+    # Step 2: Apply status logic
+    status = session_manager.get_session_status(wa_id, company_id)
+    logger.info(f"[HANDLER] wa_id={wa_id} outside_hours={outside_hours} status={status}")
+
+    if outside_hours:
+        if status != "on":
+            session_manager.set_session_status(wa_id, company_id, "on")
+            logger.info(f"[HANDLER] Outside hours — flipped status to 'on' for {wa_id}")
+    else:
+        if status != "on":
+            logger.info(f"[HANDLER] In hours & status=off — skipping for {wa_id}")
+            return _json_response({"status": "ok", "response": {"skipped": True, "reason": "in_hours_status_off"}})
+
+    response = process_message(data)
+    return _json_response({"status": "ok", "response": response})
+
+def handle_status_toggle(data: dict):
+    """Toggle session AI status on/off.
+
+    POST body: {"action": "set_status", "wa_id": "...", "company_id": "...", "status": "on|off"}
+    """
+    wa_id = data.get("wa_id")
+    company_id = data.get("company_id", "default")
+    new_status = data.get("status", "").lower()
+
+    if not wa_id or new_status not in ("on", "off"):
+        return _json_response({"error": "Required: wa_id, status (on|off)"}, 400)
+
+    session_manager.set_session_status(wa_id, company_id, new_status)
+    logger.info(f"[HANDLER] Status toggled: wa_id={wa_id} company_id={company_id} → {new_status}")
+
+    return _json_response({"status": "ok", "wa_id": wa_id, "company_id": company_id, "new_status": new_status})
+
 
 def handle_session_reset(data):
     """Reset user session in database."""
     wa_id = data.get("wa_id")
     company_id = data.get("phone_number_id") or "default"
-    
-    session_manager = SessionManager()
+
     deleted = session_manager.delete_session(wa_id, company_id)
-    
     status = "deleted" if deleted else "not_found"
-    
+
+    return _json_response({"status": "ok", "action": "session_reset", "result": status})
+
+
+def _json_response(data: dict, status_code: int = 200):
     return (
-        json.dumps({"status": "ok", "action": "session_reset", "result": status}, ensure_ascii=False),
-        200,
+        json.dumps(data, ensure_ascii=False),
+        status_code,
         {"Content-Type": "application/json"},
     )
