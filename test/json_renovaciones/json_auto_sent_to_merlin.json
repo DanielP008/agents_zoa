@@ -1,0 +1,66 @@
+{
+  "subramo": "AUTOS_PRIMERA",
+  "datos_basicos": {
+    "tomador": {
+      "numero_documento": "23940602V",
+      "tipo_identificacion": "NIF",
+      "cliente": {
+        "tipo": "FISICA",
+        "nombre": "Daniel",
+        "apellido1": "Pulgar",
+        "apellido2": "Soriano"
+      },
+      "sexo": "MASCULINO",
+      "fecha_nacimiento": [1990, 5, 15],
+      "estado_civil": "SOLTERO",
+      "nacionalidad": "108-6",
+      "direccion": {
+        "id_pais": "108-6",
+        "codigo_postal": "46025",
+        "id_tipo_via": "CL",
+        "nombre_via": "Andres Piles Ibars",
+        "numero": "4",
+        "poblacion": "Valencia",
+        "id_provincia": "46"
+      }
+    },
+    "conductor": {
+      "numero_documento": "23940602V",
+      "tipo_identificacion": "NIF",
+      "cliente": {
+        "tipo": "FISICA",
+        "nombre": "Daniel",
+        "apellido1": "Pulgar",
+        "apellido2": "Soriano"
+      },
+      "sexo": "MASCULINO",
+      "fecha_nacimiento": [1990, 5, 15],
+      "fecha_carnet": [2008, 6, 20],
+      "tipo_carnet": "B",
+      "is_innominada": false
+    },
+    "vehiculo": {
+      "matricula": "3492GYW",
+      "tipo_matricula": "ACTUAL",
+      "marca": "VOLKSWAGEN",
+      "modelo": "GOLF",
+      "version": "GOLF 1.6 TDI 105 CV",
+      "combustible": "D",
+      "fecha_matriculacion": [2010, 10, 15],
+      "km_anuales": 15000,
+      "tipo_de_garaje": "COLECTIVO",
+      "id_auto_base7": "VW012345",
+      "potencia": 105,
+      "cilindrada": 1598
+    },
+    "historial_asegurador": {
+      "fecha": [2026, 3, 1],
+      "anos_asegurados": 5,
+      "aseguradora_actual": "MAPFRE",
+      "num_poliza": "123456789",
+      "siniestros": false,
+      "anos_sin_siniestros": 5
+    },
+    "@class": "ebroker.multi4.data.proyectos.autos1.DatosBasicosAutos1"
+  }
+}
