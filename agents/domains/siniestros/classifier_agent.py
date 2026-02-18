@@ -2,7 +2,7 @@ import json
 import os
 from typing import Optional, List
 
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from pydantic import BaseModel, Field
 
 from infra.llm import get_llm_fast
@@ -88,13 +88,17 @@ def classify_message(payload: dict) -> ClassificationDecision:
     channel = payload.get("channel", "whatsapp")
     system_prompt = get_prompt(channel, _ACTIVE_SPECIALISTS)
 
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", system_prompt),
-            *history,
-            ("human", "Contexto adicional: ultimo_route_provisional={last_route}\n\nMensaje del Usuario: {user_text}"),
-        ]
-    )
+    # Build messages manually to avoid ChatPromptTemplate interpreting
+    # curly braces in history (e.g. OCR JSON) as template variables.
+    messages = [SystemMessage(content=system_prompt)]
+    for role, text in history:
+        if role == "human":
+            messages.append(HumanMessage(content=text))
+        else:
+            messages.append(AIMessage(content=text))
+    messages.append(HumanMessage(
+        content=f"Contexto adicional: ultimo_route_provisional={last_route}\n\nMensaje del Usuario: {user_text}"
+    ))
 
     llm = get_llm_fast()
     
@@ -102,15 +106,10 @@ def classify_message(payload: dict) -> ClassificationDecision:
         structured_llm = llm.with_structured_output(ClassificationDecision, method="json_mode")
     except:
         structured_llm = llm.with_structured_output(ClassificationDecision)
-    
-    chain = prompt | structured_llm
 
     result = safe_structured_invoke(
-        chain,
-        {
-            "last_route": last_route,
-            "user_text": user_text,
-        },
+        structured_llm,
+        messages,
         fallback_factory=lambda: ClassificationDecision(
             route="classifier_siniestros_agent",
             confidence=0.0,

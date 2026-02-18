@@ -1,5 +1,5 @@
 import json
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from infra.llm import get_llm
 from core.memory import get_global_history
 from infra.llm_utils import safe_structured_invoke
@@ -17,23 +17,23 @@ def aichat_receptionist_agent(payload: dict) -> dict:
     
     system_prompt = get_prompt()
     
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", system_prompt),
-        *history,
-        ("human", "Mensaje del cliente: {user_text}"),
-    ])
+    messages = [SystemMessage(content=system_prompt)]
+    for role, text in history:
+        if role == "human":
+            messages.append(HumanMessage(content=text))
+        else:
+            messages.append(AIMessage(content=text))
+    messages.append(HumanMessage(content=f"Mensaje del cliente: {user_text}"))
     
     llm = get_llm()
     try:
         structured_llm = llm.with_structured_output(ReceptionistDecision, method="json_mode")
     except Exception:
         structured_llm = llm.with_structured_output(ReceptionistDecision)
-        
-    chain = prompt | structured_llm
     
     decision = safe_structured_invoke(
-        chain,
-        {"user_text": user_text},
+        structured_llm,
+        messages,
         fallback_factory=lambda: ReceptionistDecision(
             domain=None,
             message="Disculpa, tuve un problema técnico. ¿Podrías repetir tu consulta?",

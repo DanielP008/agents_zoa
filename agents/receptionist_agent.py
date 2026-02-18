@@ -1,7 +1,8 @@
 import json
+import logging
 import re
 
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
 from infra.llm import get_llm
 from core.memory import get_global_history
@@ -10,6 +11,8 @@ from infra.config import get_routes_path
 from infra.decision_schemas import ReceptionistDecision
 from core.routing.allowlist import get_active_specialists
 from agents.receptionist_agent_prompts import get_prompt
+
+logger = logging.getLogger(__name__)
 
 _ROUTES_PATH = get_routes_path()
 
@@ -91,6 +94,16 @@ def receptionist_agent(payload: dict) -> dict:
     has_assistant_messages = any(role == "ai" for role, _ in history)
     is_first_interaction = not has_assistant_messages
 
+    # Convert history tuples to Message objects to prevent template injection
+    history_messages = []
+    for role, text in history:
+        if role == "human":
+            history_messages.append(HumanMessage(content=text))
+        elif role == "ai":
+            history_messages.append(AIMessage(content=text))
+        else:
+            history_messages.append(HumanMessage(content=text))
+
     active_domains_map = {
         k: v.get("receptionist_label", k.capitalize())
         for k, v in _ROUTES_CONFIG["domains"].items()
@@ -116,15 +129,20 @@ def receptionist_agent(payload: dict) -> dict:
 
     # Get prompt based on channel, filtered to active domains/specialists
     channel = payload.get("channel", "whatsapp")
-    system_prompt = get_prompt(channel, _ACTIVE_DOMAINS, _ACTIVE_SPECIALISTS_BY_DOMAIN)
+    system_prompt_template = get_prompt(channel, _ACTIVE_DOMAINS, _ACTIVE_SPECIALISTS_BY_DOMAIN)
 
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", system_prompt),
-            *history,
-            ("human", "Mensaje del cliente: {user_text}"),
-        ]
+    # Format the system prompt manually so history messages (which may
+    # contain JSON with curly braces from OCR) are never parsed as templates.
+    formatted_system = system_prompt_template.format(
+        available_domains=available_domains_str,
+        greeting_instruction=greeting_instruction,
+        consultation_context=consultation_context,
+        nif_status=nif_status,
     )
+
+    messages = [SystemMessage(content=formatted_system)]
+    messages.extend(history_messages)
+    messages.append(HumanMessage(content=f"Mensaje del cliente: {user_text}"))
 
     llm = get_llm()
 
@@ -133,17 +151,9 @@ def receptionist_agent(payload: dict) -> dict:
     except Exception:
         structured_llm = llm.with_structured_output(ReceptionistDecision)
 
-    chain = prompt | structured_llm
-
     decision = safe_structured_invoke(
-        chain,
-        {
-            "user_text": user_text,
-            "available_domains": available_domains_str,
-            "greeting_instruction": greeting_instruction,
-            "consultation_context": consultation_context,
-            "nif_status": nif_status,
-        },
+        structured_llm,
+        messages,
         fallback_factory=lambda: ReceptionistDecision(
             domain=None,
             message="Disculpa, tuve un problema técnico. ¿Podrías repetir tu consulta?",
@@ -154,15 +164,21 @@ def receptionist_agent(payload: dict) -> dict:
 
     # --- NIF extraction ---
     extracted_nif = ""
+    # If the decision contains a NIF, use it
     if decision.nif:
         extracted_nif = decision.nif.strip().upper()
+    
+    # If not, try to extract it from the user text
     if not extracted_nif:
         extracted_nif = _extract_nif_from_text(user_text)
 
-    if extracted_nif and not nif_value:
-        nif_value = extracted_nif
-        memory_patch = _build_nif_memory_patch(nif_value)
-
+    # If NIF was found (either in decision or extracted from text)
+    if extracted_nif:
+        # If we didn't have a NIF before, or if the new NIF is different, update it
+        if not nif_value or nif_value != extracted_nif:
+            nif_value = extracted_nif
+            memory_patch = _build_nif_memory_patch(nif_value)
+    
     # --- Routing logic ---
     domain = decision.domain
     message = decision.message
@@ -203,7 +219,11 @@ def receptionist_agent(payload: dict) -> dict:
 
     # No domain detected (or unknown domain) -> ask for clarification
     if not message:
-        message = f"Disculpa, no entendí bien. ¿Tu consulta es sobre {available_domains_str}?"
+        # If NIF was just provided but no domain, acknowledge it
+        if memory_patch and "nif" in memory_patch.get("global", {}):
+            message = "Gracias, he recibido tu documento. ¿En qué puedo ayudarte hoy? ¿Necesitas abrir un siniestro, consultar una póliza o algo más?"
+        else:
+            message = f"Disculpa, no entendí bien. ¿Tu consulta es sobre {available_domains_str}?"
 
     final_patch = memory_patch or {}
     if "global" not in final_patch:

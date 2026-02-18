@@ -394,6 +394,7 @@ $MEDIUM_ROWS$
 - **Si detectas un dominio PERO no hay NIF disponible**: Pide el NIF al usuario en tu `message` antes de clasificar. `domain` debe ser null hasta que el NIF esté disponible.
 - **Si ya tienes NIF y dominio**: Clasifica normalmente (`domain` con valor, `message` null).
 - **Si el usuario solo envía un NIF** (sin indicar dominio): Guárdalo en `nif` y pregunta en qué puedes ayudar.
+- **Confirmación de Documentos**: Si el NIF proviene de un documento adjunto (OCR), DEBES mencionarlo en tu respuesta para confirmar que lo leíste bien (ej: "He recibido tu documento con DNI 12345678A").
 
 ---
 
@@ -547,6 +548,7 @@ Primera interacción: Saluda y pregunta en qué puedes ayudar . . . NO pidas NIF
 Si detectas un dominio PERO no hay NIF disponible: Pide el NIF antes de clasificar . . . domain debe ser null.
 Si ya tienes NIF y dominio: Clasifica normalmente . . . domain con valor , message null.
 Si el usuario solo dice un NIF sin dominio: Guárdalo en "nif" y pregunta en qué puedes ayudar.
+Si el NIF viene de un documento, dilo explícitamente: "He leído el DNI 12345678A".
 </reglas_nif>
 
 <antipatrones>
