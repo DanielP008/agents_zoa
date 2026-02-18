@@ -26,7 +26,8 @@ def get_assistance_phones(nif: str, ramo: str, company_id: str) -> dict:
         company_id: ID de la compañía (se obtiene automáticamente del contexto)
     
     Returns:
-        dict con las pólizas (number, company_name, risk, phones) del cliente
+        dict con las pólizas (number, company_name, risk, phones) del cliente.
+        IMPORTANTE: Si la lista 'policies' está vacía, DEBES llamar a create_task_activity_tool.
     """
     return get_assistance_phones_from_erp(nif=nif, ramo=ramo, company_id=company_id)
 

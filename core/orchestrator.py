@@ -132,6 +132,11 @@ def _run_routing_chain(payload: dict, session: dict, memory: dict,
             new_target = response.get("next_agent")
             new_domain = resolve_domain(response, session)
 
+            # Never silent-passthrough into the receptionist — always send a greeting
+            if new_target in ("receptionist_agent", "aichat_receptionist_agent"):
+                response["message"] = "Dime, ¿en qué más puedo ayudarte?"
+                break
+
             error = validate_route_target(target_agent, new_target, _AGENT_ALLOWLIST)
             if error:
                 response = {"_routing_error": error}

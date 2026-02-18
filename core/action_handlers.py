@@ -114,6 +114,10 @@ def handle_ask(response: dict, session: dict, session_id: str, memory: dict,
     return {"type": "text", "message": agent_message, "agent": target_agent}
 
 
+_RECEPTIONIST_AGENTS = frozenset({"receptionist_agent", "aichat_receptionist_agent"})
+_RECEPTIONIST_GREETING = "Dime, ¿Qué otra consulta tienes?"
+
+
 def handle_route(response: dict, session: dict, session_id: str, memory: dict,
                  target_agent: str, channel: str, session_manager,
                  allowlist: dict, is_aichat: bool = False) -> dict:
@@ -129,6 +133,12 @@ def handle_route(response: dict, session: dict, session_id: str, memory: dict,
         return {"error": error}
 
     agent_message = response.get("message")
+
+    # When routing back to the receptionist, replace the specialist's farewell
+    # with a clean greeting — the specialist already communicated everything.
+    if new_target in _RECEPTIONIST_AGENTS:
+        agent_message = _RECEPTIONIST_GREETING
+
     memory = record_assistant_turn(
         memory, message=agent_message, agent=target_agent,
         domain=new_domain, action="route",

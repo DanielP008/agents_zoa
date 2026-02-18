@@ -1,7 +1,11 @@
 """Telefonos asistencia agent for LangChain 1.x."""
 import logging
 
-from infra.agent_runner import create_langchain_agent, run_langchain_agent
+from infra.agent_runner import (
+    create_langchain_agent, run_langchain_agent,
+    task_tool_already_called, _TASK_DONE_SUFFIX,
+    auto_create_task_if_needed, force_redirect_if_task_done,
+)
 from core.memory import get_global_history
 from infra.llm import get_llm
 from tools.communication.end_chat_tool import end_chat_tool
@@ -13,6 +17,9 @@ from agents.domains.siniestros.telefonos_asistencia_agent_prompts import get_pro
 
 logger = logging.getLogger(__name__)
 
+AGENT_NAME = "telefonos_asistencia_agent"
+
+
 def telefonos_asistencia_agent(payload: dict) -> dict:
    user_text = payload.get("mensaje", "")
    session = payload.get("session", {})
@@ -23,7 +30,6 @@ def telefonos_asistencia_agent(payload: dict) -> dict:
    global_mem = memory.get("global", {})
    nif_value = global_mem.get("nif") or "NO_IDENTIFICADO"
 
-   # Get prompt based on channel and format with variables
    channel = payload.get("channel", "whatsapp")
    system_prompt = get_prompt(channel).format(
        nif_value=nif_value,
@@ -31,10 +37,16 @@ def telefonos_asistencia_agent(payload: dict) -> dict:
        wa_id=wa_id
    )
 
+   task_done = task_tool_already_called(memory, AGENT_NAME)
+   if task_done:
+       system_prompt += _TASK_DONE_SUFFIX
+       logger.info("[TELEFONOS_AGENT] Task already created — restricting tools")
+
    llm = get_llm()
-   tools = [get_assistance_phones, create_task_activity_tool, end_chat_tool, redirect_to_receptionist_tool]
+   tools = [get_assistance_phones, end_chat_tool, redirect_to_receptionist_tool]
+   if not task_done:
+       tools.insert(1, create_task_activity_tool)
    
-   # Add WhatsApp tool for phone calls so the agent can send numbers via message
    if channel in ("call", "wildix_voice"):
        tools.append(send_whatsapp_tool)
    
@@ -44,6 +56,25 @@ def telefonos_asistencia_agent(payload: dict) -> dict:
    output_text = result.get("output", "")
    action = result.get("action", "ask")
    tool_calls = result.get("tool_calls")
+
+   if not task_done:
+       updated_tool_calls = auto_create_task_if_needed(
+           tool_calls, output_text,
+           company_id=company_id, nif_value=nif_value, wa_id=wa_id,
+           title="Solicitud Asistencia - Teléfonos no encontrados",
+           description=f"Cliente solicita asistencia pero no se encontraron teléfonos. NIF: {nif_value}",
+           activity_title="Llamar para dar asistencia",
+           agent_label="TELEFONOS_AGENT",
+       )
+       if updated_tool_calls:
+           result["tool_calls"] = updated_tool_calls
+           tool_calls = updated_tool_calls
+
+   if task_done:
+       forced = force_redirect_if_task_done(output_text, action, tool_calls)
+       if forced:
+           logger.info("[TELEFONOS_AGENT] Task done & LLM didn't redirect — forcing redirect")
+           return forced
 
    logger.info(f"[TELEFONOS_AGENT] Result: action={action}, output={output_text[:100]}...")
 
