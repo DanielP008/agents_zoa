@@ -10,7 +10,7 @@ import json
 import logging
 from langchain.tools import tool
 from services.merlin_client import create_merlin_project, get_vehicle_info_by_matricula, get_town_by_cp
-from services.erp_client import get_policy_by_risk_from_erp
+from services.erp_client import get_policy_by_risk_from_erp, get_policy_siniestralidad_from_erp
 from services.catastro_client import consultar_catastro_por_direccion
 
 logger = logging.getLogger(__name__)
@@ -227,6 +227,7 @@ def create_retarificacion_project_tool(data: str) -> dict:
 
     Campos adicionales para AUTO:
     - matricula: str (matrícula del vehículo)
+    - num_poliza: str (número de póliza actual del cliente - para obtener siniestralidad del ERP)
 
     Campos adicionales para HOGAR (obligatorios):
     - codigo_postal: str
@@ -309,6 +310,27 @@ def create_retarificacion_project_tool(data: str) -> dict:
                         "aseguradora_actual": policy.get("company_name") or policy.get("company_id"),
                         "num_poliza": policy.get("number"),
                     })
+
+    # 1b. Siniestralidad enrichment (AUTO) – uses num_poliza from user or ERP lookup
+    if ramo == "AUTO":
+        num_poliza = payload.get("num_poliza", "")
+        company_id = payload.get("company_id", "")
+        if num_poliza and company_id:
+            logger.info(f"[RETARIFICACION] Enriching siniestralidad from policy {num_poliza}")
+            sin_result = get_policy_siniestralidad_from_erp(num_poliza, company_id)
+            if sin_result.get("success"):
+                sin = sin_result.get("siniestralidad", {})
+                if sin.get("anos_asegurado") is not None:
+                    payload["anos_asegurado"] = int(sin["anos_asegurado"])
+                    logger.info(f"[RETARIFICACION] Siniestralidad -> anos_asegurado: {sin['anos_asegurado']}")
+                if sin.get("anos_compania") is not None:
+                    payload["anos_compania"] = int(sin["anos_compania"])
+                    logger.info(f"[RETARIFICACION] Siniestralidad -> anos_compania: {sin['anos_compania']}")
+                if sin.get("anos_sin_siniestros") is not None:
+                    payload["anos_sin_siniestros"] = int(sin["anos_sin_siniestros"])
+                    logger.info(f"[RETARIFICACION] Siniestralidad -> anos_sin_siniestros: {sin['anos_sin_siniestros']}")
+            else:
+                logger.warning(f"[RETARIFICACION] Siniestralidad lookup failed: {sin_result.get('error')}")
 
     # 2. Enrichment for both (Town/CP)
     if cp:

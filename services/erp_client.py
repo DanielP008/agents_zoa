@@ -216,6 +216,24 @@ class ERPClient(ERPBaseInterface):
             return {"success": False, "error": result.get("error", "Unknown error"), "policy": None}
         return {"success": True, "policy": result}
 
+    def get_policy_siniestralidad(self, num_poliza: str) -> Dict[str, Any]:
+        """Get siniestralidad (claims history) data from a policy for Merlin tarification.
+
+        Calls get_policy_by_num and extracts anos_asegurado, anos_compania,
+        anos_sin_siniestros from the response.
+        """
+        result = self.get_policy_by_num(num_poliza)
+        if not result.get("success"):
+            return result
+
+        policy = result.get("policy", {})
+        logger.info(f"[ERP] Policy keys for siniestralidad extraction: {list(policy.keys())}")
+        logger.info(f"[ERP] Full policy response (siniestralidad): {policy}")
+
+        siniestralidad = _extract_siniestralidad(policy)
+        logger.info(f"[ERP] Extracted siniestralidad: {siniestralidad}")
+        return {"success": True, "siniestralidad": siniestralidad, "policy": policy}
+
     def get_policy_by_risk(self, nif: str, risk: str) -> Dict[str, Any]:
         """Find a policy by risk (e.g. matricula) for AUTOS ramo."""
         result = self.get_client_policies_with_phones(nif, ramo="AUTOS")
@@ -232,6 +250,48 @@ class ERPClient(ERPBaseInterface):
 # =============================================================================
 # Backward-compatible function wrappers
 # =============================================================================
+
+def _extract_siniestralidad(policy: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract siniestralidad fields from a policy response.
+
+    Tries several common field-name conventions used by eBroker/SINCO.
+    Returns a dict with keys: anos_asegurado, anos_compania, anos_sin_siniestros.
+    Values default to None when not found so the caller can decide on defaults.
+    """
+    def _find(obj: Any, candidates: list[str]) -> Any:
+        if not isinstance(obj, dict):
+            return None
+        for key in candidates:
+            if key in obj:
+                return obj[key]
+        for val in obj.values():
+            if isinstance(val, dict):
+                found = _find(val, candidates)
+                if found is not None:
+                    return found
+        return None
+
+    anos_asegurado = _find(policy, [
+        "anos_asegurado", "anos_asegurados", "years_insured",
+        "total_anos_asegurado", "totalAnosAsegurado",
+        "aniosAsegurado", "anios_asegurado",
+    ])
+    anos_compania = _find(policy, [
+        "anos_compania", "anos_compania_anterior", "years_company",
+        "years_previous_company", "anosCompania", "aniosCompania",
+        "anios_compania",
+    ])
+    anos_sin_siniestros = _find(policy, [
+        "anos_sin_siniestros", "years_no_claims", "years_without_claims",
+        "anosSinSiniestros", "aniosSinSiniestros", "anios_sin_siniestros",
+    ])
+
+    return {
+        "anos_asegurado": anos_asegurado,
+        "anos_compania": anos_compania,
+        "anos_sin_siniestros": anos_sin_siniestros,
+    }
+
 
 def get_assistance_phones_from_erp(
     nif: str,
@@ -320,3 +380,12 @@ def get_policy_by_risk_from_erp(
     """Find a policy by risk (e.g. matricula) in the ERP."""
     client = ERPClient(company_id)
     return client.get_policy_by_risk(nif, risk)
+
+def get_policy_siniestralidad_from_erp(
+    num_poliza: str,
+    company_id: str
+) -> Dict[str, Any]:
+    """Fetch siniestralidad data (anos_asegurado, anos_compania, anos_sin_siniestros)
+    from the ERP for a given policy number."""
+    client = ERPClient(company_id)
+    return client.get_policy_siniestralidad(num_poliza)
