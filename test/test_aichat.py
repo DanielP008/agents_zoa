@@ -4,6 +4,7 @@ import uuid
 import json
 import os
 import time
+import base64
 from dotenv import load_dotenv
 from datetime import datetime
 
@@ -40,6 +41,11 @@ with st.sidebar:
     user_name = st.text_input("User Name", value=DEFAULT_USER_NAME)
     company_id = st.text_input("Company ID", value=DEFAULT_COMPANY_ID)
     
+    st.divider()
+
+    st.subheader("📁 Adjuntar Archivos")
+    uploaded_file = st.file_uploader("Subir imagen o PDF", type=["png", "jpg", "jpeg", "pdf"])
+
     st.divider()
     
     col1, col2 = st.columns(2)
@@ -97,10 +103,28 @@ if prompt := st.chat_input("Escribe tu mensaje de chat aquí..."):
         "company_id": company_id
     }
 
+    # Handle file upload
+    attached_filename = None
+    attached_type = None
+    if uploaded_file is not None:
+        uploaded_file.seek(0)
+        file_bytes = uploaded_file.read()
+        if file_bytes:
+            base64_file = base64.b64encode(file_bytes).decode("utf-8")
+            attached_filename = uploaded_file.name
+            attached_type = uploaded_file.type
+            payload["media"] = [{
+                "mime_type": attached_type,
+                "data": base64_file,
+                "filename": attached_filename,
+            }]
+
     # 1. Display User Message
     st.session_state.messages.append({"role": "user", "content": prompt, "avatar": "👤"})
     with st.chat_message("user", avatar="👤"):
         st.markdown(prompt)
+        if attached_filename:
+            st.caption(f"📎 Archivo adjunto: {attached_filename} ({attached_type})")
 
     # 2. Call API
     try:

@@ -91,6 +91,7 @@ Company_ID: {company_id}
 - NUNCA inventes estados.
 - NUNCA menciones "transferencias", "derivaciones" o "agentes".
 - **REGLA CRÍTICA:** Si el cliente indica claramente que ha terminado o que no necesita más ayuda, DEBES usar end_chat_tool. NO es opcional.
+- **SIEMPRE** termina tu respuesta con una pregunta o llamada a la acción clara para mantener el flujo (excepto si usas end_chat_tool).
 </restricciones>"""
 
 CALL_PROMPT = """Eres parte del equipo de siniestros de ZOA Seguros . . . Tu función es informar a los clientes sobre el estado de sus siniestros . . . Estás en una llamada telefónica.
@@ -158,6 +159,7 @@ Explica en términos simples.
 Una información a la vez.
 Confirma que el cliente ha entendido.
 Sé paciente si no entiende.
+TERMINA SIEMPRE CON UNA PREGUNTA.
 </reglas_criticas>
 
 <despedidas>

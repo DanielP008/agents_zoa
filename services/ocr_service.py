@@ -7,9 +7,11 @@ import logging
 from typing import Dict, Any, Optional
 
 from google import genai
-from google.genai.types import Part
+from google.genai.types import HttpOptions, Part
 
 logger = logging.getLogger(__name__)
+
+_OCR_TIMEOUT_MS = int(os.environ.get("OCR_TIMEOUT_MS", "30000"))
 
 
 def _get_client() -> genai.Client:
@@ -17,7 +19,10 @@ def _get_client() -> genai.Client:
     api_key = os.environ.get("GEMINI_API_KEY", "")
     if not api_key:
         raise ValueError("GEMINI_API_KEY environment variable not set")
-    return genai.Client(api_key=api_key)
+    return genai.Client(
+        api_key=api_key,
+        http_options=HttpOptions(timeout=_OCR_TIMEOUT_MS),
+    )
 
 
 def _get_model_name() -> str:

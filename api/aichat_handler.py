@@ -2,12 +2,21 @@
 AiChat message webhook handler.
 Receives messages from AiChat and responds via ZOA AiChat API.
 
-Incoming format:
+Incoming format (text):
 {
     "user_id": "uuid-del-usuario",
     "body_type": "text",
     "body": { "data": "mensaje del usuario" },
     "origin": "ai_chat"
+}
+
+Incoming format (with attachments):
+{
+    "user_id": "uuid-del-usuario",
+    "body_type": "text",
+    "body": { "data": "mensaje del usuario" },
+    "origin": "ai_chat",
+    "media": [{ "mime_type": "image/jpeg", "data": "<base64>", "filename": "doc.jpg" }]
 }
 """
 import json
@@ -30,9 +39,12 @@ def handle_aichat(request):
     # Extract text from body.data
     body = data.get("body", {})
     text = (body.get("data", "") if isinstance(body, dict) else "").strip()
-    
-    if not user_id or not text:
-        logger.warning(f"[AICHAT] Missing user_id or text: user_id={user_id}, text={text}")
+
+    # Extract media attachments (images/documents)
+    media = data.get("media")
+
+    if not user_id or (not text and not media):
+        logger.warning(f"[AICHAT] Missing user_id or content: user_id={user_id}, text={text}, has_media={bool(media)}")
         return _json_response({"status": "ignored", "reason": "missing_data"})
 
     # Handle session reset
@@ -53,7 +65,13 @@ def handle_aichat(request):
             "is_aichat": True,
             "aichat_user_id": user_id,
         }
-        logger.info(f"[AICHAT] Processing with orchestrator payload: {json.dumps(orchestrator_payload, ensure_ascii=False)}")
+
+        if media:
+            orchestrator_payload["media"] = media
+            logger.info(f"[AICHAT] Attachments: {len(media)} file(s)")
+
+        log_payload = {k: v for k, v in orchestrator_payload.items() if k != "media"}
+        logger.info(f"[AICHAT] Processing with orchestrator payload: {json.dumps(log_payload, ensure_ascii=False)}")
         
         response = process_message(orchestrator_payload)
         logger.info(f"[AICHAT] Orchestrator response: {json.dumps(response, ensure_ascii=False)}")

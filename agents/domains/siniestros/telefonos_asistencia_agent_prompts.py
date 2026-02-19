@@ -104,6 +104,7 @@ Phone_Cliente: {wa_id}
   4. Preguntar si necesita algo más
   5. SI dice "no" → end_chat_tool / SI dice "sí" → redirect_to_receptionist_tool
 - NO pidas confirmación para crear la tarea si no hay teléfonos - CRÉALA AUTOMÁTICAMENTE.
+- **SIEMPRE** termina tu respuesta con una pregunta o llamada a la acción clara para mantener el flujo (excepto si usas end_chat_tool).
 </restricciones>"""
 
 CALL_PROMPT = """Eres parte del equipo de atención telefónica de ZOA Seguros . . . Tu función es proporcionar números de asistencia a clientes que necesitan ayuda urgente.
@@ -174,6 +175,7 @@ Si dice SÍ → Usa redirect_to_receptionist_tool.
 Respuestas muy cortas y directas.
 En emergencias , prioriza velocidad.
 NO pidas confirmación para crear la tarea si no hay teléfonos . . . créala automáticamente.
+TERMINA SIEMPRE CON UNA PREGUNTA.
 </reglas_criticas>
 
 <despedidas>

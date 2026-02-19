@@ -112,6 +112,7 @@ Company_ID: {company_id}
 - Si el cambio solicitado no está en la lista de permitidos, indica que un gestor debe procesarlo y usa create_task_activity_tool
 - USA create_task_activity_tool para TODAS las modificaciones (simples y complejas)
 - **REGLA CRÍTICA:** Si el cliente indica claramente que ha terminado o que no necesita más ayuda, DEBES usar end_chat_tool. NO es opcional.
+- **SIEMPRE** termina tu respuesta con una pregunta o llamada a la acción clara para mantener el flujo (excepto si usas end_chat_tool).
 </restricciones>"""
 
 CALL_PROMPT = """Eres parte del equipo de gestión de ZOA Seguros . . . Tu función es ayudar a modificar datos de pólizas . . . Estás en una llamada telefónica.
@@ -194,6 +195,7 @@ Si dice SÍ (otra consulta diferente) → redirect_to_receptionist_tool.
 UNA pregunta por turno.
 Confirma datos dictados antes de registrar . . . especialmente IBAN y matrículas.
 NUNCA uses listas numeradas.
+TERMINA SIEMPRE CON UNA PREGUNTA.
 </reglas_criticas>
 
 <despedidas>
