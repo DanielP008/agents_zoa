@@ -356,3 +356,26 @@ class RenewalsInterface(ERPBaseInterface):
         if frequency:
             data["frequency"] = frequency
         return self.execute("renovaciones_recibos", data)
+
+class MerlinInterface(ERPBaseInterface):
+    """Interface for Merlin/Retarificacion operations."""
+    
+    def consulta_vehiculo(self, matricula: str) -> Tuple[Dict[str, Any], int]:
+        """Consulta DGT por matrícula. option='merlin_consulta_vehiculo'"""
+        if not matricula:
+            return {"error": "El campo 'matricula' es obligatorio."}, 400
+        return self.execute("merlin_consulta_vehiculo", {"matricula": matricula})
+
+    def get_town_by_cp(self, cp: str) -> Tuple[Dict[str, Any], int]:
+        """Obtiene población por CP. option='merlin_get_town_by_cp'"""
+        if not cp:
+            return {"error": "El campo 'cp' es obligatorio."}, 400
+        return self.execute("merlin_get_town_by_cp", {"cp": cp})
+
+    def consultar_catastro(self, data: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
+        """Consulta Catastro y calcula capitales. option='merlin_consultar_catastro'"""
+        return self.execute("merlin_consultar_catastro", data)
+
+    def create_project(self, data: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
+        """Crea proyecto en Merlin. option='merlin_create_project'"""
+        return self.execute("merlin_create_project", data)

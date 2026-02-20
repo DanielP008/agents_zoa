@@ -187,9 +187,10 @@ PRESENTACIÓN DE DATOS AUTO (tras consulta_vehiculo_tool):
 
 4. create_retarificacion_project_tool(data): Crea el proyecto en Merlin.
     - Input: JSON string con todos los datos recopilados del cliente.
+    - **CRÍTICO:** SIEMPRE incluye el campo `"ramo": "AUTO"` o `"ramo": "HOGAR"` en el JSON. Sin este campo, la herramienta no sabrá qué tipo de seguro crear.
     - **Para AUTO:** Incluye `num_poliza` si el cliente lo proporcionó. La herramienta consultará automáticamente la siniestralidad (años asegurado, años en la compañía, años sin siniestros) del ERP.
    - Output: Dict con el resultado. Si la tarificación es exitosa, incluye el objeto "proyecto" con las ofertas de las aseguradoras.
-    - Para HOGAR: Asegúrate de incluir TODOS estos campos en el JSON:
+    - Para HOGAR: Asegúrate de incluir TODOS estos campos en el JSON (incluyendo `"ramo": "HOGAR"`):
       - "nombre", "apellido1", "apellido2" (extraídos del nombre completo)
       - "fecha_nacimiento" (en formato YYYY-MM-DD)
       - "sexo": (valor asociado: MASCULINO, FEMENINO o SE_DESCONOCE)

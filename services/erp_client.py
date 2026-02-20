@@ -246,6 +246,36 @@ class ERPClient(ERPBaseInterface):
                 return self.get_policy_by_num(p.get("number"))
         return {"success": False, "error": f"No se encontró ninguna póliza activa para el riesgo {risk}", "policy": None}
 
+    # --- Merlin / Retarificacion Methods ---
+    
+    def merlin_consulta_vehiculo(self, matricula: str) -> Dict[str, Any]:
+        """Consulta DGT por matrícula."""
+        from services.interfaces.erp_interfaces import MerlinInterface
+        interface = MerlinInterface(self.company_id)
+        result, status = interface.consulta_vehiculo(matricula)
+        return result
+
+    def merlin_get_town_by_cp(self, cp: str) -> Dict[str, Any]:
+        """Obtiene población por CP."""
+        from services.interfaces.erp_interfaces import MerlinInterface
+        interface = MerlinInterface(self.company_id)
+        result, status = interface.get_town_by_cp(cp)
+        return result
+
+    def merlin_consultar_catastro(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Consulta Catastro y calcula capitales."""
+        from services.interfaces.erp_interfaces import MerlinInterface
+        interface = MerlinInterface(self.company_id)
+        result, status = interface.consultar_catastro(data)
+        return result
+
+    def merlin_create_project(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Crea proyecto en Merlin."""
+        from services.interfaces.erp_interfaces import MerlinInterface
+        interface = MerlinInterface(self.company_id)
+        result, status = interface.create_project(data)
+        return result
+
 
 # =============================================================================
 # Backward-compatible function wrappers
