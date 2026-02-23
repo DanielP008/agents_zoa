@@ -17,7 +17,7 @@ from services.erp_client import ERPClient
 logger = logging.getLogger(__name__)
 
 _REQUIRED_FIELDS_AUTO = ["dni", "matricula", "fecha_efecto"]
-_REQUIRED_FIELDS_HOGAR = ["dni", "codigo_postal", "fecha_efecto", "nombre_via", "numero_calle"]
+_REQUIRED_FIELDS_HOGAR = ["dni", "codigo_postal", "fecha_efecto", "nombre_via", "numero_calle", "tipo_vivienda"]
 
 
 # ============================================================================
@@ -238,6 +238,17 @@ def create_retarificacion_project_tool(data: str, company_id: str) -> dict:
     except json.JSONDecodeError as e:
         logger.error(f"[RETARIFICACION] JSON parse error: {e}")
         return {"success": False, "error": f"Formato JSON inválido: {e}"}
+
+    if "nif" in payload and "dni" not in payload:
+        payload["dni"] = payload.pop("nif")
+
+    _MATERIALES_NORMALIZE = {
+        "SOLIDA": "SOLIDA_PIEDRAS_LADRILLOS_ETC",
+        "SOLIDA_PIEDRAS": "SOLIDA_PIEDRAS_LADRILLOS_ETC",
+    }
+    mat = str(payload.get("materiales_construccion", "")).upper()
+    if mat in _MATERIALES_NORMALIZE:
+        payload["materiales_construccion"] = _MATERIALES_NORMALIZE[mat]
 
     ramo = str(payload.get("ramo", "")).upper()
     
