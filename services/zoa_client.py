@@ -1,5 +1,6 @@
 """ZOA client with backward-compatible function wrappers."""
 
+import threading
 import re
 import logging
 from datetime import datetime, timedelta
@@ -54,12 +55,12 @@ def download_media(wamid: str, company_id: str) -> Dict[str, Any]:
     )
     return result
 
-def send_whatsapp_response(
+def send_whatsapp_response_sync(
     text: str,
     company_id: str,
     wa_id: str = None,
 ) -> dict:
-    """Send a WhatsApp message through ZOA."""
+    """Send a WhatsApp message through ZOA (Synchronous)."""
     conversation_id = f"{company_id}_{wa_id}"
     
     interface = ConversationsInterface()
@@ -73,6 +74,28 @@ def send_whatsapp_response(
         }
     )
     return result
+
+def send_whatsapp_response(
+    text: str,
+    company_id: str,
+    wa_id: str = None,
+) -> dict:
+    """
+    Send a WhatsApp message through ZOA in a background thread (fire-and-forget).
+    
+    This prevents the agent from blocking while waiting for the message to be sent.
+    """
+    def _task():
+        try:
+            send_whatsapp_response_sync(text, company_id, wa_id)
+        except Exception as e:
+            logger.error(f"[ZOA_CLIENT] Failed to send async WhatsApp message: {e}")
+
+    thread = threading.Thread(target=_task, daemon=True)
+    thread.start()
+    
+    # Return a dummy success response immediately
+    return {"success": True, "message": "Message queued in background"}
 
 def send_aichat_response(
     text: str,
