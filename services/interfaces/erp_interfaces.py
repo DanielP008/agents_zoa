@@ -150,7 +150,8 @@ class ERPBaseInterface:
             "ERP_ENDPOINT_URL",
             "https://ebroker-api-673887944015.europe-southwest1.run.app"
         )
-        self.timeout = int(os.environ.get("ERP_TIMEOUT", "30"))
+        # Increased default timeout to 120s to allow long-running operations like Merlin retarification
+        self.timeout = int(os.environ.get("ERP_TIMEOUT", "120"))
 
     def _make_request(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Make a POST request to the ERP cloud function."""

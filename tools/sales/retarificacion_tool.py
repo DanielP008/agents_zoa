@@ -102,8 +102,17 @@ def get_town_by_cp_tool(cp: str, company_id: str) -> dict:
     
     if result.get("success"):
         logger.info(f"[GET_TOWN_BY_CP] Found: {result.get('poblacion')} ({result.get('descripcion_provincia')})")
-    else:
-        logger.error(f"[GET_TOWN_BY_CP] Failed: {result.get('error')}")
+        return result
+    
+    # Fallback to local DB if ERP fails
+    logger.warning(f"[GET_TOWN_BY_CP] ERP failed: {result.get('error')}. Trying local fallback.")
+    from services.local_cp_db import get_local_town_by_cp
+    local_result = get_local_town_by_cp(cp)
+    
+    if local_result:
+        return local_result
+        
+    logger.error(f"[GET_TOWN_BY_CP] Failed in ERP and Local DB")
     return result
 
 

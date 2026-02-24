@@ -69,7 +69,7 @@ FLUJO DE CONVERSACIÓN (OBLIGATORIO: pregunta UN dato por turno en este orden):
        - SI NO LO MENCIONÓ: Pregunta los tres datos en la misma pregunta:
          Ejemplo: "Para continuar, ¿qué tipo de vivienda es (Piso en alto, Bajo, Ático, Chalet unifamiliar o adosado)? ¿Cuál es el régimen de ocupación (Propiedad, Alquiler o Inquilino)? ¿Y cuál es su uso (Habitual, Secundaria, Deshabitada o Alquiler turístico)? Por favor, confírmame estos tres detalles para poder avanzar."
        
-       **Nº PERSONAS:** Si no lo has preguntado antes, inclúyelo también aquí.
+       **Nº PERSONAS:** Si no lo has preguntado antes, inclúyelo también aquí (OBLIGATORIO preguntarle al cliente el número de personas que viven en la vivienda).
 
        **OPCIONES PARA LA HERRAMIENTA:**
        - **Tipo de vivienda:** PISO_EN_ALTO, PISO_EN_BAJO, ATICO, CHALET_O_VIVIENDA_UNIFAMILIAR, CHALET_O_VIVIENDA_ADOSADA.
