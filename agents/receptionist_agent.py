@@ -113,7 +113,12 @@ def receptionist_agent(payload: dict) -> dict:
 
     greeting_instruction = ""
     if is_first_interaction:
-        greeting_instruction = "Esta es la PRIMERA interacción. Preséntate brevemente como Sofía de ZOA Seguros y pregunta en qué puedes ayudar."
+        greeting_instruction = (
+            "Esta es la PRIMERA interacción. "
+            "SI el usuario solo dice 'hola' o similar, preséntate brevemente como Sofía de ZOA Seguros y pregunta en qué puedes ayudar. "
+            "PERO SI el usuario ya dice lo que quiere (ej: 'quiero renovar', 'tuve un accidente'), NO saludes ni preguntes '¿en qué ayudo?'. "
+            "Ve DIRECTAMENTE a pedir el NIF si falta o a clasificar si ya tienes todo."
+        )
     else:
         greeting_instruction = "Esta NO es la primera interacción. NO te vuelvas a presentar. Ve directo al grano."
 

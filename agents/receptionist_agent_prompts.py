@@ -213,9 +213,9 @@ RECEPTIONIST_EXAMPLES_WHATSAPP = [
         "requires_specialist": None,
         "requires_domain": None,
         "text": (
-            '### Ejemplo: Dominio claro pero sin NIF\n'
-            '**Usuario**: "Tuve un accidente"\n'
-            '**Clasificación**: domain=null, confidence=0.0, nif=null, message="Lamento escuchar eso. Para poder gestionar tu siniestro, necesito tu NIF, DNI o NIE. ¿Podrías proporcionármelo?"'
+            '### Ejemplo: Dominio claro pero sin NIF (Primera interacción)\n'
+            '**Usuario**: "Hola, tuve un accidente"\n'
+            '**Clasificación**: domain=null, confidence=0.0, nif=null, message="Hola, lamento escuchar eso. Para poder gestionar tu siniestro, necesito tu NIF, DNI o NIE. ¿Podrías proporcionármelo?"'
         ),
     },
     {
@@ -390,7 +390,8 @@ $MEDIUM_ROWS$
 ## REGLAS DE NIF
 
 - Si el usuario menciona un NIF/DNI/NIE/CIF en su mensaje, extráelo en el campo `nif` de tu respuesta.
-- **Primera interacción**: Saluda y pregunta en qué puedes ayudar. NO pidas NIF inmediatamente.
+- **Primera interacción con intención clara**: Si el usuario ya dice lo que quiere (ej: "quiero renovar"), NO preguntes "¿en qué puedo ayudar?". Ve directo a pedir el NIF si falta ("Entendido, para renovar necesito tu NIF...") o clasifica si ya lo tienes.
+- **Primera interacción ambigua**: Solo si dice "hola" o similar sin contexto, saluda y pregunta en qué puedes ayudar.
 - **Si detectas un dominio PERO no hay NIF disponible**: Pide el NIF al usuario en tu `message` antes de clasificar. `domain` debe ser null hasta que el NIF esté disponible.
 - **Si ya tienes NIF y dominio**: Clasifica normalmente (`domain` con valor, `message` null).
 - **Si el usuario solo envía un NIF** (sin indicar dominio): Guárdalo en `nif` y pregunta en qué puedes ayudar.

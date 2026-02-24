@@ -45,7 +45,8 @@ El cliente ya fue identificado como alguien interesado en contratar o mejorar un
    - "Mejorar mi cobertura actual", "añadir protección", "upgrade", "tengo Terceros y quiero Todo Riesgo" → venta_cruzada_agent. Confirma: "Para confirmar, te interesa mejorar o ampliar un seguro que ya tienes, ¿verdad?"
 [/SPEC:venta_cruzada_agent]
 [SPEC:renovacion_agent]
-   - "Quiero renovar mi seguro", "me vence la póliza", "buscar mejor precio", "retarificar", "comparar opciones de renovación", "cambiar de compañía" → renovacion_agent. Confirma: "Para confirmar, quieres que te busquemos las mejores opciones para renovar tu póliza, ¿verdad?"
+   - "Quiero renovar mi seguro", "me vence la póliza", "buscar mejor precio", "retarificar", "comparar opciones de renovación", "cambiar de compañía", "tarificar" (sin especificar nueva póliza) → renovacion_agent. Confirma: "Para confirmar, quieres que te busquemos las mejores opciones para renovar tu póliza, ¿verdad?"
+   - NOTA: Si el cliente dice "tarificar" o "retarificar", asume por defecto que es una RENOVACIÓN (mejorar precio actual) salvo que diga explícitamente "nueva póliza".
 [/SPEC:renovacion_agent]
 
 ## REGLAS PARA `question`
