@@ -19,7 +19,7 @@ def get_llm(model_name: str = None):
             mistral_api_key=api_key,
             temperature=0.1,
             max_retries=2,
-            timeout=30.0,
+            timeout=300.0,
         )
 
     # Default to Gemini
@@ -31,7 +31,7 @@ def get_llm(model_name: str = None):
         google_api_key=api_key,
         temperature=0.1,
         max_retries=2,
-        timeout=30.0,
+        timeout=300.0,
     )
 
 
