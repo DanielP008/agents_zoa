@@ -137,7 +137,10 @@ def handle_route(response: dict, session: dict, session_id: str, memory: dict,
     # When routing back to the receptionist, replace the specialist's farewell
     # with a clean greeting — the specialist already communicated everything.
     if new_target in _RECEPTIONIST_AGENTS:
-        agent_message = _RECEPTIONIST_GREETING
+        if agent_message and agent_message.strip():
+            agent_message = agent_message
+        else:
+            agent_message = _RECEPTIONIST_GREETING
 
     memory = record_assistant_turn(
         memory, message=agent_message, agent=target_agent,

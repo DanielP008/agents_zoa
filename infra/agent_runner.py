@@ -2,6 +2,7 @@
 
 import contextvars
 import logging
+import re
 from typing import Any, Dict, List, Optional
 
 from langchain.agents import create_agent, AgentState
@@ -324,6 +325,9 @@ def run_langchain_agent(
                     elif tool_name == "redirect_to_receptionist_tool":
                         redirect_tool_message_text = _extract_text_from_content(msg.content)
                         continue
+                    elif tool_name == "create_task_activity_tool":
+                        # Skip adding the tool result to the final output text if it's a task creation
+                        continue
 
                 if hasattr(msg, 'content'):
                     msg_text = _extract_text_from_content(msg.content)
@@ -346,47 +350,52 @@ def run_langchain_agent(
                     output = f"{output}\n\n{redirect_tool_message_text}".strip()
                     logger.info("[AGENT_RUNNER] Appended redirect flag to output")
 
-        if tool_calls_executed:
-            logger.info(f"[AGENT_RUNNER] Tool calls executed: {[tc['name'] for tc in tool_calls_executed]}")
-
-        # Fallback pattern detection
-        if isinstance(output, str) and "Fue un placer ayudarte" in output and "excelente día" in output:
-            logger.info("[AGENT_RUNNER] Detected end_chat by message pattern")
-            action = "end_chat"
-
-        if action == "end_chat":
-            logger.info("[AGENT_RUNNER] end_chat detected!")
+        # Clean output from internal tool execution markers like [HERRAMIENTAS EJECUTADAS: ...]
+        if isinstance(output, str):
+            output = re.sub(r'\[HERRAMIENTAS EJECUTADAS:.*?\]', '', output).strip()
 
         # --- Empty response guard: retry once, then fallback ---
         if not output or not output.strip():
-            if not tool_calls_executed:
-                logger.warning(
-                    f"[AGENT_RUNNER] Empty response from {agent_name}, retrying once..."
-                )
-                try:
-                    with Timer("agent", f"{agent_name}_retry", model=model_name_str):
-                        retry_result = agent.invoke({"messages": messages}, **invoke_kwargs)
-                    retry_output = ""
-                    if isinstance(retry_result, dict):
-                        retry_msgs = retry_result.get("messages", [])
-                        if retry_msgs:
-                            last_msg = retry_msgs[-1]
-                            if hasattr(last_msg, 'content'):
-                                retry_output = _extract_text_from_content(last_msg.content)
-                            elif isinstance(last_msg, dict):
-                                retry_output = _extract_text_from_content(last_msg.get("content", ""))
-                    elif hasattr(retry_result, 'content'):
-                        retry_output = _extract_text_from_content(retry_result.content)
+            logger.warning(
+                f"[AGENT_RUNNER] Empty response from {agent_name}, retrying once..."
+            )
+            try:
+                with Timer("agent", f"{agent_name}_retry", model=model_name_str):
+                    retry_result = agent.invoke({"messages": messages}, **invoke_kwargs)
+                
+                retry_output = ""
+                retry_action = "ask"
+                retry_tool_calls = []
 
-                    if retry_output and retry_output.strip():
-                        logger.info(f"[AGENT_RUNNER] Retry succeeded for {agent_name}")
-                        output = retry_output
-                    else:
-                        logger.warning(f"[AGENT_RUNNER] Retry also empty for {agent_name}, using fallback")
-                        output = _EMPTY_RESPONSE_FALLBACK
-                except Exception as retry_err:
-                    logger.error(f"[AGENT_RUNNER] Retry failed for {agent_name}: {retry_err}")
+                if isinstance(retry_result, dict):
+                    retry_msgs = retry_result.get("messages", [])
+                    if retry_msgs:
+                        last_msg = retry_msgs[-1]
+                        retry_output = _extract_text_from_content(last_msg.content if hasattr(last_msg, 'content') else last_msg.get("content", ""))
+                        
+                        # Re-detect action and tool calls for retry
+                        for msg in retry_msgs:
+                            if hasattr(msg, 'tool_calls'):
+                                for tc in (msg.tool_calls or []):
+                                    retry_tool_calls.append({"name": tc.get("name"), "args": tc.get("args", {})})
+                                    if tc.get("name") == "end_chat_tool": retry_action = "end_chat"
+                elif hasattr(retry_result, 'content'):
+                    retry_output = _extract_text_from_content(retry_result.content)
+
+                if retry_output and retry_output.strip():
+                    logger.info(f"[AGENT_RUNNER] Retry succeeded for {agent_name}")
+                    output = retry_output
+                    action = retry_action
+                    if retry_tool_calls: tool_calls_executed = retry_tool_calls
+                else:
+                    logger.warning(f"[AGENT_RUNNER] Retry also empty for {agent_name}, using fallback")
                     output = _EMPTY_RESPONSE_FALLBACK
+            except Exception as retry_err:
+                logger.error(f"[AGENT_RUNNER] Retry failed for {agent_name}: {retry_err}")
+                output = _EMPTY_RESPONSE_FALLBACK
+
+        if tool_calls_executed:
+            logger.info(f"[AGENT_RUNNER] Tool calls executed: {[tc['name'] for tc in tool_calls_executed]}")
 
         return {
             "output": output,

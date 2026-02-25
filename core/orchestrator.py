@@ -128,7 +128,7 @@ def _run_routing_chain(payload: dict, session: dict, memory: dict,
             break
 
         # Silent passthrough: route with no user-facing message
-        if action == "route" and not agent_message:
+        if action == "route":
             new_target = response.get("next_agent")
             new_domain = resolve_domain(response, session)
 
@@ -136,6 +136,23 @@ def _run_routing_chain(payload: dict, session: dict, memory: dict,
             if error:
                 response = {"_routing_error": error}
                 break
+
+            # If there is a message, send it and record it
+            if agent_message:
+                # 1. Send to WhatsApp
+                if payload.get("phone_number_id") and payload.get("channel") == "whatsapp":
+                     _send_whatsapp_async(agent_message, payload["phone_number_id"], payload.get("wa_id"))
+                
+                # 2. Record in memory
+                memory = append_turn(
+                    memory,
+                    role="assistant",
+                    text=agent_message,
+                    agent=target_agent,
+                    domain=new_domain,
+                    action="route",
+                    tool_calls=response.get("tool_calls")
+                )
 
             session["target_agent"] = new_target
             session["domain"] = new_domain
@@ -145,7 +162,7 @@ def _run_routing_chain(payload: dict, session: dict, memory: dict,
             memory = update_global(
                 memory,
                 last_agent=target_agent,
-                last_action="passthrough",
+                last_action="route" if agent_message else "passthrough",
                 last_domain=new_domain,
             )
             session["agent_memory"] = memory
