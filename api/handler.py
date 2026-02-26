@@ -44,6 +44,10 @@ def handle_request(request):
     if data.get("action") == "set_status":
         return handle_status_toggle(data)
     
+    # Health check endpoint
+    if request.path == "/health":
+        return _json_response({"status": "ok", "message": "Service is healthy"})
+    
     # Wildix webhook detection
     if "sessionId" in data and "botId" in data and "event" in data:
         event = data.get("event", {})
