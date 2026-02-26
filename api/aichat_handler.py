@@ -82,13 +82,35 @@ def handle_aichat(request):
 
     # Handle session reset - delete everything and start fresh
     if text.upper() == "BORRAR TODO":
-        deleted = session_manager.delete_session(user_id, company_id)
-        logger.info(f"[AICHAT] Session reset: user={user_id}, deleted={deleted}")
+        # Soft reset: Overwrite session with empty memory but set flag to skip NIF lookup
+        session_id = f"{company_id}_{user_id}"
+        reset_memory = {
+            "global": {
+                "nif_lookup_done": True,  # Prevent auto-lookup from CRM
+                "nif": None               # Clear NIF
+            }
+        }
+        
+        new_session_state = {
+            "domain": None,
+            "target_agent": "aichat_receptionist_agent",
+            "agent_memory": reset_memory,
+            "history": []
+        }
+        
+        session_manager.save_session(session_id, new_session_state)
+        logger.info(f"[AICHAT] Session reset (soft): user={user_id}, nif_lookup_blocked=True")
         
         reset_msg = (
-            "Sesión reiniciada.")
+            "Sesión reiniciada. He borrado todos los datos anteriores "
+            "(incluyendo NIF, documentos y conversación).\n\n"
+            "Puedo ayudarte con:\n\n"
+            "• Teléfonos de asistencia para tu cliente\n\n"
+            "• Retarificación y renovación de pólizas\n\n"
+            "¿Con cuál de estas opciones necesitas ayuda?"
+        )
         send_aichat_response(reset_msg, company_id, user_id)
-        return _json_response({"status": "ok", "action": "session_reset", "session_deleted": deleted})
+        return _json_response({"status": "ok", "action": "session_reset", "session_deleted": True})
     
     # Try to acquire session lock (use user_id as wa_id for session key)
     if not session_manager.try_lock_session(user_id, company_id):
