@@ -21,6 +21,8 @@ Incoming format (with attachments):
 """
 import json
 import logging
+import base64
+import requests
 from core.orchestrator import process_message
 from infra.db import SessionManager
 from services.zoa_client import send_aichat_response
@@ -28,20 +30,51 @@ from services.zoa_client import send_aichat_response
 logger = logging.getLogger(__name__)
 session_manager = SessionManager()
 
+def _download_and_encode_media(url):
+    """Download file from URL and encode to base64 for OCR."""
+    try:
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            content_type = response.headers.get('Content-Type', 'application/octet-stream')
+            encoded_data = base64.b64encode(response.content).decode('utf-8')
+            filename = url.split('/')[-1]
+            return {
+                "mime_type": content_type,
+                "data": encoded_data,
+                "filename": filename
+            }
+        logger.error(f"[AICHAT] Failed to download media: {response.status_code}")
+    except Exception as e:
+        logger.error(f"[AICHAT] Error downloading media: {e}")
+    return None
+
 def handle_aichat(request):
     """Handle incoming AiChat webhook."""
     data = request.get_json(silent=True) or {}
     logger.info(f"[AICHAT] Received webhook payload: {json.dumps(data, ensure_ascii=False)}")
     
     user_id = data.get("user_id")
-    company_id = data.get("company_id") or request.args.get("company_id") or "default"
+    company_id = data.get("company_id") or data.get("office_id") or request.args.get("company_id") or "default"
+    
+    # Ensure user_id is treated as string for consistency
+    if user_id:
+        user_id = str(user_id)
     
     # Extract text from body.data
     body = data.get("body", {})
     text = (body.get("data", "") if isinstance(body, dict) else "").strip()
 
     # Extract media attachments (images/documents)
-    media = data.get("media")
+    media = data.get("media") or []
+    
+    # Check if text is actually a Google Storage URL (ZOA sends attachments as links in text)
+    if text.startswith("https://storage.googleapis.com/") and not media:
+        logger.info(f"[AICHAT] Detected URL in text, attempting to download: {text}")
+        media_obj = _download_and_encode_media(text)
+        if media_obj:
+            media = [media_obj]
+            text = "" # Clear text so agent treats it as just an attachment
+            logger.info("[AICHAT] Successfully converted URL to media attachment")
 
     if not user_id or (not text and not media):
         logger.warning(f"[AICHAT] Missing user_id or content: user_id={user_id}, text={text}, has_media={bool(media)}")
