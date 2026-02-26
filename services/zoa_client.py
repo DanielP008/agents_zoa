@@ -243,6 +243,16 @@ def create_task_activity(
         else:
             card_type = "task"
 
+    # CRITICAL: If we are in AiChat, 'phone' is a UUID. 
+    # ZOA 'cardact' endpoint needs a real phone or a NIF to link a contact.
+    # If phone looks like a UUID (contains hyphens), we move it to aichat_user_id 
+    # and clear 'phone' to avoid ZOA validation errors, relying on 'nif' for linking.
+    aichat_user_id = None
+    if phone and isinstance(phone, str) and "-" in phone:
+        logger.info(f"[ZOA_CLIENT] UUID detected in phone field: {phone}. Moving to aichat_user_id.")
+        aichat_user_id = phone
+        phone = None
+
     # Determine pipeline_name based on card_type if not explicitly provided
     if not pipeline_name:
         card_type_lower = card_type.lower()
@@ -284,7 +294,8 @@ def create_task_activity(
         "email": email,
         "nif": nif,
         "mobile": mobile,
-        "pipeline_name": pipeline_name
+        "pipeline_name": pipeline_name,
+        "aichat_user_id": aichat_user_id
         #"stage_name": stage_name, # switch to Nuevo
     }
     

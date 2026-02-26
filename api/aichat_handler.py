@@ -131,6 +131,10 @@ def handle_aichat(request):
         
         response = process_message(orchestrator_payload)
         logger.info(f"[AICHAT] Orchestrator response: {json.dumps(response, ensure_ascii=False)}")
+        
+        # If the orchestrator updated the memory (e.g. found a NIF), we might want to use it
+        # for future tool calls, but process_message already handles the internal state.
+        
         agent_message = response.get("message", "")
         
         if agent_message:
