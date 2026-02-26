@@ -80,11 +80,15 @@ def handle_aichat(request):
         logger.warning(f"[AICHAT] Missing user_id or content: user_id={user_id}, text={text}, has_media={bool(media)}")
         return _json_response({"status": "ignored", "reason": "missing_data"})
 
-    # Handle session reset
+    # Handle session reset - delete everything and start fresh
     if text.upper() == "BORRAR TODO":
-        from core.action_handlers import _handle_session_reset
-        reset_result = _handle_session_reset(user_id, company_id, is_aichat=True)
-        return _json_response(reset_result)
+        deleted = session_manager.delete_session(user_id, company_id)
+        logger.info(f"[AICHAT] Session reset: user={user_id}, deleted={deleted}")
+        
+        reset_msg = (
+            "Sesión reiniciada.")
+        send_aichat_response(reset_msg, company_id, user_id)
+        return _json_response({"status": "ok", "action": "session_reset", "session_deleted": deleted})
     
     # Try to acquire session lock (use user_id as wa_id for session key)
     if not session_manager.try_lock_session(user_id, company_id):
