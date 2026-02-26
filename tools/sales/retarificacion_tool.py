@@ -283,8 +283,10 @@ def create_retarificacion_project_tool(data: str, company_id: str) -> dict:
     logger.info(f"[RETARIFICACION] Delegating {ramo} project to ERP for DNI: {payload.get('dni')}")
     logger.info(f"[RETARIFICACION] Payload keys: {sorted(payload.keys())}")
     logger.info(f"[RETARIFICACION] Key values: ramo={ramo}, tipo_vivienda={payload.get('tipo_vivienda')}, cp={payload.get('codigo_postal')}, fecha_efecto={payload.get('fecha_efecto')}")
-    logger.info(f"[RETARIFICACION] Address: via={payload.get('nombre_via')}, num={payload.get('numero_calle')}, piso={payload.get('piso')}, puerta={payload.get('puerta')}")
-    logger.info(f"[RETARIFICACION] Capitals: continente={payload.get('capital_continente')} (type={type(payload.get('capital_continente')).__name__}), contenido={payload.get('capital_contenido')} (type={type(payload.get('capital_contenido')).__name__})")
+    
+    if ramo == "HOGAR":
+        logger.info(f"[RETARIFICACION] Address: via={payload.get('nombre_via')}, num={payload.get('numero_calle')}, piso={payload.get('piso')}, puerta={payload.get('puerta')}")
+        logger.info(f"[RETARIFICACION] Capitals: continente={payload.get('capital_continente')} (type={type(payload.get('capital_continente')).__name__}), contenido={payload.get('capital_contenido')} (type={type(payload.get('capital_contenido')).__name__})")
     
     client = ERPClient(company_id)
     result = client.merlin_create_project(payload)
