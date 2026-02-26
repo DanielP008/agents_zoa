@@ -82,7 +82,9 @@ def handle_aichat(request):
 
     # Handle session reset
     if text.upper() == "BORRAR TODO":
-        return _handle_session_reset(user_id, company_id)
+        from core.action_handlers import _handle_session_reset
+        reset_result = _handle_session_reset(user_id, company_id, is_aichat=True)
+        return _json_response(reset_result)
     
     # Try to acquire session lock (use user_id as wa_id for session key)
     if not session_manager.try_lock_session(user_id, company_id):
@@ -121,17 +123,6 @@ def handle_aichat(request):
         })
     finally:
         session_manager.unlock_session(user_id, company_id)
-
-def _handle_session_reset(wa_id: str, company_id: str):
-    """Reset user session."""
-    deleted = session_manager.delete_session(wa_id, company_id)
-    status = "deleted" if deleted else "not_found"
-    
-    return _json_response({
-        "status": "ok",
-        "action": "session_reset",
-        "result": status
-    })
 
 def _json_response(data: dict, status_code: int = 200):
     """Return JSON response tuple."""
