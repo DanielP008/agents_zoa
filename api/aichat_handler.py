@@ -102,12 +102,7 @@ def handle_aichat(request):
         logger.info(f"[AICHAT] Session reset (soft): user={user_id}, nif_lookup_blocked=True")
         
         reset_msg = (
-            "Sesión reiniciada. He borrado todos los datos anteriores "
-            "(incluyendo NIF, documentos y conversación).\n\n"
-            "Puedo ayudarte con:\n\n"
-            "• Teléfonos de asistencia para tu cliente\n\n"
-            "• Retarificación y renovación de pólizas\n\n"
-            "¿Con cuál de estas opciones necesitas ayuda?"
+            "Sesión reiniciada."
         )
         send_aichat_response(reset_msg, company_id, user_id)
         return _json_response({"status": "ok", "action": "session_reset", "session_deleted": True})
