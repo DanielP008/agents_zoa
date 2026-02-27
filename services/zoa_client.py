@@ -244,9 +244,9 @@ def create_task_activity(
             else:
                 pipeline_name = "Cotizaciones"
         elif card_type_lower == "task":
-            pipeline_name = "Principal"
+            pipeline_name = "Cotizaciones"
         else:
-            pipeline_name = "Principal"
+            pipeline_name = "Cotizaciones"
 
     # Build request data with required fields and defaults
     request_data = {
@@ -287,7 +287,7 @@ def create_task_activity(
         "email": email,
         "nif": nif,
         "mobile": mobile,
-        "name": request_json.get("name"), # Add name for fallback lookup
+        "name": name, # Add name for fallback lookup
         "pipeline_name": pipeline_name,
     }
     

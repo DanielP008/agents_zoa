@@ -33,7 +33,7 @@ Company_ID: {company_id}
      - title: "Consulta Póliza - Usuario No Identificado"
      - description: "Usuario sin NIF intenta consultar póliza. Mensaje: [mensaje del usuario]"
      - card_type: "task"
-     - pipeline_name: "Principal"
+     - pipeline_name: "Cotizaciones"
      - stage_name: "Nuevo"
      - type_of_activity: "whatsapp"
      - activity_title: "Identificar usuario"
@@ -131,7 +131,7 @@ get_client_policys_tool(nif, ramo, company_id): Obtiene pólizas de un ramo . . 
 get_policy_document_tool(policy_id, company_id): Obtiene documento de póliza.
 
 create_task_activity_tool(json_string): Si necesita atención humana.
-JSON: company_id="{company_id}" , title , description , card_type="task" , pipeline_name="Principal" , stage_name="Nuevo" , type_of_activity="llamada" , activity_title , phone="{wa_id}".
+JSON: company_id="{company_id}" , title , description , card_type="task" , pipeline_name="Cotizaciones" , stage_name="Nuevo" , type_of_activity="llamada" , activity_title , phone="{wa_id}".
 
 end_chat_tool(): Finaliza cuando tenga la información.
 
