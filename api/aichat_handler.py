@@ -82,9 +82,8 @@ def handle_aichat(request):
 
     # Handle manual session reset
     if text.upper() == "BORRAR TODO":
-        session_id = f"{company_id}_{user_id}"
-        session_manager.delete_session(session_id)
-        logger.info(f"[AICHAT] Session deleted manually via BORRAR TODO: {session_id}")
+        session_manager.delete_session(user_id, company_id)
+        logger.info(f"[AICHAT] Session deleted manually via BORRAR TODO: user={user_id}, company={company_id}")
         
         reset_msg = "Sesión reiniciada."
         send_aichat_response(reset_msg, company_id, user_id)
@@ -117,9 +116,8 @@ def handle_aichat(request):
         
         # Auto-reset session if action is end_chat
         if response.get("action") == "end_chat":
-            session_id = f"{company_id}_{user_id}"
-            session_manager.delete_session(session_id)
-            logger.info(f"[AICHAT] Session deleted automatically after end_chat: {session_id}")
+            session_manager.delete_session(user_id, company_id)
+            logger.info(f"[AICHAT] Session deleted automatically after end_chat: user={user_id}, company={company_id}")
         
         agent_message = response.get("message", "")
         
