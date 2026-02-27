@@ -8,7 +8,6 @@ from infra.db import SessionManager
 from infra.tracing import setup_tracing
 from api.wildix_handler import handle_wildix
 from api.aichat_handler import handle_aichat
-from services.zoa_client import is_business_open
 
 # Configure logging to stdout
 logging.basicConfig(
@@ -69,10 +68,9 @@ def handle_request(request):
 def handle_whatsapp(request):
     """Handle incoming ZOA Buffer System messages.
 
-    Business hours + status logic:
-    - Outside hours → always process. Flip status to 'on' if it was 'off'.
-    - Inside hours + status='on'  → process (AI active).
-    - Inside hours + status='off' → ignore (humans handling).
+    Status logic:
+    - Status='on' (or new user) → process (AI active).
+    - Status='off' → ignore (humans handling).
     """
     data = request.get_json(silent=True) or {}
 
@@ -83,35 +81,17 @@ def handle_whatsapp(request):
     wa_id = data.get("wa_id")
     company_id = data.get("phone_number_id") or "default"
 
-    # Step 1: Determine if we're outside business hours
-    now_madrid = datetime.now(timezone(timedelta(hours=1)))
-    is_weekend = now_madrid.weekday() >= 5
-
-    if is_weekend:
-        outside_hours = True
-    else:
-        try:
-            outside_hours = not is_business_open(company_id)
-        except Exception as e:
-            logger.error(f"[HANDLER] Scheduler check failed: {e}, treating as outside hours")
-            outside_hours = True
-
-    # Step 2: Apply status logic
+    # Step 1: Apply status logic
     status = session_manager.get_session_status(wa_id, company_id)
-    logger.info(f"[HANDLER] wa_id={wa_id} outside_hours={outside_hours} status={status}")
+    logger.info(f"[HANDLER] wa_id={wa_id} status={status}")
 
     if status is None:
         # New user — create session with status='on'
         session_manager.set_session_status(wa_id, company_id, "on")
         logger.info(f"[HANDLER] New user — created session with status='on' for {wa_id}")
-    elif outside_hours:
-        if status != "on":
-            session_manager.set_session_status(wa_id, company_id, "on")
-            logger.info(f"[HANDLER] Outside hours — flipped status to 'on' for {wa_id}")
-    else:
-        if status != "on":
-            logger.info(f"[HANDLER] In hours & status=off — skipping for {wa_id}")
-            return _json_response({"status": "ok", "response": {"skipped": True, "reason": "in_hours_status_off"}})
+    elif status != "on":
+        logger.info(f"[HANDLER] Status=off — skipping for {wa_id}")
+        return _json_response({"status": "ok", "response": {"skipped": True, "reason": "status_off"}})
 
     response = process_message(data)
     return _json_response({"status": "ok", "response": response})

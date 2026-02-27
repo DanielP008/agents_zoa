@@ -10,28 +10,10 @@ from services.interfaces.zoa_interfaces import (
     ContactsInterface,
     ConversationsInterface,
     CardActionsInterface,
-    SchedulerInterface,
     AiChatInterface,
 )
 
 logger = logging.getLogger(__name__)
-
-def is_business_open(company_id: str) -> bool:
-    """Check if the business is currently open via ZOA scheduler.
-    
-    Returns True if open (AI should NOT process), False if closed (AI should process).
-    """
-    interface = SchedulerInterface()
-    result, _ = interface.execute(
-        company_id=company_id,
-        option="search",
-        request_data={},
-    )
-    logger.info(f"[SCHEDULER] ZOA response: {result}")
-    is_open = result.get("is_open", result.get("data", False))
-    if isinstance(is_open, str):
-        is_open = is_open.lower() in ("true", "1", "yes")
-    return bool(is_open)
 
 
 def extract_nif_from_contact_search(response: Dict[str, Any]) -> str:
