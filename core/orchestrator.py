@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 # Module-level singletons / constants
 # ---------------------------------------------------------------------------
 _DEFAULT_AGENT = "receptionist_agent"
-_MAX_CHAIN_DEPTH = 5
+_MAX_CHAIN_DEPTH = 10
 _ROUTE_BLOCKED_MSG = "No pude derivarte en este momento. ¿Podés intentar de nuevo?"
 
 session_manager = SessionManager()
@@ -79,6 +79,22 @@ def _preprocess_message(payload: dict, session: dict) -> tuple[dict, dict, str]:
 
     # Silent CRM lookup for NIF
     memory, _ = try_silent_nif_lookup(memory, wa_id, company_id)
+
+    # Silent CRM lookup for Name (if not already known)
+    global_mem = memory.get("global", {})
+    if not global_mem.get("name") and wa_id and company_id:
+        try:
+            from services.zoa_client import search_contact_by_phone
+            contact_response = search_contact_by_phone(wa_id, company_id)
+            if contact_response.get("success"):
+                data = contact_response.get("data", [])
+                if isinstance(data, list) and data:
+                    name = data[0].get("name")
+                    if name:
+                        memory = update_global(memory, name=name)
+                        logger.info(f"[ORCHESTRATOR] Found name from CRM: {name}")
+        except Exception as e:
+            logger.error(f"[ORCHESTRATOR] Name lookup error: {e}")
 
     # Persist identifiers in global memory
     if wa_id:

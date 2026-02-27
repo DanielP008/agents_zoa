@@ -40,6 +40,8 @@ def create_task_activity_tool(data: str) -> dict:
     - phone: str (optional, to link contact)
     - email: str (optional, to link contact)
     - mobile: str (optional, to link contact)
+    - nif: str (optional, to link contact)
+    - name: str (optional, to link contact by name if other identifiers fail)
     - pipeline_name: str (optional, 'Principal' para tasks, 'Cotizaciones'/'Renovaciones' para opportunities)
     """
     VALID_ACTIVITY_TYPES = ["llamada", "reunion", "whatsapp", "email", "tarea"]

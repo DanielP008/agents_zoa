@@ -287,9 +287,8 @@ def create_task_activity(
         "email": email,
         "nif": nif,
         "mobile": mobile,
+        "name": request_json.get("name"), # Add name for fallback lookup
         "pipeline_name": pipeline_name,
-        "aichat_user_id": aichat_user_id
-        #"stage_name": stage_name, # switch to Nuevo
     }
     
     # Update with non-None optional fields
