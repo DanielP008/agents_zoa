@@ -149,6 +149,7 @@ def create_task_activity(
     email: Optional[str] = None,
     nif: Optional[str] = None,
     mobile: Optional[str] = None,
+    name: Optional[str] = None,
     pipeline_name: Optional[str] = None,
     stage_name: Optional[str] = None,
 ) -> Dict[str, Any]:
