@@ -277,8 +277,16 @@ def create_task_activity(
         "type": activity_type,
     }
 
+    # Check if phone is a UUID (AiChat user)
+    aichat_user_id = None
+    if phone and len(phone) > 20 and "-" in phone: # Simple UUID check
+        logger.info(f"[ZOA_CLIENT] UUID detected in phone field: {phone}. Moving to aichat_user_id.")
+        aichat_user_id = phone
+        phone = None
+
     # Optional fields mapping
     optional_fields = {
+        "aichat_user_id": aichat_user_id,
         "description": description,
         "tags_name": tags_name,
         "type_of_activity": type_of_activity,
