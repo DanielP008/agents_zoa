@@ -79,33 +79,6 @@ def handle_aichat(request):
     if not user_id or (not text and not media):
         logger.warning(f"[AICHAT] Missing user_id or content: user_id={user_id}, text={text}, has_media={bool(media)}")
         return _json_response({"status": "ignored", "reason": "missing_data"})
-
-    # Handle session reset - delete everything and start fresh
-    if text.upper() == "BORRAR TODO":
-        # Soft reset: Overwrite session with empty memory but set flag to skip NIF lookup
-        session_id = f"{company_id}_{user_id}"
-        reset_memory = {
-            "global": {
-                "nif_lookup_done": True,  # Prevent auto-lookup from CRM
-                "nif": None               # Clear NIF
-            }
-        }
-        
-        new_session_state = {
-            "domain": None,
-            "target_agent": "aichat_receptionist_agent",
-            "agent_memory": reset_memory,
-            "history": []
-        }
-        
-        session_manager.save_session(session_id, new_session_state)
-        logger.info(f"[AICHAT] Session reset (soft): user={user_id}, nif_lookup_blocked=True")
-        
-        reset_msg = (
-            "Sesión reiniciada."
-        )
-        send_aichat_response(reset_msg, company_id, user_id)
-        return _json_response({"status": "ok", "action": "session_reset", "session_deleted": True})
     
     # Try to acquire session lock (use user_id as wa_id for session key)
     if not session_manager.try_lock_session(user_id, company_id):
@@ -132,8 +105,11 @@ def handle_aichat(request):
         response = process_message(orchestrator_payload)
         logger.info(f"[AICHAT] Orchestrator response: {json.dumps(response, ensure_ascii=False)}")
         
-        # If the orchestrator updated the memory (e.g. found a NIF), we might want to use it
-        # for future tool calls, but process_message already handles the internal state.
+        # Auto-reset session if action is end_chat
+        if response.get("action") == "end_chat":
+            session_id = f"{company_id}_{user_id}"
+            session_manager.delete_session(session_id)
+            logger.info(f"[AICHAT] Session deleted automatically after end_chat: {session_id}")
         
         agent_message = response.get("message", "")
         
