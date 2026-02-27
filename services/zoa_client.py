@@ -279,10 +279,20 @@ def create_task_activity(
 
     # Check if phone is a UUID (AiChat user)
     aichat_user_id = None
-    if phone and len(phone) > 20 and "-" in phone: # Simple UUID check
+    if phone and len(phone) > 20 and "-" in phone:
         logger.info(f"[ZOA_CLIENT] UUID detected in phone field: {phone}. Moving to aichat_user_id.")
         aichat_user_id = phone
         phone = None
+
+    # Fallback: if no contact identifier remains, try to extract NIF from description/title
+    if not any([phone, email, nif, mobile]):
+        combined_text = f"{title or ''} {description or ''}"
+        nif_match = re.search(r'\b(\d{8}[A-Za-z])\b', combined_text)
+        if not nif_match:
+            nif_match = re.search(r'\b([XYZxyz]\d{7}[A-Za-z])\b', combined_text)
+        if nif_match:
+            nif = nif_match.group(1).upper()
+            logger.info(f"[ZOA_CLIENT] Extracted NIF from text as fallback: {nif}")
 
     # Optional fields mapping
     optional_fields = {
