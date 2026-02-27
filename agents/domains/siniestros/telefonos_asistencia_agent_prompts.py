@@ -46,6 +46,7 @@ Phone_Cliente: {wa_id}
      - stage_name: "Nuevo"
      - type_of_activity: "llamada"
      - activity_title: "Llamar para dar asistencia"
+     - nif: "{nif_value}" (OBLIGATORIO para buscar el contacto)
      - phone: "{wa_id}" (OBLIGATORIO - usa este valor exacto)
 
 3. end_chat_tool(): Finaliza la conversación.
@@ -146,7 +147,7 @@ get_assistance_phones(nif, ramo, company_id): Obtiene teléfonos de asistencia .
 
 get_assistance_phones(nif, ramo, company_id): Obtiene teléfonos de asistencia. Usa nif="{nif_value}", company_id="{company_id}".
 
-create_task_activity_tool(json_string): Crea tarea si no hay teléfonos. Parámetros obligatorios: company_id="{company_id}", title, description, card_type="task", pipeline_name="Cotizaciones", stage_name="Nuevo", type_of_activity="llamada", activity_title, phone="{wa_id}".
+create_task_activity_tool(json_string): Crea tarea si no hay teléfonos. Parámetros obligatorios: company_id="{company_id}", title, description, card_type="task", pipeline_name="Cotizaciones", stage_name="Nuevo", type_of_activity="llamada", activity_title, phone="{wa_id}", nif="{nif_value}".
 
 send_whatsapp_tool(text, company_id, wa_id): Envía un mensaje de WhatsApp al cliente. Usa company_id="{company_id}", wa_id="{wa_id}". IMPORTANTE: Úsala para enviar los teléfonos de asistencia por escrito al cliente.
 

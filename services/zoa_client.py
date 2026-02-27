@@ -226,14 +226,13 @@ def create_task_activity(
         else:
             card_type = "task"
 
-    # CRITICAL: If we are in AiChat, 'phone' is a UUID. 
-    # ZOA 'cardact' endpoint needs a real phone or a NIF to link a contact.
-    # If phone looks like a UUID (contains hyphens), we move it to aichat_user_id 
-    # and clear 'phone' to avoid ZOA validation errors, relying on 'nif' for linking.
-    aichat_user_id = None
+    # If phone is a UUID (AiChat user), it IS the manager_id (User ID), NOT the contact_id.
+    # We move it to 'manager_id' so cardact.py can assign the task to this user.
+    # We clear 'phone' so it doesn't try to search for a contact with this UUID.
+    manager_id = None
     if phone and isinstance(phone, str) and "-" in phone:
-        logger.info(f"[ZOA_CLIENT] UUID detected in phone field: {phone}. Moving to aichat_user_id.")
-        aichat_user_id = phone
+        logger.info(f"[ZOA_CLIENT] UUID detected in phone field: {phone}. Using as manager_id.")
+        manager_id = phone
         phone = None
 
     # Determine pipeline_name based on card_type if not explicitly provided
@@ -244,8 +243,6 @@ def create_task_activity(
                 pipeline_name = "Renovaciones"
             else:
                 pipeline_name = "Cotizaciones"
-        elif card_type_lower == "task":
-            pipeline_name = "Cotizaciones"
         else:
             pipeline_name = "Cotizaciones"
 
@@ -260,19 +257,9 @@ def create_task_activity(
         "type": activity_type,
     }
 
-    # Fallback: if no contact identifier remains, try to extract NIF from description/title
-    if not any([phone, email, nif, mobile]):
-        combined_text = f"{title or ''} {description or ''}"
-        nif_match = re.search(r'\b(\d{8}[A-Za-z])\b', combined_text)
-        if not nif_match:
-            nif_match = re.search(r'\b([XYZxyz]\d{7}[A-Za-z])\b', combined_text)
-        if nif_match:
-            nif = nif_match.group(1).upper()
-            logger.info(f"[ZOA_CLIENT] Extracted NIF from text as fallback: {nif}")
-
     # Optional fields mapping
     optional_fields = {
-        "aichat_user_id": aichat_user_id,
+        "manager_id": manager_id,
         "description": description,
         "tags_name": tags_name,
         "type_of_activity": type_of_activity,
@@ -288,7 +275,6 @@ def create_task_activity(
         "email": email,
         "nif": nif,
         "mobile": mobile,
-        "name": name, # Add name for fallback lookup
         "pipeline_name": pipeline_name,
     }
     
