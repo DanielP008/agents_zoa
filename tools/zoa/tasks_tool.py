@@ -3,7 +3,7 @@ import logging
 import re
 from langchain.tools import tool
 from services.zoa_client import create_task_activity
-from infra.agent_runner import get_client_name
+from infra.agent_runner import get_client_name, get_wa_channel
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +45,10 @@ def create_task_activity_tool(data: str) -> dict:
     - name: str (optional, to link contact by name if other identifiers fail)
     - pipeline_name: str (optional, 'Principal' para tasks, 'Cotizaciones'/'Renovaciones' para opportunities)
     """
+    # Disable task creation for AiChat
+    if get_wa_channel() == "aichat":
+        return {"error": "La creación de tareas no está soportada en AiChat."}
+
     VALID_ACTIVITY_TYPES = ["llamada", "reunion", "whatsapp", "email", "tarea"]
     
     try:
@@ -67,13 +71,6 @@ def create_task_activity_tool(data: str) -> dict:
         # Remove stage_name — ZOA auto-assigns to first stage
         payload.pop("stage_name", None)
 
-        # Inject OCR-extracted client name if LLM didn't include it
-        if not payload.get("name"):
-            ctx_name = get_client_name()
-            if ctx_name:
-                payload["name"] = ctx_name
-                logger.info(f"[TASKS_TOOL] Injected client_name from context: {ctx_name}")
-            
         return create_task_activity(**payload)
     except json.JSONDecodeError as e:
         logger.error(f"[TASKS_TOOL] JSON parse error: {e} | raw data: {data[:200]}")

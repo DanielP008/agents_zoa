@@ -226,15 +226,6 @@ def create_task_activity(
         else:
             card_type = "task"
 
-    # If phone is a UUID (AiChat user), it IS the manager_id (User ID), NOT the contact_id.
-    # We move it to 'manager_id' so cardact.py can assign the task to this user.
-    # We clear 'phone' so it doesn't try to search for a contact with this UUID.
-    manager_id = None
-    if phone and isinstance(phone, str) and "-" in phone:
-        logger.info(f"[ZOA_CLIENT] UUID detected in phone field: {phone}. Using as manager_id.")
-        manager_id = phone
-        phone = None
-
     # Determine pipeline_name based on card_type if not explicitly provided
     if not pipeline_name:
         card_type_lower = card_type.lower()

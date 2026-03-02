@@ -49,6 +49,11 @@ def get_client_name() -> str:
     return _client_name.get()
 
 
+def get_wa_channel() -> str:
+    """Return the current channel (whatsapp, aichat, etc.)."""
+    return _wa_channel.get()
+
+
 class _WaitMessageCallback(BaseCallbackHandler):
     """Sends a 'please wait' WhatsApp message on the first qualifying tool call."""
 
@@ -128,6 +133,10 @@ def auto_create_task_if_needed(
     Returns the updated tool_calls list if a task was created, or None if nothing was done.
     The caller MUST update result["tool_calls"] with the return value when not None.
     """
+    # Disable auto-creation for AiChat
+    if get_wa_channel() == "aichat":
+        return None
+
     tc_names = {tc["name"] for tc in (tool_calls or [])}
     if "create_task_activity_tool" in tc_names:
         return None
