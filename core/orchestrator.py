@@ -1,8 +1,6 @@
 """Central orchestrator: receives messages, preprocesses, routes through agents, persists state."""
 
 import logging
-import threading
-
 from core.action_handlers import (
     handle_ask,
     handle_end_chat,
@@ -106,15 +104,13 @@ def _preprocess_message(payload: dict, session: dict) -> tuple[dict, dict, str]:
     return memory, session, mensaje
 
 
-def _send_whatsapp_async(text: str, phone_number_id: str, wa_id: str) -> None:
-    """Fire-and-forget WhatsApp send in a background thread."""
-    def _send():
-        try:
-            send_whatsapp_response_sync(text=text, company_id=phone_number_id, wa_id=wa_id)
-        except Exception:
-            logger.exception("[ORCHESTRATOR] Fire-and-forget WhatsApp send failed")
-
-    threading.Thread(target=_send, daemon=True).start()
+def _send_whatsapp(text: str, phone_number_id: str, wa_id: str) -> None:
+    """Send WhatsApp message synchronously (Cloud Run kills daemon threads after response)."""
+    try:
+        send_whatsapp_response_sync(text=text, company_id=phone_number_id, wa_id=wa_id)
+        logger.info(f"[ORCHESTRATOR] WhatsApp message sent to {wa_id}")
+    except Exception:
+        logger.exception("[ORCHESTRATOR] WhatsApp send failed")
 
 
 # ---------------------------------------------------------------------------
@@ -157,7 +153,7 @@ def _run_routing_chain(payload: dict, session: dict, memory: dict,
             if agent_message:
                 # 1. Send to WhatsApp
                 if payload.get("phone_number_id") and payload.get("channel") == "whatsapp":
-                     _send_whatsapp_async(agent_message, payload["phone_number_id"], payload.get("wa_id"))
+                     _send_whatsapp(agent_message, payload["phone_number_id"], payload.get("wa_id"))
                 
                 # 2. Record in memory
                 memory = append_turn(
@@ -284,7 +280,7 @@ def process_message(payload: dict) -> dict:
     # 4. Send WhatsApp (fire-and-forget)
     if agent_message and action in ("ask", "finish", "route"):
         if phone_number_id and channel == "whatsapp":
-            _send_whatsapp_async(agent_message, phone_number_id, wa_id)
+            _send_whatsapp(agent_message, phone_number_id, wa_id)
 
     # 5. Dispatch to action handler
     common = dict(
