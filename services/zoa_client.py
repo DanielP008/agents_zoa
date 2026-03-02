@@ -152,6 +152,7 @@ def create_task_activity(
     name: Optional[str] = None,
     pipeline_name: Optional[str] = None,
     stage_name: Optional[str] = None,
+    manager_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Create a card and optionally an activity in ZOA (action='cardact').
