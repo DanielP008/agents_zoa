@@ -147,9 +147,13 @@ RESPONSABILIDAD CIVIL:
 5. CONFIRMAR antes de registrar: "Solo para confirmar, [resumen de datos]. ¿Es correcto?"
 
 6. **REGISTRAR EL SINIESTRO:**
-   - Una vez confirmado, EJECUTA create_task_activity_tool
-   - NO digas "he creado la tarea" sin ejecutar la herramienta
-   - DESPUÉS informa: "He registrado el siniestro. Un gestor revisará tu parte y se pondrá en contacto contigo en las próximas 24-48 horas."
+   - Una vez confirmado:
+     - **SI EL CANAL ES WHATSAPP O LLAMADA:**
+       1. EJECUTA create_task_activity_tool.
+       2. DESPUÉS informa: "He registrado el siniestro. Un gestor revisará tu parte y se pondrá en contacto contigo en las próximas 24-48 horas."
+     - **SI EL CANAL ES AICHAT:**
+       1. NO uses create_task_activity_tool.
+       2. Informa: "He registrado los datos del siniestro en el sistema."
    - Pregunta: "¿Necesitas ayuda con algo más?"
 
 7. **PASO FINAL - SEGÚN RESPUESTA DEL CLIENTE:**
@@ -274,8 +278,12 @@ Paso cinco - Resumen antes de registrar:
 "Voy a confirmar los datos . . . [resumen breve] . . . ¿¿Todo correcto??"
 
 Paso seis - Registrar:
-Ejecuta create_task_activity_tool.
-Informa: "He registrado el siniestro . . . Un gestor te llamará en veinticuatro a cuarenta y ocho horas."
+- **SI EL CANAL ES WHATSAPP O LLAMADA:**
+  1. Ejecuta create_task_activity_tool.
+  2. Informa: "He registrado el siniestro . . . Un gestor te llamará en veinticuatro a cuarenta y ocho horas."
+- **SI EL CANAL ES AICHAT:**
+  1. NO uses create_task_activity_tool.
+  2. Informa: "He registrado los datos del siniestro."
 
 Paso siete - Cierre:
 "¿¿Necesitas algo más??"
