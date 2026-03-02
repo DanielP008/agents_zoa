@@ -233,7 +233,9 @@ def process_message(payload: dict) -> dict:
     payload["session"] = session
 
     # Set WhatsApp context so agent_runner can send "please wait" on tool use
-    set_wa_context(wa_id, phone_number_id, channel)
+    global_mem = memory.get("global", {})
+    client_name = global_mem.get("client_name", "")
+    set_wa_context(wa_id, phone_number_id, channel, client_name=client_name)
 
     # 3. Routing chain
     response, memory, target_agent, chain_depth = _run_routing_chain(

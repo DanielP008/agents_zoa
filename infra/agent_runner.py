@@ -32,14 +32,21 @@ _wa_id: contextvars.ContextVar[str] = contextvars.ContextVar("_wa_id", default="
 _phone_number_id: contextvars.ContextVar[str] = contextvars.ContextVar("_phone_number_id", default="")
 _wa_channel: contextvars.ContextVar[str] = contextvars.ContextVar("_wa_channel", default="")
 _wait_msg_sent: contextvars.ContextVar[bool] = contextvars.ContextVar("_wait_msg_sent", default=False)
+_client_name: contextvars.ContextVar[str] = contextvars.ContextVar("_client_name", default="")
 
 
-def set_wa_context(wa_id: str, phone_number_id: str, channel: str) -> None:
+def set_wa_context(wa_id: str, phone_number_id: str, channel: str, client_name: str = "") -> None:
     """Set WhatsApp context for the current request (called by orchestrator)."""
     _wa_id.set(wa_id or "")
     _phone_number_id.set(phone_number_id or "")
     _wa_channel.set(channel or "")
     _wait_msg_sent.set(False)
+    _client_name.set(client_name or "")
+
+
+def get_client_name() -> str:
+    """Return the OCR-extracted client name for the current request."""
+    return _client_name.get()
 
 
 class _WaitMessageCallback(BaseCallbackHandler):
@@ -114,6 +121,7 @@ def auto_create_task_if_needed(
     activity_title: str = "Llamar al cliente",
     activity_description: str = "",
     agent_label: str = "AGENT",
+    client_name: str = "",
 ):
     """Create a CRM task if the agent promises a callback but didn't call create_task_activity_tool.
 
@@ -128,16 +136,19 @@ def auto_create_task_if_needed(
     if not any(hint in output_lower for hint in _CALLBACK_HINTS):
         return None
 
+    resolved_name = client_name or _client_name.get()
     task_payload = {
         "company_id": company_id,
         "title": title,
         "description": description,
         "card_type": "task",
-        "pipeline_name": "Principal",
+        "pipeline_name": "Cotizaciones",
         "type_of_activity": "llamada",
         "activity_title": activity_title,
         "phone": wa_id,
     }
+    if resolved_name:
+        task_payload["name"] = resolved_name
     if activity_description:
         task_payload["activity_description"] = activity_description
 
