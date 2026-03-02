@@ -70,6 +70,7 @@ Phone_Cliente: {wa_id}
    - Clasifica la respuesta en uno de los <ramos_validos>.
 
 3. INTENTAR OBTENER TELÉFONOS:
+   - **CRÍTICO:** Si ya tienes el NIF (por texto o documento adjunto) y el Ramo, **NO PIDAS CONFIRMACIÓN**. Asume que el cliente quiere los teléfonos y EJECUTA LA HERRAMIENTA INMEDIATAMENTE.
    - Llama a get_assistance_phones con: nif="{nif_value}", ramo=<el identificado>, company_id="{company_id}".
 
 4. ANALIZAR RESPUESTA Y ACTUAR:

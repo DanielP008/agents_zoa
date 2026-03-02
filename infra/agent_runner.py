@@ -25,6 +25,7 @@ _EXCLUDED_TOOLS = frozenset({
     "end_chat_tool",
     "redirect_to_receptionist_tool",
     "send_whatsapp_tool",
+    "create_task_activity_tool",
 })
 
 # Context vars — set by the orchestrator before invoking the agent chain
