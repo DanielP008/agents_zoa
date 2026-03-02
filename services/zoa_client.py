@@ -275,6 +275,7 @@ def create_task_activity(
         "email": email,
         "nif": nif,
         "mobile": mobile,
+        "name": name,
         "pipeline_name": pipeline_name,
     }
     
