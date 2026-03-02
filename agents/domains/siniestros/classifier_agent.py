@@ -62,16 +62,11 @@ def classifier_siniestros_agent(payload: dict) -> dict:
                 } 
             }
 
-    # Always confirm before routing — never silently passthrough.
-    # Use the LLM-generated question if clean, otherwise use fallback.
-    confirmation = _sanitize_question(decision.question) or _CONFIRMATIONS.get(
-        decision.route, "Para confirmar, ¿es esto lo que necesitas?"
-    )
     return {
         "action": "route",
         "next_agent": decision.route, 
         "domain": "siniestros",
-        "message": confirmation
+        "message": None
     }
 
 def classify_message(payload: dict) -> ClassificationDecision:
