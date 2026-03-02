@@ -10,28 +10,10 @@ from services.interfaces.zoa_interfaces import (
     ContactsInterface,
     ConversationsInterface,
     CardActionsInterface,
-    SchedulerInterface,
     AiChatInterface,
 )
 
 logger = logging.getLogger(__name__)
-
-def is_business_open(company_id: str) -> bool:
-    """Check if the business is currently open via ZOA scheduler.
-    
-    Returns True if open (AI should NOT process), False if closed (AI should process).
-    """
-    interface = SchedulerInterface()
-    result, _ = interface.execute(
-        company_id=company_id,
-        option="search",
-        request_data={},
-    )
-    logger.info(f"[SCHEDULER] ZOA response: {result}")
-    is_open = result.get("is_open", result.get("data", False))
-    if isinstance(is_open, str):
-        is_open = is_open.lower() in ("true", "1", "yes")
-    return bool(is_open)
 
 
 def extract_nif_from_contact_search(response: Dict[str, Any]) -> str:
@@ -167,8 +149,10 @@ def create_task_activity(
     email: Optional[str] = None,
     nif: Optional[str] = None,
     mobile: Optional[str] = None,
+    name: Optional[str] = None,
     pipeline_name: Optional[str] = None,
     stage_name: Optional[str] = None,
+    manager_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Create a card and optionally an activity in ZOA (action='cardact').
@@ -243,16 +227,6 @@ def create_task_activity(
         else:
             card_type = "task"
 
-    # CRITICAL: If we are in AiChat, 'phone' is a UUID. 
-    # ZOA 'cardact' endpoint needs a real phone or a NIF to link a contact.
-    # If phone looks like a UUID (contains hyphens), we move it to aichat_user_id 
-    # and clear 'phone' to avoid ZOA validation errors, relying on 'nif' for linking.
-    aichat_user_id = None
-    if phone and isinstance(phone, str) and "-" in phone:
-        logger.info(f"[ZOA_CLIENT] UUID detected in phone field: {phone}. Moving to aichat_user_id.")
-        aichat_user_id = phone
-        phone = None
-
     # Determine pipeline_name based on card_type if not explicitly provided
     if not pipeline_name:
         card_type_lower = card_type.lower()
@@ -261,10 +235,8 @@ def create_task_activity(
                 pipeline_name = "Renovaciones"
             else:
                 pipeline_name = "Cotizaciones"
-        elif card_type_lower == "task":
-            pipeline_name = "Principal"
         else:
-            pipeline_name = "Principal"
+            pipeline_name = "Cotizaciones"
 
     # Build request data with required fields and defaults
     request_data = {
@@ -279,6 +251,7 @@ def create_task_activity(
 
     # Optional fields mapping
     optional_fields = {
+        "manager_id": manager_id,
         "description": description,
         "tags_name": tags_name,
         "type_of_activity": type_of_activity,
@@ -294,9 +267,8 @@ def create_task_activity(
         "email": email,
         "nif": nif,
         "mobile": mobile,
+        "name": name,
         "pipeline_name": pipeline_name,
-        "aichat_user_id": aichat_user_id
-        #"stage_name": stage_name, # switch to Nuevo
     }
     
     # Update with non-None optional fields

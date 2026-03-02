@@ -62,15 +62,11 @@ def classifier_ventas_agent(payload: dict) -> dict:
                 } 
             }
 
-    # Always confirm before routing — never silently passthrough.
-    confirmation = _sanitize_question(decision.question) or _CONFIRMATIONS.get(
-        decision.route, "Para confirmar, ¿es esto lo que necesitas?"
-    )
     return {
         "action": "route",
         "next_agent": decision.route, 
         "domain": "ventas",
-        "message": confirmation
+        "message": None
     }
 
 def classify_message(payload: dict) -> ClassificationDecision:
