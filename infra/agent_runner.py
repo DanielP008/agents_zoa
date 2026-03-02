@@ -79,8 +79,8 @@ class _WaitMessageCallback(BaseCallbackHandler):
 
         _wait_msg_sent.set(True)
         try:
-            from services.zoa_client import send_whatsapp_response
-            send_whatsapp_response(text=_WAIT_MESSAGE, company_id=phone_id, wa_id=wa_id)
+            from services.zoa_client import send_whatsapp_response_sync
+            send_whatsapp_response_sync(text=_WAIT_MESSAGE, company_id=phone_id, wa_id=wa_id)
             logger.info(f"[AGENT_RUNNER] Wait message sent to {wa_id}")
         except Exception:
             logger.exception("[AGENT_RUNNER] Failed to send wait message")

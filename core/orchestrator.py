@@ -24,7 +24,7 @@ from core.routing.main_router import route_request
 from infra.agent_runner import set_wa_context
 from infra.db import SessionManager
 from infra.timing import start_trace, dump_trace
-from services.zoa_client import send_whatsapp_response
+from services.zoa_client import send_whatsapp_response_sync
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +110,7 @@ def _send_whatsapp_async(text: str, phone_number_id: str, wa_id: str) -> None:
     """Fire-and-forget WhatsApp send in a background thread."""
     def _send():
         try:
-            send_whatsapp_response(text=text, company_id=phone_number_id, wa_id=wa_id)
+            send_whatsapp_response_sync(text=text, company_id=phone_number_id, wa_id=wa_id)
         except Exception:
             logger.exception("[ORCHESTRATOR] Fire-and-forget WhatsApp send failed")
 
