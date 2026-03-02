@@ -3,6 +3,7 @@ import logging
 import re
 from langchain.tools import tool
 from services.zoa_client import create_task_activity
+from infra.agent_runner import get_client_name
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +66,13 @@ def create_task_activity_tool(data: str) -> dict:
 
         # Remove stage_name — ZOA auto-assigns to first stage
         payload.pop("stage_name", None)
+
+        # Inject OCR-extracted client name if LLM didn't include it
+        if not payload.get("name"):
+            ctx_name = get_client_name()
+            if ctx_name:
+                payload["name"] = ctx_name
+                logger.info(f"[TASKS_TOOL] Injected client_name from context: {ctx_name}")
             
         return create_task_activity(**payload)
     except json.JSONDecodeError as e:

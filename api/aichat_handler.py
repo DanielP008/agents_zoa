@@ -25,47 +25,10 @@ import base64
 import requests
 from core.orchestrator import process_message
 from infra.db import SessionManager
-from services.zoa_client import send_aichat_response, get_aichat_history, delete_aichat_message
+from services.zoa_client import send_aichat_response
 
 logger = logging.getLogger(__name__)
 session_manager = SessionManager()
-
-def _maintain_history_window(user_id: str, company_id: str, limit: int = 50):
-    """Ensure AiChat history stays within limit by deleting oldest messages."""
-    try:
-        # Fetch current history
-        history_response = get_aichat_history(user_id, company_id)
-        if not history_response.get("success"):
-            logger.warning(f"[AICHAT] Failed to fetch history for cleanup: {history_response}")
-            return
-
-        messages = history_response.get("data", [])
-        if not isinstance(messages, list):
-            return
-
-        count = len(messages)
-        if count >= limit:
-            # Sort by ID ascending (oldest first) just in case
-            # Assuming ID is incremental
-            messages.sort(key=lambda x: x.get("id", 0))
-            
-            # Delete enough messages to make room for new user msg + agent reply
-            # We want to be safely under the limit. If limit is 100, and we are at 99,
-            # we add 1 (user) -> 100. Then agent adds 1 -> 101 (overflow).
-            # So we should delete until we are at limit - 2 at least.
-            # Let's delete down to limit - 5 to be safe and reduce frequency of deletions.
-            target_count = max(0, limit - 5)
-            to_delete = messages[:(count - target_count)]
-            
-            logger.info(f"[AICHAT] History cleanup: count={count}, limit={limit}. Deleting {len(to_delete)} messages.")
-            
-            for msg in to_delete:
-                msg_id = msg.get("id")
-                if msg_id:
-                    delete_aichat_message(msg_id, company_id)
-                    
-    except Exception as e:
-        logger.error(f"[AICHAT] Error maintaining history window: {e}")
 
 def _download_and_encode_media(url):
     """Download file from URL and encode to base64 for OCR."""
@@ -132,11 +95,6 @@ def handle_aichat(request):
         return _json_response({"status": "ignored", "reason": "session_busy"})
     
     try:
-        # Maintain history window (delete old messages if limit reached)
-        # We do this before processing to ensure space for new messages.
-        # Limit set to 50 to be safe (max seems to be 100).
-        _maintain_history_window(user_id, company_id, limit=50)
-
         orchestrator_payload = {
             "wa_id": user_id,
             "mensaje": text,

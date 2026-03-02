@@ -98,26 +98,6 @@ def send_aichat_response(
     )
     return result
 
-def get_aichat_history(user_id: str, company_id: str) -> Dict[str, Any]:
-    """Fetch AiChat history for a user."""
-    interface = AiChatInterface()
-    result, _ = interface.execute(
-        company_id=company_id,
-        option="search",
-        request_data={"user_id": user_id}
-    )
-    return result
-
-def delete_aichat_message(message_id: int, company_id: str) -> Dict[str, Any]:
-    """Delete a specific AiChat message by ID."""
-    interface = AiChatInterface()
-    result, _ = interface.execute(
-        company_id=company_id,
-        option="delete",
-        request_data={"id": message_id}
-    )
-    return result
-
 def search_contact_by_phone(
     phone: str,
     company_id: str,

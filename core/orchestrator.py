@@ -262,12 +262,6 @@ def process_message(payload: dict) -> dict:
 
     # 3a. end_chat can happen inside the loop
     if action == "end_chat":
-        # Record final assistant message before deleting session
-        memory = record_assistant_turn(
-            memory, message=agent_message, agent=target_agent,
-            domain=session.get("domain"), action="end_chat",
-            tool_calls=response.get("tool_calls"),
-        )
         return handle_end_chat(wa_id, company_id, agent_message, channel,
                                session_manager, is_aichat=payload.get("is_aichat", False))
 
@@ -297,13 +291,9 @@ def process_message(payload: dict) -> dict:
         session_manager=session_manager, is_aichat=payload.get("is_aichat", False),
     )
 
-    # For AiChat, we MUST record the turn before returning, as the frontend
-    # fetches history from the assistant-chat API which relies on ZOA's DB.
-    # However, our internal memory is also persisted here.
     if action == "ask":
         return handle_ask(**common)
     if action == "route":
-        # Record the route turn if it has a message
         return handle_route(**common, allowlist=_AGENT_ALLOWLIST)
     if action == "finish":
         return handle_finish(**common)

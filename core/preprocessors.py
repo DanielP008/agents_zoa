@@ -116,7 +116,12 @@ def process_attachments_ocr(memory: dict) -> tuple[dict, str]:
                 f"{json.dumps(extracted, ensure_ascii=False, indent=2)}"
             )
             att["ocr_status"] = "success"
+            att["ocr_extracted"] = extracted
             logger.info(f"[OCR] OCR success for {filename}")
+
+            # Extract client name from OCR data and store in global memory
+            if isinstance(extracted, dict) and not global_mem.get("client_name"):
+                _extract_client_name_from_ocr(extracted, global_mem)
         else:
             raw = result.get("raw_output")
             if raw:
@@ -191,3 +196,96 @@ def try_silent_nif_lookup(memory: dict, wa_id: str, company_id: str) -> tuple[di
         memory = update_global(memory, nif_lookup_done=True)
 
     return memory, nif_value or ""
+
+
+def _extract_client_name_from_ocr(extracted: dict, global_mem: dict) -> None:
+    """Extract client full name from OCR-extracted document data and store in global_mem."""
+
+    # Check for a single-field full name first
+    for key in ("nombre_completo", "titular", "full_name"):
+        val = extracted.get(key)
+        if val and isinstance(val, str) and val.strip():
+            global_mem["client_name"] = val.strip()
+            logger.info(f"[OCR] Extracted client name from document ({key}): {val.strip()}")
+            return
+
+    # Build from nombre + apellidos (handles Spanish DNI format)
+    nombre = ""
+    for key in ("nombre", "name"):
+        val = extracted.get(key)
+        if val and isinstance(val, str) and val.strip():
+            nombre = val.strip()
+            break
+
+    apellidos_parts = []
+    for key in ("apellidos", "apellido"):
+        val = extracted.get(key)
+        if val and isinstance(val, str) and val.strip():
+            apellidos_parts.append(val.strip())
+            break
+
+    if not apellidos_parts:
+        p1 = (extracted.get("primer_apellido") or "").strip()
+        p2 = (extracted.get("segundo_apellido") or "").strip()
+        if p1:
+            apellidos_parts.append(p1)
+        if p2:
+            apellidos_parts.append(p2)
+
+    apellidos = " ".join(apellidos_parts)
+
+    if nombre and apellidos:
+        full_name = f"{nombre} {apellidos}"
+    elif nombre:
+        full_name = nombre
+    elif apellidos:
+        full_name = apellidos
+    else:
+        return
+
+    # Normalize to title case (OCR often returns UPPERCASE from DNI)
+    full_name = full_name.title()
+    global_mem["client_name"] = full_name
+    logger.info(f"[OCR] Extracted client name from document: {full_name}")
+
+
+def try_extract_client_name_retroactive(memory: dict) -> dict:
+    """Retroactive extraction: if client_name is missing, try to recover it
+    from already-processed OCR data stored in attachments or from conversation history."""
+    global_mem = memory.get("global", {})
+    if global_mem.get("client_name"):
+        return memory
+
+    # Strategy 1: Check ocr_extracted stored in attachment objects
+    attachments = global_mem.get("attachments", [])
+    for att in attachments:
+        if not isinstance(att, dict):
+            continue
+        extracted = att.get("ocr_extracted")
+        if isinstance(extracted, dict):
+            _extract_client_name_from_ocr(extracted, global_mem)
+            if global_mem.get("client_name"):
+                logger.info(f"[RETROACTIVE] Recovered client_name from stored OCR data: {global_mem['client_name']}")
+                memory["global"] = global_mem
+                return memory
+
+    # Strategy 2: Parse OCR JSON blocks from conversation history
+    history = memory.get("conversation_history", [])
+    for turn in reversed(history):
+        text = turn.get("text", "") if isinstance(turn, dict) else ""
+        if "[Contenido extraído de" not in text:
+            continue
+        json_blocks = re.findall(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', text)
+        for block in json_blocks:
+            try:
+                parsed = json.loads(block)
+                if isinstance(parsed, dict):
+                    _extract_client_name_from_ocr(parsed, global_mem)
+                    if global_mem.get("client_name"):
+                        logger.info(f"[RETROACTIVE] Recovered client_name from history: {global_mem['client_name']}")
+                        memory["global"] = global_mem
+                        return memory
+            except (json.JSONDecodeError, ValueError):
+                continue
+
+    return memory
