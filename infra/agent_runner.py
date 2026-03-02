@@ -50,6 +50,11 @@ def get_client_name() -> str:
     return _client_name.get()
 
 
+def get_wa_id() -> str:
+    """Return the current WhatsApp ID (phone number) for the request."""
+    return _wa_id.get()
+
+
 def get_wa_channel() -> str:
     """Return the current channel (whatsapp, aichat, etc.)."""
     return _wa_channel.get()
