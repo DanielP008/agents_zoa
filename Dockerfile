@@ -21,5 +21,5 @@ CMD gunicorn \
     --bind 0.0.0.0:${PORT} \
     --workers 1 \
     --threads 1 \
-    --timeout 120 \
+    --timeout 300 \
     "functions_framework:create_app(source='api/handler.py', target='handle_request')"

@@ -380,3 +380,7 @@ class MerlinInterface(ERPBaseInterface):
     def create_project(self, data: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
         """Crea proyecto en Merlin. option='merlin_create_project'"""
         return self.execute("merlin_create_project", data)
+
+    def finalizar_proyecto_hogar(self, data: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
+        """Finaliza proyecto HOGAR con capitales elegidos. option='merlin_finalizar_proyecto_hogar'"""
+        return self.execute("merlin_finalizar_proyecto_hogar", data)

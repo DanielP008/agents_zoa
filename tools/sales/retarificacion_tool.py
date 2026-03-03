@@ -1,10 +1,11 @@
 """Tools para tarificación en Merlin Multitarificador (Auto y Hogar).
 
-Contiene cuatro herramientas:
+Contiene cinco herramientas:
   1. consulta_vehiculo_tool: Consulta DGT por matrícula (vía ERP).
   2. get_town_by_cp_tool: Obtiene población por código postal (vía ERP).
   3. consultar_catastro_tool: Consulta Catastro y calcula capitales (vía ERP).
   4. create_retarificacion_project_tool: Crea el proyecto final en Merlin (vía ERP).
+  5. finalizar_proyecto_hogar_tool: Finaliza proyecto HOGAR con capitales elegidos (vía ERP).
 
 NOTA: Estas herramientas llaman al webservice del ERP (ebroker-api) que centraliza la lógica.
 """
@@ -15,6 +16,18 @@ from langchain.tools import tool
 from services.erp_client import ERPClient
 
 logger = logging.getLogger(__name__)
+
+_project_ids: dict = {"proyecto_id": None, "id_pasarela": None}
+
+
+def get_last_project_ids():
+    """Return (proyecto_id, id_pasarela) stored by the last tool invocation, then clear them."""
+    pid = _project_ids.get("proyecto_id")
+    pas = _project_ids.get("id_pasarela")
+    logger.info(f"[PROJECT_IDS] get_last_project_ids called: pid={pid}, pas={pas}")
+    _project_ids["proyecto_id"] = None
+    _project_ids["id_pasarela"] = None
+    return pid, pas
 
 _REQUIRED_FIELDS_AUTO = ["dni", "matricula", "fecha_efecto"]
 _REQUIRED_FIELDS_HOGAR = ["dni", "codigo_postal", "fecha_efecto", "nombre_via", "numero_calle", "tipo_vivienda"]
@@ -292,9 +305,71 @@ def create_retarificacion_project_tool(data: str, company_id: str) -> dict:
     result = client.merlin_create_project(payload)
     
     if result.get("success"):
-        logger.info(f"[RETARIFICACION] Project created successfully: ID={result.get('proyecto_id')}, msg={result.get('mensaje')}")
+        pid = result.get('proyecto_id')
+        pas = result.get('id_pasarela')
+        logger.info(f"[RETARIFICACION] Project created successfully: ID={pid}, pasarela={pas}, msg={result.get('mensaje')}")
+
+        if pid and pas:
+            _project_ids["proyecto_id"] = str(pid)
+            _project_ids["id_pasarela"] = int(pas)
+            logger.info(f"[PROJECT_IDS] Stored: proyecto_id={_project_ids['proyecto_id']}, id_pasarela={_project_ids['id_pasarela']}")
     else:
         logger.error(f"[RETARIFICACION] FAILED: {result.get('error')}")
         logger.error(f"[RETARIFICACION] Full error result: {json.dumps(result, default=str, ensure_ascii=False)[:1000]}")
+
+    return result
+
+
+# ============================================================================
+# TOOL 5: Finalizar proyecto HOGAR con capitales elegidos
+# ============================================================================
+
+@tool
+def finalizar_proyecto_hogar_tool(
+    proyecto_id: str,
+    id_pasarela: int,
+    capital_continente: int,
+    capital_contenido: int,
+    fecha_efecto: str,
+    company_id: str,
+) -> dict:
+    """
+    Finaliza un proyecto de HOGAR en Merlin con los capitales elegidos por el cliente
+    y lanza la tarificación multi-aseguradora.
+
+    Usa esta herramienta DESPUÉS de que create_retarificacion_project_tool haya devuelto
+    action_required='select_capitals' y el cliente haya elegido sus capitales preferidos
+    de entre las recomendaciones por aseguradora.
+
+    Args:
+        proyecto_id: ID MongoDB del proyecto (campo "proyecto_id" devuelto por create_retarificacion_project_tool, ej: "69a6c89815a9590f351dc961")
+        id_pasarela: ID numérico de pasarela (campo "id_pasarela" devuelto por create_retarificacion_project_tool, ej: 3410). DEBE ser un entero.
+        capital_continente: Capital de continente elegido por el cliente (ej: 150000)
+        capital_contenido: Capital de contenido elegido por el cliente (ej: 30000)
+        fecha_efecto: Fecha de efecto de la póliza (formato YYYY-MM-DD)
+        company_id: ID de la compañía (se obtiene automáticamente del contexto)
+
+    Returns:
+        dict con el resultado de la tarificación, incluyendo ofertas de las aseguradoras.
+    """
+    logger.info(
+        f"[FINALIZAR_HOGAR] project={proyecto_id}, pasarela={id_pasarela}, "
+        f"continente={capital_continente}, contenido={capital_contenido}"
+    )
+
+    client = ERPClient(company_id)
+    result = client.merlin_finalizar_proyecto_hogar({
+        "proyecto_id": proyecto_id,
+        "id_pasarela": id_pasarela,
+        "capital_continente": capital_continente,
+        "capital_contenido": capital_contenido,
+        "fecha_efecto": fecha_efecto,
+    })
+
+    if result.get("success"):
+        ofertas = result.get("ofertas", [])
+        logger.info(f"[FINALIZAR_HOGAR] Success: {len(ofertas)} offers returned")
+    else:
+        logger.error(f"[FINALIZAR_HOGAR] FAILED: {result.get('error')}")
 
     return result

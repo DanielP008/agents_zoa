@@ -273,7 +273,18 @@ class ERPClient(ERPBaseInterface):
         """Crea proyecto en Merlin."""
         from services.interfaces.erp_interfaces import MerlinInterface
         interface = MerlinInterface(self.company_id)
+        # Ensure company_id is present in the payload
+        data["company_id"] = self.company_id
         result, status = interface.create_project(data)
+        return result
+
+    def merlin_finalizar_proyecto_hogar(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Finaliza proyecto HOGAR con capitales elegidos y lanza tarificación."""
+        from services.interfaces.erp_interfaces import MerlinInterface
+        interface = MerlinInterface(self.company_id)
+        # Ensure company_id is present in the payload if needed by the ERP
+        data["company_id"] = self.company_id
+        result, status = interface.finalizar_proyecto_hogar(data)
         return result
 
 
