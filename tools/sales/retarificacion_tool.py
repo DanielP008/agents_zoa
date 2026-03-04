@@ -124,8 +124,18 @@ def get_town_by_cp_tool(cp: str, company_id: str) -> dict:
     
     if local_result:
         return local_result
+
+    # If local fallback fails, try ERP again with a small retry (sometimes Cloud Run cold starts or timeouts)
+    logger.warning(f"[GET_TOWN_BY_CP] Local fallback failed for {cp}. Retrying ERP once...")
+    import time
+    for attempt in range(2): # Up to 2 retries
+        time.sleep(1.5 * (attempt + 1))
+        result = client.merlin_get_town_by_cp(cp)
+        if result.get("success"):
+            logger.info(f"[GET_TOWN_BY_CP] ERP Retry {attempt+1} SUCCESS: {result.get('poblacion')}")
+            return result
         
-    logger.error(f"[GET_TOWN_BY_CP] Failed in ERP and Local DB")
+    logger.error(f"[GET_TOWN_BY_CP] Failed in ERP (all attempts) and Local DB")
     return result
 
 

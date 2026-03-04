@@ -67,6 +67,11 @@ def _preprocess_message(payload: dict, session: dict) -> tuple[dict, dict, str]:
             existing = []
         memory = update_global(memory, attachments=existing + attachments)
 
+    # Silent CRM lookup for NIF (Parallelize with OCR if possible, but for now we keep order)
+    memory, _ = try_silent_nif_lookup(memory, wa_id, company_id)
+
+    # Run OCR (now after NIF lookup to potentially use NIF in OCR prompt if needed, 
+    # but mainly to keep it separate from the main routing if it's slow)
     memory, ocr_text = process_attachments_ocr(memory)
     if ocr_text:
         mensaje = f"{mensaje}\n\n{ocr_text}" if mensaje else ocr_text
@@ -74,9 +79,6 @@ def _preprocess_message(payload: dict, session: dict) -> tuple[dict, dict, str]:
     elif attachments and not mensaje:
         mensaje = "[adjunto sin contenido extraíble]"
         payload["mensaje"] = mensaje
-
-    # Silent CRM lookup for NIF
-    memory, _ = try_silent_nif_lookup(memory, wa_id, company_id)
 
     # Silent CRM lookup for Name (if not already known)
     global_mem = memory.get("global", {})
@@ -255,7 +257,7 @@ def process_message(payload: dict) -> dict:
     # Guard: if agent returned ask/finish with empty message, use fallback
     if action in ("ask", "finish") and (not agent_message or not agent_message.strip()):
         logger.warning(f"[ORCHESTRATOR] Agent '{target_agent}' returned empty message with action='{action}'. Using fallback.")
-        agent_message = "Disculpa, tuve un problema procesando tu mensaje. ¿Podrías repetirlo?"
+        agent_message = "Disculpa, estoy procesando la información. Un segundo..."
         response["message"] = agent_message
 
     # 3a. end_chat can happen inside the loop

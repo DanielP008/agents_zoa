@@ -249,9 +249,9 @@ def create_langchain_agent(
 
 
 _EMPTY_RESPONSE_FALLBACK = (
-    "Disculpa, tuve un problema procesando tu mensaje. ¿Podrías repetirlo?"
+    "Disculpa, estoy procesando la información. Un segundo..."
 )
-_MAX_EMPTY_RETRIES = 2
+_MAX_EMPTY_RETRIES = 3
 
 
 def run_langchain_agent(
