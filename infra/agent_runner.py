@@ -26,6 +26,8 @@ _EXCLUDED_TOOLS = frozenset({
     "redirect_to_receptionist_tool",
     "send_whatsapp_tool",
     "create_task_activity_tool",
+    "get_town_by_cp_tool",
+    "consultar_catastro_tool",
 })
 
 # Context vars — set by the orchestrator before invoking the agent chain
@@ -249,7 +251,7 @@ def create_langchain_agent(
 
 
 _EMPTY_RESPONSE_FALLBACK = (
-    "Disculpa, estoy procesando la información. Un segundo..."
+    "Disculpa, no he podido procesar tu mensaje. ¿Podrías repetírmelo?"
 )
 _MAX_EMPTY_RETRIES = 3
 
