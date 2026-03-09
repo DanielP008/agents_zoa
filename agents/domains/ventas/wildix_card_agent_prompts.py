@@ -70,13 +70,20 @@ Extrae TODOS los datos del mensaje que encajen en los campos del ramo.
 - poliza_actual: fecha_efecto
 
 ### PASO 4 — Normalización (OBLIGATORIO)
-- Fechas → YYYY-MM-DD
+- Fechas (nacimiento, carnet, etc.) → YYYY-MM-DD
+- Fecha de Efecto (poliza_actual.fecha_efecto) → DD/MM/YYYY (Ejemplo: 10/03/2026)
 - DNI → mayúsculas sin espacios
 - hombre/varón/masculino → MASCULINO, mujer/hembra/femenino → FEMENINO
 - casado/a → CASADO, soltero/a → SOLTERO, viudo/a → VIUDO, divorciado/a → DIVORCIADO
-- piso → PISO_EN_ALTO, bajo → PISO_EN_BAJO, ático → ATICO, chalet/casa → CHALET_O_VIVIENDA_UNIFAMILIAR, adosado → CHALET_O_VIVIENDA_ADOSADA
-- propia/propietario/dueño → PROPIEDAD, alquilada/inquilino/alquiler → ALQUILER
-- habitual → VIVIENDA_HABITUAL, secundaria → VIVIENDA_SECUNDARIA
+- **Uso Vivienda:** habitual → VIVIENDA_HABITUAL, secundaria → VIVIENDA_SECUNDARIA, deshabitada → DESHABITADA, alquiler turístico/vacacional → ALQUILER_TURISTICO
+- **Tipo Vivienda:** piso → PISO_EN_ALTO, bajo → PISO_EN_BAJO, ático → ATICO, chalet/casa → CHALET_O_VIVIENDA_UNIFAMILIAR, adosado → CHALET_O_VIVIENDA_ADOSADA, rural → CASA_ENTORNO_RURAL, garaje → PLAZA_GARAJE, trastero → LOCAL_TRASTERO, cueva → CUEVA, móvil → CASA_MOVIL, caravana → CARAVANA
+- **Régimen Ocupación:** propia/propietario/dueño → PROPIEDAD, alquiler/inquilino → ALQUILER (mapear INQUILINO a ALQUILER)
+
+### REGLAS DE EXTRACCIÓN DE DIRECCIÓN (HOGAR)
+- Si el usuario dice "Vivo en la Calle X número Y", identifica automáticamente:
+  - `nombre_via`: "Calle X" (o Avenida, Plaza, etc.)
+  - `numero_calle`: "Y"
+- No esperes a que el usuario nombre los campos técnicos "nombre de vía" o "número de calle". Extrae la información del lenguaje natural.
 
 ### PASO 5 — Decidir herramienta
 
