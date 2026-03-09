@@ -65,9 +65,23 @@ Extrae TODOS los datos del mensaje que encajen en los campos del ramo.
 - poliza_actual: numero_poliza, company, fecha_efecto
 
 **Campos HOGAR:**
-- tomador: nombre, apellido1, apellido2, dni, fecha_nacimiento, sexo, estado_civil, codigo_postal
-- vivienda: nombre_via, numero_calle, piso, puerta, tipo_vivienda, uso_vivienda, regimen_ocupacion, numero_personas_vivienda
-- poliza_actual: fecha_efecto
+- tomador: nombre, apellido1, apellido2, dni, fecha_nacimiento, sexo, estado_civil, codigo_postal, telefono, email
+- inmueble: direccion, codigo_postal, tipo_vivienda
+- uso: tipo_uso, regimen
+- poliza_actual: numero_poliza, company, precio_anual, fecha_efecto
+
+### REGLA CRÍTICA DE ESTRUCTURA (HOGAR)
+Para el ramo HOGAR, DEBES usar exactamente esta estructura de objetos:
+{
+  "tomador": { "nombre": "...", "dni": "...", "fecha_nacimiento": "...", "telefono": "...", "email": "..." },
+  "inmueble": { "direccion": "Calle Mayor 12, 3ºB", "codigo_postal": "28001", "tipo_vivienda": "PISO_EN_ALTO" },
+  "uso": { "tipo_uso": "VIVIENDA_HABITUAL", "regimen": "PROPIEDAD" },
+  "poliza_actual": { "numero_poliza": "...", "company": "...", "precio_anual": 0.0, "fecha_efecto": "11/03/2026" }
+}
+IMPORTANTE:
+- `direccion` debe ser el string completo (Calle, número, piso).
+- `tipo_vivienda` debe ir dentro de `inmueble`.
+- `tipo_uso` y `regimen` deben ir dentro de `uso`.
 
 ### PASO 4 — Normalización (OBLIGATORIO)
 - Fechas (nacimiento, carnet, etc.) → YYYY-MM-DD
@@ -75,15 +89,13 @@ Extrae TODOS los datos del mensaje que encajen en los campos del ramo.
 - DNI → mayúsculas sin espacios
 - hombre/varón/masculino → MASCULINO, mujer/hembra/femenino → FEMENINO
 - casado/a → CASADO, soltero/a → SOLTERO, viudo/a → VIUDO, divorciado/a → DIVORCIADO
-- **Uso Vivienda:** habitual → VIVIENDA_HABITUAL, secundaria → VIVIENDA_SECUNDARIA, deshabitada → DESHABITADA, alquiler turístico/vacacional → ALQUILER_TURISTICO
-- **Tipo Vivienda:** piso → PISO_EN_ALTO, bajo → PISO_EN_BAJO, ático → ATICO, chalet/casa → CHALET_O_VIVIENDA_UNIFAMILIAR, adosado → CHALET_O_VIVIENDA_ADOSADA, rural → CASA_ENTORNO_RURAL, garaje → PLAZA_GARAJE, trastero → LOCAL_TRASTERO, cueva → CUEVA, móvil → CASA_MOVIL, caravana → CARAVANA
-- **Régimen Ocupación:** propia/propietario/dueño → PROPIEDAD, alquiler/inquilino → ALQUILER (mapear INQUILINO a ALQUILER)
+- **tipo_uso (uso):** habitual → VIVIENDA_HABITUAL, secundaria → VIVIENDA_SECUNDARIA, deshabitada → DESHABITADA, alquiler turístico/vacacional → ALQUILER_TURISTICO
+- **tipo_vivienda (inmueble):** piso → PISO_EN_ALTO, bajo → PISO_EN_BAJO, ático → ATICO, chalet/casa → CHALET_O_VIVIENDA_UNIFAMILIAR, adosado → CHALET_O_VIVIENDA_ADOSADA, rural → CASA_ENTORNO_RURAL, garaje → PLAZA_GARAJE, trastero → LOCAL_TRASTERO, cueva → CUEVA, móvil → CASA_MOVIL, caravana → CARAVANA
+- **regimen (uso):** propia/propietario/dueño → PROPIEDAD, alquiler → ALQUILER, inquilino → INQUILINO (mapear según lo que diga el usuario a uno de estos tres)
 
 ### REGLAS DE EXTRACCIÓN DE DIRECCIÓN (HOGAR)
-- Si el usuario dice "Vivo en la Calle X número Y", identifica automáticamente:
-  - `nombre_via`: "Calle X" (o Avenida, Plaza, etc.)
-  - `numero_calle`: "Y"
-- No esperes a que el usuario nombre los campos técnicos "nombre de vía" o "número de calle". Extrae la información del lenguaje natural.
+- Si el usuario dice "Vivo en la Calle X número Y", construye el string para `inmueble.direccion`: "Calle X, número Y".
+- No esperes a que el usuario nombre los campos técnicos. Extrae la información del lenguaje natural.
 
 ### PASO 5 — Decidir herramienta
 
@@ -109,7 +121,7 @@ Al hacer UPDATE, no borres lo que ya había. Si en `card_state` dice que el nomb
 
 ### CAMPOS OBLIGATORIOS (para determinar `complete`)
 **AUTO:** matricula, nombre, apellido1, dni, fecha_nacimiento, fecha_carnet, sexo, estado_civil, codigo_postal, fecha_efecto
-**HOGAR:** nombre, apellido1, dni, fecha_nacimiento, sexo, estado_civil, codigo_postal, nombre_via, numero_calle, tipo_vivienda, uso_vivienda, regimen_ocupacion, fecha_efecto
+**HOGAR:** nombre, apellido1, dni, fecha_nacimiento, sexo, estado_civil, codigo_postal, direccion, tipo_vivienda, tipo_uso, regimen, fecha_efecto
 Si TODOS los obligatorios tienen valor, marca `complete: true` en la herramienta.
 """
 
