@@ -38,13 +38,19 @@ def handle_insurance_agent(request) -> tuple:
 
     logger.info(
         f"[WILDIX_CARD_HANDLER] Received: call_id={call_id}, "
-        f"company_id={company_id}, msg_len={len(message)}"
+        f"company_id={company_id}, msg_len={len(message)}, "
+        f"msg_preview={message[:200]!r}"
     )
 
     if not message:
         return _json_response({"status": "ok", "estado": "ignored", "reason": "empty_message"})
 
     session = session_manager.get_session(call_id, company_id)
+    existing_global = session.get("agent_memory", {}).get("global", {})
+    logger.info(
+        f"[WILDIX_CARD_HANDLER] Session loaded: ramo_activo={existing_global.get('ramo_activo')}, "
+        f"card_created={existing_global.get('card_created', False)}"
+    )
 
     payload = {
         "company_id": company_id,
@@ -59,6 +65,13 @@ def handle_insurance_agent(request) -> tuple:
     except Exception:
         logger.exception("[WILDIX_CARD_HANDLER] Agent execution failed")
         return _json_response({"status": "error", "reason": "agent_error"}, 500)
+
+    tool_calls = result.get("tool_calls")
+    logger.info(
+        f"[WILDIX_CARD_HANDLER] Agent result: estado={result.get('estado')}, "
+        f"ramo={result.get('ramo')}, "
+        f"tools={[tc['name'] for tc in tool_calls] if tool_calls else 'none'}"
+    )
 
     memory_patch = result.get("memory_patch", {})
     if memory_patch:
