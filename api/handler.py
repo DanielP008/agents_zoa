@@ -8,6 +8,7 @@ from infra.db import SessionManager
 from infra.tracing import setup_tracing
 from api.wildix_handler import handle_wildix
 from api.aichat_handler import handle_aichat
+from api.wildix_card_handler import handle_insurance_agent
 
 # Configure logging to stdout
 logging.basicConfig(
@@ -47,6 +48,11 @@ def handle_request(request):
     if request.path == "/health":
         return _json_response({"status": "ok", "message": "Service is healthy"})
     
+    # Insurance agent (buffered call transcriptions from zoa_buffer)
+    if data.get("action") == "insurance_agent":
+        logger.info("[HANDLER] Routing to insurance_agent (wildix card handler)")
+        return handle_insurance_agent(request)
+
     # Wildix webhook detection
     if "sessionId" in data and "botId" in data and "event" in data:
         event = data.get("event", {})

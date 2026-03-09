@@ -98,6 +98,60 @@ def send_aichat_response(
     )
     return result
 
+def create_aichat_card(
+    company_id: str,
+    user_id: str,
+    call_id: str,
+    body_type: str,
+    data: Dict[str, Any],
+    complete: bool = False,
+) -> Dict[str, Any]:
+    """Create a tarification card (auto_sheet / home_sheet) via ZOA AI Chat."""
+    logger.info(f"[ZOA_CLIENT] Creating card: body_type={body_type}, call_id={call_id}, complete={complete}")
+    interface = AiChatInterface()
+    result, status = interface.execute(
+        company_id=company_id,
+        option="create",
+        request_data={
+            "user_id": user_id,
+            "body_type": body_type,
+            "call_id": call_id,
+            "complete": str(complete).lower(),
+            "data": data,
+        },
+    )
+    if status != 200:
+        logger.error(f"[ZOA_CLIENT] Card create failed ({status}): {result}")
+    return result
+
+
+def update_aichat_card(
+    company_id: str,
+    user_id: str,
+    call_id: str,
+    body_type: str,
+    data: Dict[str, Any],
+    complete: bool = False,
+) -> Dict[str, Any]:
+    """Update an existing tarification card via ZOA AI Chat."""
+    logger.info(f"[ZOA_CLIENT] Updating card: body_type={body_type}, call_id={call_id}, complete={complete}")
+    interface = AiChatInterface()
+    result, status = interface.execute(
+        company_id=company_id,
+        option="update",
+        request_data={
+            "user_id": user_id,
+            "body_type": body_type,
+            "call_id": call_id,
+            "complete": str(complete).lower(),
+            "data": data,
+        },
+    )
+    if status != 200:
+        logger.error(f"[ZOA_CLIENT] Card update failed ({status}): {result}")
+    return result
+
+
 def search_contact_by_phone(
     phone: str,
     company_id: str,
