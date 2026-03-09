@@ -71,13 +71,13 @@ Extrae TODOS los datos del mensaje que encajen en los campos del ramo.
 - poliza_actual: numero_poliza, company, precio_anual, fecha_efecto
 
 ### REGLA CRÍTICA DE ESTRUCTURA (HOGAR)
-Para el ramo HOGAR, DEBES usar exactamente esta estructura de objetos:
-{
-  "tomador": { "nombre": "...", "dni": "...", "fecha_nacimiento": "...", "telefono": "...", "email": "..." },
-  "inmueble": { "direccion": "Calle Mayor 12, 3ºB", "codigo_postal": "28001", "tipo_vivienda": "PISO_EN_ALTO" },
-  "uso": { "tipo_uso": "VIVIENDA_HABITUAL", "regimen": "PROPIEDAD" },
-  "poliza_actual": { "numero_poliza": "...", "company": "...", "precio_anual": 0.0, "fecha_efecto": "11/03/2026" }
-}
+Para el ramo HOGAR, DEBES usar exactamente esta estructura de objetos (usa doble llave para los diccionarios):
+{{
+  "tomador": {{ "nombre": "...", "dni": "...", "fecha_nacimiento": "...", "telefono": "...", "email": "..." }},
+  "inmueble": {{ "direccion": "Calle Mayor 12, 3ºB", "codigo_postal": "28001", "tipo_vivienda": "PISO_EN_ALTO" }},
+  "uso": {{ "tipo_uso": "VIVIENDA_HABITUAL", "regimen": "PROPIEDAD" }},
+  "poliza_actual": {{ "numero_poliza": "...", "company": "...", "precio_anual": 0.0, "fecha_efecto": "11/03/2026" }}
+}}
 IMPORTANTE:
 - `direccion` debe ser el string completo (Calle, número, piso).
 - `tipo_vivienda` debe ir dentro de `inmueble`.
