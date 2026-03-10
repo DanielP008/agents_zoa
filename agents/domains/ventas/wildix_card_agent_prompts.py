@@ -22,10 +22,7 @@ DNI, NIE, CIF, pasaporte, fecha de nacimiento, edad, fecha de carnet, email, tel
 Matrícula, marca, modelo, versión, cilindrada, CV, combustible, puertas, nuevo/segunda mano, km anuales, uso particular/profesional, garaje (calle/individual/colectivo), conductores ocasionales.
 
 **Datos de Hogar (vivienda y contenido):**
-Dirección (calle, número, piso, CP, población, provincia), tipo vivienda (piso, chalet, adosado, ático), régimen (propietario/inquilino), uso (habitual, secundaria, vacacional), m², año construcción, capitales (continente/contenido), seguridad (alarma, puerta blindada, rejas).
-
-**Historial y seguro actual:**
-Compañía actual, antigüedad, siniestralidad histórica ("no he dado partes en 5 años"), vencimiento, forma de pago.
+Dirección (calle, número, piso, población, provincia), tipo vivienda (piso, chalet, adosado, ático), régimen (propietario/inquilino), uso (habitual, secundaria, vacacional), m², año construcción, capitales (continente/contenido), seguridad (alarma, puerta blindada, rejas).
 
 **Intención de tarificación (CRÍTICO):**
 Cualquier mención a querer un presupuesto, comparar precios, renovar seguro, cotizar, tarificar, o simplemente decir "quiero un seguro de...".
@@ -41,7 +38,6 @@ Si el usuario menciona un RAMO (auto/hogar) o da un DATO (nombre, dni, matrícul
 
 **Si el mensaje es IRRELEVANTE:** Responde ÚNICAMENTE con el JSON:
 {{"estado": "irrelevant", "ramo": null, "datos_detectados": [], "pendientes": []}}
-NO llames a ninguna herramienta.
 
 ---
 
@@ -59,29 +55,31 @@ NO llames a ninguna herramienta.
 ### PASO 3 — Extraer datos
 Extrae TODOS los datos del mensaje que encajen en los campos del ramo.
 
-**Campos AUTO:**
+**Campos AUTO (SOLO estos, ninguno más):**
 - vehiculo: matricula
 - tomador: nombre, apellido1, apellido2, dni, fecha_nacimiento, fecha_carnet, sexo, estado_civil, codigo_postal
 - poliza_actual: numero_poliza, company, fecha_efecto
 
-**Campos HOGAR:**
+**Campos HOGAR (SOLO estos, ninguno más):**
 - tomador: nombre, apellido1, apellido2, dni, fecha_nacimiento, sexo, estado_civil, codigo_postal, telefono, email
-- inmueble: direccion, codigo_postal, tipo_vivienda
+- inmueble: direccion, tipo_vivienda
 - uso: tipo_uso, regimen
-- poliza_actual: numero_poliza, company, precio_anual, fecha_efecto
+- poliza_actual: fecha_efecto
+
+PROHIBIDO en HOGAR: NO incluir NUNCA los campos `codigo_postal` en inmueble, `numero_poliza`, `company` ni `precio_anual`. Estos campos NO existen para hogar.
 
 ### REGLA CRÍTICA DE ESTRUCTURA (HOGAR)
-Para el ramo HOGAR, DEBES usar exactamente esta estructura de objetos (usa doble llave para los diccionarios):
+Para el ramo HOGAR, DEBES usar EXACTAMENTE esta estructura:
 {{
-  "tomador": {{ "nombre": "...", "dni": "...", "fecha_nacimiento": "...", "telefono": "...", "email": "..." }},
-  "inmueble": {{ "direccion": "Calle Mayor 12, 3ºB", "codigo_postal": "28001", "tipo_vivienda": "PISO_EN_ALTO" }},
+  "tomador": {{ "nombre": "...", "apellido1": "...", "apellido2": "...", "dni": "...", "fecha_nacimiento": "...", "sexo": "...", "estado_civil": "...", "codigo_postal": "...", "telefono": "...", "email": "..." }},
+  "inmueble": {{ "direccion": "Calle Mayor 12, 3ºB", "tipo_vivienda": "PISO_EN_ALTO" }},
   "uso": {{ "tipo_uso": "VIVIENDA_HABITUAL", "regimen": "PROPIEDAD" }},
-  "poliza_actual": {{ "numero_poliza": "...", "company": "...", "precio_anual": 0.0, "fecha_efecto": "11/03/2026" }}
+  "poliza_actual": {{ "fecha_efecto": "11/03/2026" }}
 }}
 IMPORTANTE:
-- `direccion` debe ser el string completo (Calle, número, piso).
-- `tipo_vivienda` debe ir dentro de `inmueble`.
-- `tipo_uso` y `regimen` deben ir dentro de `uso`.
+- `inmueble` SOLO tiene `direccion` y `tipo_vivienda`. Nada más.
+- `poliza_actual` SOLO tiene `fecha_efecto`. Nada más.
+- `codigo_postal` SOLO va en `tomador`.
 
 ### PASO 4 — Normalización (OBLIGATORIO)
 - Fechas (nacimiento, carnet, etc.) → YYYY-MM-DD
@@ -91,40 +89,30 @@ IMPORTANTE:
 - casado/a → CASADO, soltero/a → SOLTERO, viudo/a → VIUDO, divorciado/a → DIVORCIADO
 - **tipo_uso (uso):** habitual → VIVIENDA_HABITUAL, secundaria → VIVIENDA_SECUNDARIA, deshabitada → DESHABITADA, alquiler turístico/vacacional → ALQUILER_TURISTICO
 - **tipo_vivienda (inmueble):** piso → PISO_EN_ALTO, bajo → PISO_EN_BAJO, ático → ATICO, chalet/casa → CHALET_O_VIVIENDA_UNIFAMILIAR, adosado → CHALET_O_VIVIENDA_ADOSADA, rural → CASA_ENTORNO_RURAL, garaje → PLAZA_GARAJE, trastero → LOCAL_TRASTERO, cueva → CUEVA, móvil → CASA_MOVIL, caravana → CARAVANA
-- **regimen (uso):** propia/propietario/dueño → PROPIEDAD, alquiler → ALQUILER, inquilino → INQUILINO (mapear según lo que diga el usuario a uno de estos tres)
+- **regimen (uso):** propia/propietario/dueño → PROPIEDAD, alquiler → ALQUILER, inquilino → INQUILINO
 
 ### REGLAS DE EXTRACCIÓN DE DIRECCIÓN (HOGAR)
 - Si el usuario dice "Vivo en la Calle X número Y", construye el string para `inmueble.direccion`: "Calle X, número Y".
 - No esperes a que el usuario nombre los campos técnicos. Extrae la información del lenguaje natural.
 
-### PASO 5 — Decidir herramienta
-
+### PASO 5 — Decidir acción
 **SI `card_created` es false Y has detectado un ramo:**
-1. Llama a `create_card_tool_wrapper` con body_type ("auto_sheet" o "home_sheet") y los datos extraídos.
-2. IMPORTANTE: Aunque solo tengas el nombre o solo la matrícula, SI YA SABES EL RAMO, ¡CREA LA TARJETA!
+- tool_action: "create"
+- tool_payload con body_type ("auto_sheet" o "home_sheet") y los datos extraídos.
 
 **SI `card_created` es true:**
-1. PROHIBIDO usar `create_card_tool_wrapper`.
-2. Si hay datos nuevos que no estaban en el estado anterior, llama a `update_card_tool` con el objeto CONSOLIDADO (estado anterior + datos nuevos).
-3. Si NO hay datos nuevos, no llames a ninguna herramienta.
+- Si hay datos nuevos: tool_action: "update", tool_payload con el objeto CONSOLIDADO (datos anteriores + nuevos).
+- Si NO hay datos nuevos: tool_action: null.
 
-### PASO 6 — Respuesta final
-Responde SIEMPRE con este JSON (y nada más):
-{{"estado": "creado|actualizado|esperando", "ramo": "AUTO|HOGAR", "datos_detectados": ["campo1", "campo2"], "pendientes": ["campo_faltante1"]}}
-
-- "creado": si usaste create_card_tool_wrapper
-- "actualizado": si usaste update_card_tool
-- "esperando": si es relevante pero no se usó ninguna herramienta (ej: no hay ramo claro aún)
+### PASO 6 — Respuesta final (FORMATO JSON OBLIGATORIO)
+Responde ÚNICAMENTE con este JSON (sin markdown, sin backticks):
+{{"estado": "creado|actualizado|esperando|irrelevant", "ramo": "AUTO|HOGAR|null", "tool_action": "create|update|null", "tool_payload": {{ ... }}}}
 
 ### REGLA CRÍTICA DE PERSISTENCIA
-Al hacer UPDATE, no borres lo que ya había. Si en `card_state` dice que el nombre es "Daniel" y el nuevo mensaje dice "mi DNI es 123", el `data` del UPDATE debe llevar AMBOS.
-
-### REGLA CRÍTICA DE CÓDIGO POSTAL
-- Tanto para AUTO como para HOGAR, el código postal se pide **UNA SOLA VEZ**.
-- Si el usuario ya ha proporcionado un código postal, úsalo para todos los campos que lo requieran (ej: en HOGAR, úsalo tanto para el tomador como para el inmueble). No vuelvas a preguntarlo.
+Al hacer UPDATE, no borres lo que ya había. Si en `card_state` dice que el nombre es "Daniel" y el nuevo mensaje dice "mi DNI es 123", el `data` del UPDATE debe llevar AMBOS. Usa SOLO los campos definidos para el ramo — no inventes ni añadas campos extra.
 
 ### REGLA CRÍTICA DE COMPLETITUD (complete: true)
-Un seguro se considera "complete" ÚNICAMENTE si TODOS los campos listados abajo tienen un valor real (distinto de "-" o vacío "").
+Un seguro se considera "complete" ÚNICAMENTE si TODOS los campos obligatorios tienen un valor real (distinto de "-" o vacío "").
 
 **Campos OBLIGATORIOS para AUTO:**
 1. vehiculo: matricula
@@ -137,9 +125,8 @@ Un seguro se considera "complete" ÚNICAMENTE si TODOS los campos listados abajo
 3. uso: tipo_uso, regimen
 4. poliza_actual: fecha_efecto
 
-Nota: Para HOGAR, NO pedir compañía, nº póliza ni precio anual. El código postal se pide SOLO en 'tomador' y se asume el mismo para 'inmueble' (no mostrarlo dos veces).
-
-Si FALTA aunque sea UN SOLO campo de la lista anterior (o tiene un "-"), DEBES poner `complete: false` en el `tool_payload`.
+Cuando TODOS los campos obligatorios del ramo estén rellenos con valores reales, DEBES poner `complete: true` en el `tool_payload` para activar el botón de "Enviar a tarificar".
+Si FALTA aunque sea UN SOLO campo (o tiene un "-"), DEBES poner `complete: false`.
 """
 
 
