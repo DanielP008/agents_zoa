@@ -48,20 +48,60 @@ def handle_insurance_agent(request) -> tuple:
     if option == "create_empty" and ramo_signal:
         logger.info(f"[WILDIX_CARD_HANDLER] Processing CREATE_EMPTY signal for {ramo_signal}")
         try:
-            from tools.sales.card_tools import create_card_tool
+            from tools.sales.card_tools import create_card_tool, get_card_state
             
             # Determine sheet type
             sheet_type = "auto_sheet" if ramo_signal.upper() == "AUTO" else "home_sheet"
             
+            # Prepare empty data structure with placeholders
+            empty_data = {}
+            if sheet_type == "auto_sheet":
+                empty_data = {
+                    "vehiculo": {"matricula": "-"},
+                    "tomador": {
+                        "nombre": "-", "apellido1": "-", "apellido2": "-", 
+                        "dni": "-", "fecha_nacimiento": "-", "fecha_carnet": "-", 
+                        "sexo": "-", "estado_civil": "-", "codigo_postal": "-"
+                    },
+                    "poliza_actual": {"numero_poliza": "-", "company": "-", "fecha_efecto": "-"}
+                }
+            elif sheet_type == "home_sheet":
+                empty_data = {
+                    "tomador": {
+                        "nombre": "-", "apellido1": "-", "apellido2": "-", 
+                        "dni": "-", "fecha_nacimiento": "-", "sexo": "-", 
+                        "estado_civil": "-", "codigo_postal": "-", "telefono": "-", "email": "-"
+                    },
+                    "inmueble": {"direccion": "-", "codigo_postal": "-", "tipo_vivienda": "-"},
+                    "uso": {"tipo_uso": "-", "regimen": "-"},
+                    "poliza_actual": {
+                        "numero_poliza": "-", "company": "-", 
+                        "precio_anual": "-", "fecha_efecto": "-"
+                    }
+                }
+
             # Call tool directly with empty data
-            # The tool handles session persistence
             result_str = create_card_tool(
                 body_type=sheet_type,
                 company_id=company_id,
                 user_id=user_id,
                 call_id=call_id,
-                data={} # Empty data creates the card with pending fields
+                data=empty_data
             )
+            
+            # FIX: Save state to session so next request knows card exists
+            session = session_manager.get_session(call_id, company_id)
+            if "agent_memory" not in session: session["agent_memory"] = {}
+            if "global" not in session["agent_memory"]: session["agent_memory"]["global"] = {}
+            
+            new_state = get_card_state()
+            
+            session["agent_memory"]["global"]["ramo_activo"] = new_state.get("ramo_activo")
+            session["agent_memory"]["global"]["card_created"] = True
+            session["agent_memory"]["global"]["card_data"] = empty_data
+            
+            session_manager.save_session(session["session_id"], session)
+            logger.info(f"[WILDIX_CARD_HANDLER] Session saved after empty card creation for call_id={call_id}")
             
             logger.info(f"[WILDIX_CARD_HANDLER] Immediate card created: {result_str}")
             return _json_response({"status": "ok", "estado": "created_empty", "ramo": ramo_signal})
