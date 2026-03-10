@@ -97,24 +97,25 @@ IMPORTANTE:
 - Si el usuario dice "Vivo en la Calle X número Y", construye el string para `inmueble.direccion`: "Calle X, número Y".
 - No esperes a que el usuario nombre los campos técnicos. Extrae la información del lenguaje natural.
 
-### PASO 5 — Decidir herramienta
-
+### PASO 5 — Decidir acción
 **SI `card_created` es false Y has detectado un ramo:**
-1. Llama a `create_card_tool_wrapper` con body_type ("auto_sheet" o "home_sheet") y los datos extraídos.
-2. IMPORTANTE: Aunque solo tengas el nombre o solo la matrícula, SI YA SABES EL RAMO, ¡CREA LA TARJETA!
+- ACCIÓN: "create"
+- TOOL_PAYLOAD: { "body_type": "auto_sheet"|"home_sheet", "data": {...}, "complete": false }
 
 **SI `card_created` es true:**
-1. PROHIBIDO usar `create_card_tool_wrapper`.
-2. Si hay datos nuevos que no estaban en el estado anterior, llama a `update_card_tool` con el objeto CONSOLIDADO (estado anterior + datos nuevos).
-3. Si NO hay datos nuevos, no llames a ninguna herramienta.
+- Si hay datos nuevos: ACCIÓN: "update"
+- TOOL_PAYLOAD: { "body_type": "...", "data": {...}, "complete": true|false }
+- Si NO hay datos nuevos: ACCIÓN: null
 
-### PASO 6 — Respuesta final
-Responde SIEMPRE con este JSON (y nada más):
-{{"estado": "creado|actualizado|esperando", "ramo": "AUTO|HOGAR", "datos_detectados": ["campo1", "campo2"], "pendientes": ["campo_faltante1"]}}
+### PASO 6 — Respuesta final (FORMATO JSON OBLIGATORIO)
+Responde ÚNICAMENTE con este JSON (sin markdown, sin ```json):
 
-- "creado": si usaste create_card_tool_wrapper
-- "actualizado": si usaste update_card_tool
-- "esperando": si es relevante pero no se usó ninguna herramienta (ej: no hay ramo claro aún)
+{
+  "estado": "creado|actualizado|esperando|irrelevant",
+  "ramo": "AUTO|HOGAR|null",
+  "tool_action": "create|update|null",
+  "tool_payload": { ... objeto para la herramienta ... }
+}
 
 ### REGLA CRÍTICA DE PERSISTENCIA
 Al hacer UPDATE, no borres lo que ya había. Si en `card_state` dice que el nombre es "Daniel" y el nuevo mensaje dice "mi DNI es 123", el `data` del UPDATE debe llevar AMBOS.
@@ -133,7 +134,7 @@ Un seguro se considera "complete" ÚNICAMENTE si TODOS los campos listados abajo
 3. uso: tipo_uso, regimen
 4. poliza_actual: numero_poliza, company, precio_anual, fecha_efecto
 
-Si FALTA aunque sea UN SOLO campo de la lista anterior (o tiene un "-"), DEBES poner `complete: false` al llamar a la herramienta.
+Si FALTA aunque sea UN SOLO campo de la lista anterior (o tiene un "-"), DEBES poner `complete: false` en el `tool_payload`.
 """
 
 

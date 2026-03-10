@@ -85,13 +85,60 @@ def wildix_card_agent(payload: dict) -> dict:
     set_call_context(company_id, user_id, call_id)
 
     llm = get_llm()
-    tools = [create_card_tool_wrapper, update_card_tool]
-
-    agent = create_langchain_agent(llm, tools, system_prompt)
-    result = run_langchain_agent(agent, message, history=None, agent_name=AGENT_NAME)
-
-    output_text = result.get("output", "")
-    tool_calls = result.get("tool_calls")
+    
+    # --- FAST PATH: Direct LLM Call (No Agent Loop) ---
+    from langchain_core.messages import SystemMessage, HumanMessage
+    
+    messages = [
+        SystemMessage(content=system_prompt),
+        HumanMessage(content=message)
+    ]
+    
+    try:
+        # Force JSON output for speed and structure
+        llm_response = llm.invoke(messages)
+        content = llm_response.content
+        
+        # Clean up markdown code blocks if present
+        if "```json" in content:
+            content = content.split("```json")[1].split("```")[0].strip()
+        elif "```" in content:
+            content = content.split("```")[1].split("```")[0].strip()
+            
+        parsed_result = json.loads(content)
+        
+        # Execute tool logic manually based on JSON response
+        tool_action = parsed_result.get("tool_action") # "create", "update", or null
+        tool_payload = parsed_result.get("tool_payload")
+        
+        tool_calls = []
+        
+        if tool_action == "create" and tool_payload:
+            from tools.sales.card_tools import create_card_tool
+            logger.info(f"[{AGENT_NAME}] Executing CREATE directly")
+            create_card_tool(
+                body_type=tool_payload.get("body_type"),
+                data=tool_payload.get("data"),
+                complete=tool_payload.get("complete", False)
+            )
+            tool_calls.append({"name": "create_card_tool", "args": tool_payload})
+            
+        elif tool_action == "update" and tool_payload:
+            from tools.sales.card_tools import update_card_tool
+            logger.info(f"[{AGENT_NAME}] Executing UPDATE directly")
+            # The tool expects a JSON string wrapper because of the @tool decorator, 
+            # but since we import the underlying function logic or wrapper, let's check card_tools.py
+            # update_card_tool is a @tool wrapper that takes a string.
+            # We should call the underlying logic if possible, or just call the wrapper with json string.
+            update_card_tool(json.dumps(tool_payload)) 
+            tool_calls.append({"name": "update_card_tool", "args": tool_payload})
+            
+        output_text = json.dumps(parsed_result)
+        
+    except Exception as e:
+        logger.error(f"[{AGENT_NAME}] Fast path failed: {e}")
+        output_text = "{}"
+        tool_calls = []
 
     new_state = get_card_state()
     memory_patch = {}
