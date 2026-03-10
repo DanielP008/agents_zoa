@@ -55,7 +55,6 @@ def wildix_card_agent(payload: dict) -> dict:
     company_id = payload.get("company_id", "")
     user_id = payload.get("user_id", "")
     call_id = payload.get("call_id", "")
-    full_transcript = payload.get("full_transcript", "")
 
     session = payload.get("session", {})
     memory = session.get("agent_memory", {})
@@ -64,8 +63,7 @@ def wildix_card_agent(payload: dict) -> dict:
     global_mem = memory["global"]
 
     logger.info(
-        f"[{AGENT_NAME}] Processing message ({len(message)} chars) for call={call_id}, "
-        f"transcript={len(full_transcript)} chars"
+        f"[{AGENT_NAME}] Processing message ({len(message)} chars) for call={call_id}"
     )
 
     if not message:
@@ -74,8 +72,6 @@ def wildix_card_agent(payload: dict) -> dict:
     card_state_text = _build_card_state_text(global_mem)
     current_date = datetime.now().strftime("%d/%m/%Y")
 
-    transcript_context = full_transcript if full_transcript else "Sin historial previo."
-
     prompt_template = get_wildix_card_prompt()
     system_prompt = prompt_template.format(
         current_date=current_date,
@@ -83,7 +79,6 @@ def wildix_card_agent(payload: dict) -> dict:
         user_id=user_id,
         call_id=call_id,
         card_state=card_state_text,
-        full_transcript=transcript_context,
     )
 
     reset_card_state()

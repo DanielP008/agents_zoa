@@ -35,12 +35,10 @@ def handle_insurance_agent(request) -> tuple:
     user_id = data.get("user_id", "")
     call_id = data.get("call_id", "")
     message = data.get("message", "").strip()
-    full_transcript = data.get("full_transcript", "")
 
     logger.info(
         f"[WILDIX_CARD_HANDLER] Received: call_id={call_id}, "
         f"company_id={company_id}, msg_len={len(message)}, "
-        f"transcript_len={len(full_transcript)}, "
         f"msg_preview={message[:200]!r}"
     )
 
@@ -59,7 +57,6 @@ def handle_insurance_agent(request) -> tuple:
         "user_id": user_id,
         "call_id": call_id,
         "message": message,
-        "full_transcript": full_transcript,
         "session": session,
     }
 
