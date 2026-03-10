@@ -119,10 +119,21 @@ Responde SIEMPRE con este JSON (y nada más):
 ### REGLA CRÍTICA DE PERSISTENCIA
 Al hacer UPDATE, no borres lo que ya había. Si en `card_state` dice que el nombre es "Daniel" y el nuevo mensaje dice "mi DNI es 123", el `data` del UPDATE debe llevar AMBOS.
 
-### CAMPOS OBLIGATORIOS (para determinar `complete`)
-**AUTO:** matricula, nombre, apellido1, dni, fecha_nacimiento, fecha_carnet, sexo, estado_civil, codigo_postal, fecha_efecto
-**HOGAR:** nombre, apellido1, dni, fecha_nacimiento, sexo, estado_civil, codigo_postal, direccion, tipo_vivienda, tipo_uso, regimen, fecha_efecto
-Si TODOS los obligatorios tienen valor, marca `complete: true` en la herramienta.
+### REGLA CRÍTICA DE COMPLETITUD (complete: true)
+Un seguro se considera "complete" ÚNICAMENTE si TODOS los campos listados abajo tienen un valor real (distinto de "-" o vacío "").
+
+**Campos OBLIGATORIOS para AUTO:**
+1. vehiculo: matricula
+2. tomador: nombre, apellido1, apellido2, dni, fecha_nacimiento, fecha_carnet, sexo, estado_civil, codigo_postal
+3. poliza_actual: numero_poliza, company, fecha_efecto
+
+**Campos OBLIGATORIOS para HOGAR:**
+1. tomador: nombre, apellido1, apellido2, dni, fecha_nacimiento, sexo, estado_civil, codigo_postal, telefono, email
+2. inmueble: direccion, codigo_postal, tipo_vivienda
+3. uso: tipo_uso, regimen
+4. poliza_actual: numero_poliza, company, precio_anual, fecha_efecto
+
+Si FALTA aunque sea UN SOLO campo de la lista anterior (o tiene un "-"), DEBES poner `complete: false` al llamar a la herramienta.
 """
 
 
