@@ -133,11 +133,11 @@ Un seguro se considera "complete" ÚNICAMENTE si TODOS los campos listados abajo
 
 **Campos OBLIGATORIOS para HOGAR:**
 1. tomador: nombre, apellido1, apellido2, dni, fecha_nacimiento, sexo, estado_civil, codigo_postal, telefono, email
-2. inmueble: direccion, codigo_postal, tipo_vivienda
+2. inmueble: direccion, tipo_vivienda
 3. uso: tipo_uso, regimen
 4. poliza_actual: fecha_efecto
 
-Nota: Para HOGAR, NO pedir compañía, nº póliza ni precio anual.
+Nota: Para HOGAR, NO pedir compañía, nº póliza ni precio anual. El código postal se pide SOLO en 'tomador' y se asume el mismo para 'inmueble' (no mostrarlo dos veces).
 
 Si FALTA aunque sea UN SOLO campo de la lista anterior (o tiene un "-"), DEBES poner `complete: false` en el `tool_payload`.
 """

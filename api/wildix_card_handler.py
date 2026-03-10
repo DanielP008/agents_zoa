@@ -72,7 +72,7 @@ def handle_insurance_agent(request) -> tuple:
                         "dni": "-", "fecha_nacimiento": "-", "sexo": "-", 
                         "estado_civil": "-", "codigo_postal": "-", "telefono": "-", "email": "-"
                     },
-                    "inmueble": {"direccion": "-", "codigo_postal": "-", "tipo_vivienda": "-"},
+                    "inmueble": {"direccion": "-", "tipo_vivienda": "-"},
                     "uso": {"tipo_uso": "-", "regimen": "-"},
                     "poliza_actual": {"fecha_efecto": "-"}
                 }
