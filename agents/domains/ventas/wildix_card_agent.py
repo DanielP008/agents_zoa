@@ -11,7 +11,7 @@ from datetime import datetime
 from infra.agent_runner import create_langchain_agent, run_langchain_agent
 from infra.llm import get_llm
 from tools.sales.card_tools import (
-    create_card_tool,
+    create_card_tool_wrapper,
     update_card_tool,
     get_card_state,
     reset_card_state,
@@ -85,7 +85,7 @@ def wildix_card_agent(payload: dict) -> dict:
     set_call_context(company_id, user_id, call_id)
 
     llm = get_llm()
-    tools = [create_card_tool, update_card_tool]
+    tools = [create_card_tool_wrapper, update_card_tool]
 
     agent = create_langchain_agent(llm, tools, system_prompt)
     result = run_langchain_agent(agent, message, history=None, agent_name=AGENT_NAME)
@@ -117,7 +117,7 @@ def wildix_card_agent(payload: dict) -> dict:
     except (json.JSONDecodeError, TypeError):
         if tool_calls:
             tc_names = {tc["name"] for tc in tool_calls}
-            if "create_card_tool" in tc_names:
+            if "create_card_tool_wrapper" in tc_names:
                 estado = "creado"
             elif "update_card_tool" in tc_names:
                 estado = "actualizado"

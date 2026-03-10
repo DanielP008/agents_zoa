@@ -100,11 +100,11 @@ IMPORTANTE:
 ### PASO 5 — Decidir herramienta
 
 **SI `card_created` es false Y has detectado un ramo:**
-1. Llama a `create_card_tool` con body_type ("auto_sheet" o "home_sheet") y los datos extraídos.
+1. Llama a `create_card_tool_wrapper` con body_type ("auto_sheet" o "home_sheet") y los datos extraídos.
 2. IMPORTANTE: Aunque solo tengas el nombre o solo la matrícula, SI YA SABES EL RAMO, ¡CREA LA TARJETA!
 
 **SI `card_created` es true:**
-1. PROHIBIDO usar `create_card_tool`.
+1. PROHIBIDO usar `create_card_tool_wrapper`.
 2. Si hay datos nuevos que no estaban en el estado anterior, llama a `update_card_tool` con el objeto CONSOLIDADO (estado anterior + datos nuevos).
 3. Si NO hay datos nuevos, no llames a ninguna herramienta.
 
@@ -112,7 +112,7 @@ IMPORTANTE:
 Responde SIEMPRE con este JSON (y nada más):
 {{"estado": "creado|actualizado|esperando", "ramo": "AUTO|HOGAR", "datos_detectados": ["campo1", "campo2"], "pendientes": ["campo_faltante1"]}}
 
-- "creado": si usaste create_card_tool
+- "creado": si usaste create_card_tool_wrapper
 - "actualizado": si usaste update_card_tool
 - "esperando": si es relevante pero no se usó ninguna herramienta (ej: no hay ramo claro aún)
 

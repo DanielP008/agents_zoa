@@ -33,8 +33,70 @@ def reset_card_state():
     _card_state["card_data"] = {}
 
 
+def create_card_tool(
+    body_type: str,
+    company_id: str = None,
+    user_id: str = None,
+    call_id: str = None,
+    data: dict = None,
+    complete: bool = False
+) -> dict:
+    """
+    Crea una nueva tarjeta de tarificación (auto o hogar) en ZOA.
+    
+    Can be called directly (Python args) or via LangChain tool (JSON string).
+    """
+    # Handle direct Python call (e.g. from handler)
+    if isinstance(body_type, str) and not body_type.startswith("{"):
+        payload = {
+            "body_type": body_type,
+            "data": data or {},
+            "complete": complete
+        }
+        # Use provided context or fallback to global context
+        ctx_company = company_id or _call_context["company_id"]
+        ctx_user = user_id or _call_context["user_id"]
+        ctx_call = call_id or _call_context["call_id"]
+        
+    else:
+        # Handle LangChain tool call (JSON string in first arg)
+        try:
+            payload = json.loads(body_type)
+        except json.JSONDecodeError as e:
+            return {"error": f"JSON inválido: {e}"}
+        
+        ctx_company = _call_context["company_id"]
+        ctx_user = _call_context["user_id"]
+        ctx_call = _call_context["call_id"]
+
+    final_body_type = payload.get("body_type")
+    if final_body_type not in ("auto_sheet", "home_sheet"):
+        return {"error": "body_type debe ser 'auto_sheet' o 'home_sheet'"}
+
+    card_data = payload.get("data", {})
+    is_complete = payload.get("complete", False)
+
+    result = create_aichat_card(
+        company_id=ctx_company,
+        user_id=ctx_user,
+        call_id=ctx_call,
+        body_type=final_body_type,
+        data=card_data,
+        complete=bool(is_complete),
+    )
+
+    if "error" not in result:
+        ramo = "AUTO" if final_body_type == "auto_sheet" else "HOGAR"
+        _card_state["ramo_activo"] = ramo
+        _card_state["card_created"] = True
+        _card_state["card_data"] = card_data
+        logger.info(f"[CARD_TOOLS] Card created: ramo={ramo}")
+
+    return result
+
+
 @tool
-def create_card_tool(data: str) -> dict:
+def create_card_tool_wrapper(data: str) -> dict:
     """
     Crea una nueva tarjeta de tarificación (auto o hogar) en ZOA.
 
@@ -52,35 +114,7 @@ def create_card_tool(data: str) -> dict:
     Ejemplo HOGAR:
     {"body_type": "home_sheet", "complete": false, "data": {"tomador": {"nombre": "Ana"}, "vivienda": {"nombre_via": "Gran Via", "tipo_vivienda": "PISO_EN_ALTO"}, "poliza_actual": {}}}
     """
-    try:
-        payload = json.loads(data)
-    except json.JSONDecodeError as e:
-        return {"error": f"JSON inválido: {e}"}
-
-    body_type = payload.get("body_type")
-    if body_type not in ("auto_sheet", "home_sheet"):
-        return {"error": "body_type debe ser 'auto_sheet' o 'home_sheet'"}
-
-    card_data = payload.get("data", {})
-    complete = payload.get("complete", False)
-
-    result = create_aichat_card(
-        company_id=_call_context["company_id"],
-        user_id=_call_context["user_id"],
-        call_id=_call_context["call_id"],
-        body_type=body_type,
-        data=card_data,
-        complete=bool(complete),
-    )
-
-    if "error" not in result:
-        ramo = "AUTO" if body_type == "auto_sheet" else "HOGAR"
-        _card_state["ramo_activo"] = ramo
-        _card_state["card_created"] = True
-        _card_state["card_data"] = card_data
-        logger.info(f"[CARD_TOOLS] Card created: ramo={ramo}")
-
-    return result
+    return create_card_tool(data)
 
 
 @tool

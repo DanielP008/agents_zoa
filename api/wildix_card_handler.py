@@ -35,12 +35,40 @@ def handle_insurance_agent(request) -> tuple:
     user_id = data.get("user_id", "")
     call_id = data.get("call_id", "")
     message = data.get("message", "").strip()
+    option = data.get("option", "process")
+    ramo_signal = data.get("ramo", "")
 
     logger.info(
         f"[WILDIX_CARD_HANDLER] Received: call_id={call_id}, "
-        f"company_id={company_id}, msg_len={len(message)}, "
-        f"msg_preview={message[:200]!r}"
+        f"company_id={company_id}, option={option}, ramo={ramo_signal}, "
+        f"msg_len={len(message)}, msg_preview={message[:200]!r}"
     )
+
+    # --- IMMEDIATE CREATION SIGNAL ---
+    if option == "create_empty" and ramo_signal:
+        logger.info(f"[WILDIX_CARD_HANDLER] Processing CREATE_EMPTY signal for {ramo_signal}")
+        try:
+            from tools.sales.card_tools import create_card_tool
+            
+            # Determine sheet type
+            sheet_type = "auto_sheet" if ramo_signal.upper() == "AUTO" else "home_sheet"
+            
+            # Call tool directly with empty data
+            # The tool handles session persistence
+            result_str = create_card_tool(
+                body_type=sheet_type,
+                company_id=company_id,
+                user_id=user_id,
+                call_id=call_id,
+                data={} # Empty data creates the card with pending fields
+            )
+            
+            logger.info(f"[WILDIX_CARD_HANDLER] Immediate card created: {result_str}")
+            return _json_response({"status": "ok", "estado": "created_empty", "ramo": ramo_signal})
+            
+        except Exception as e:
+            logger.exception(f"[WILDIX_CARD_HANDLER] Failed to create empty card: {e}")
+            return _json_response({"status": "error", "reason": str(e)}, 500)
 
     if not message:
         return _json_response({"status": "ok", "estado": "ignored", "reason": "empty_message"})
