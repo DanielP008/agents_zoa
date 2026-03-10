@@ -120,13 +120,15 @@ Un seguro se considera "complete" ÚNICAMENTE si TODOS los campos obligatorios t
 3. poliza_actual: numero_poliza, company, fecha_efecto
 
 **Campos OBLIGATORIOS para HOGAR:**
-1. tomador: nombre, apellido1, apellido2, dni, fecha_nacimiento, sexo, estado_civil, codigo_postal, telefono, email
+1. tomador: nombre, apellido1, dni, fecha_nacimiento, sexo, estado_civil, codigo_postal
 2. inmueble: direccion, tipo_vivienda
 3. uso: tipo_uso, regimen
 4. poliza_actual: fecha_efecto
 
+IMPORTANTE: Para HOGAR, NO son obligatorios 'apellido2' ni 'email'. Si estos dos faltan pero el resto están rellenos, marca `complete: true`.
+
 Cuando TODOS los campos obligatorios del ramo estén rellenos con valores reales, DEBES poner `complete: true` en el `tool_payload` para activar el botón de "Enviar a tarificar".
-Si FALTA aunque sea UN SOLO campo (o tiene un "-"), DEBES poner `complete: false`.
+Si FALTA aunque sea UN SOLO campo obligatorio (o tiene un "-"), DEBES poner `complete: false`.
 """
 
 
