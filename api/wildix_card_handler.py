@@ -74,10 +74,7 @@ def handle_insurance_agent(request) -> tuple:
                     },
                     "inmueble": {"direccion": "-", "codigo_postal": "-", "tipo_vivienda": "-"},
                     "uso": {"tipo_uso": "-", "regimen": "-"},
-                    "poliza_actual": {
-                        "numero_poliza": "-", "company": "-", 
-                        "precio_anual": "-", "fecha_efecto": "-"
-                    }
+                    "poliza_actual": {"fecha_efecto": "-"}
                 }
 
             # Call tool directly with empty data

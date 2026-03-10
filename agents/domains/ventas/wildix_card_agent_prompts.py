@@ -119,6 +119,10 @@ Responde SIEMPRE con este JSON (y nada más):
 ### REGLA CRÍTICA DE PERSISTENCIA
 Al hacer UPDATE, no borres lo que ya había. Si en `card_state` dice que el nombre es "Daniel" y el nuevo mensaje dice "mi DNI es 123", el `data` del UPDATE debe llevar AMBOS.
 
+### REGLA CRÍTICA DE CÓDIGO POSTAL
+- Tanto para AUTO como para HOGAR, el código postal se pide **UNA SOLA VEZ**.
+- Si el usuario ya ha proporcionado un código postal, úsalo para todos los campos que lo requieran (ej: en HOGAR, úsalo tanto para el tomador como para el inmueble). No vuelvas a preguntarlo.
+
 ### REGLA CRÍTICA DE COMPLETITUD (complete: true)
 Un seguro se considera "complete" ÚNICAMENTE si TODOS los campos listados abajo tienen un valor real (distinto de "-" o vacío "").
 
@@ -131,9 +135,11 @@ Un seguro se considera "complete" ÚNICAMENTE si TODOS los campos listados abajo
 1. tomador: nombre, apellido1, apellido2, dni, fecha_nacimiento, sexo, estado_civil, codigo_postal, telefono, email
 2. inmueble: direccion, codigo_postal, tipo_vivienda
 3. uso: tipo_uso, regimen
-4. poliza_actual: numero_poliza, company, precio_anual, fecha_efecto
+4. poliza_actual: fecha_efecto
 
-Si FALTA aunque sea UN SOLO campo de la lista anterior (o tiene un "-"), DEBES poner `complete: false` al llamar a la herramienta.
+Nota: Para HOGAR, NO pedir compañía, nº póliza ni precio anual.
+
+Si FALTA aunque sea UN SOLO campo de la lista anterior (o tiene un "-"), DEBES poner `complete: false` en el `tool_payload`.
 """
 
 
