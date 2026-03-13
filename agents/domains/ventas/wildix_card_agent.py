@@ -225,14 +225,30 @@ def wildix_card_agent(payload: dict) -> dict:
             if current_ramo:
                 body_type = "auto_sheet" if current_ramo == "AUTO" else "home_sheet"
         
-        data = tool_payload.get("data", {})
+        # MERGE STRATEGY: Combine existing data with new data
+        # The LLM might return only the fields that changed (delta), so we must merge.
+        new_data = tool_payload.get("data", {})
+        existing_data = global_mem.get("card_data", {})
+        
+        # Deep merge for nested dictionaries (tomador, vehiculo, etc.)
+        merged_data = existing_data.copy()
+        for category, fields in new_data.items():
+            if isinstance(fields, dict):
+                if category not in merged_data:
+                    merged_data[category] = {}
+                # Update only the fields present in new_data
+                merged_data[category].update(fields)
+            else:
+                # Direct value update
+                merged_data[category] = fields
+                
         complete = tool_payload.get("complete", False)
 
         if body_type:
             with Timer("tool", "update_card_direct", parent=AGENT_NAME):
                 result = update_card_tool_direct(
                     body_type=body_type,
-                    data=data,
+                    data=merged_data,  # Send the FULL merged object
                     complete=complete,
                 )
             tool_calls = [{"name": "update_card_tool", "args": tool_payload}]
