@@ -201,19 +201,28 @@ def wildix_card_agent(payload: dict) -> dict:
         logger.info(f"[{AGENT_NAME}] Card created: {result}")
 
     elif tool_action == "update" and tool_payload:
+        # Ensure body_type is present in tool_payload for update
         body_type = tool_payload.get("body_type")
+        if not body_type:
+            # Fallback to current ramo if LLM forgot to include body_type
+            current_ramo = global_mem.get("ramo_activo")
+            if current_ramo:
+                body_type = "auto_sheet" if current_ramo == "AUTO" else "home_sheet"
+        
         data = tool_payload.get("data", {})
         complete = tool_payload.get("complete", False)
 
-        with Timer("tool", "update_card_direct", parent=AGENT_NAME):
-            result = update_card_tool_direct(
-                body_type=body_type,
-                data=data,
-                complete=complete,
-            )
-
-        tool_calls = [{"name": "update_card_tool", "args": tool_payload}]
-        logger.info(f"[{AGENT_NAME}] Card updated: {result}")
+        if body_type:
+            with Timer("tool", "update_card_direct", parent=AGENT_NAME):
+                result = update_card_tool_direct(
+                    body_type=body_type,
+                    data=data,
+                    complete=complete,
+                )
+            tool_calls = [{"name": "update_card_tool", "args": tool_payload}]
+            logger.info(f"[{AGENT_NAME}] Card updated: {result}")
+        else:
+            logger.error(f"[{AGENT_NAME}] Cannot update card: missing body_type and no ramo_activo in memory")
 
     # Build memory patch from card state
     new_state = get_card_state()

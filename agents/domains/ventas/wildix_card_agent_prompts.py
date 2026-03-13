@@ -95,14 +95,17 @@ IMPORTANTE:
 - Si el usuario dice "Vivo en la Calle X número Y", construye el string para `inmueble.direccion`: "Calle X, número Y".
 - No esperes a que el usuario nombre los campos técnicos. Extrae la información del lenguaje natural.
 
-### PASO 5 — Decidir acción
-**SI `card_created` es false Y has detectado un ramo:**
-- tool_action: "create"
-- tool_payload con body_type ("auto_sheet" o "home_sheet") y los datos extraídos.
+    ### PASO 5 — Decidir acción
+    **SI `card_created` es false Y has detectado un ramo:**
+    - tool_action: "create"
+    - tool_payload con body_type ("auto_sheet" o "home_sheet") y los datos extraídos.
 
-**SI `card_created` es true:**
-- Si hay datos nuevos: tool_action: "update", tool_payload con el objeto CONSOLIDADO (datos anteriores + nuevos).
-- Si NO hay datos nuevos: tool_action: null.
+    **SI `card_created` es true:**
+    - Si hay datos nuevos: tool_action: "update", tool_payload con:
+        - body_type: "auto_sheet" o "home_sheet" (OBLIGATORIO)
+        - data: objeto CONSOLIDADO completo (datos anteriores + nuevos)
+        - complete: boolean
+    - Si NO hay datos nuevos: tool_action: null.
 
 ### PASO 6 — Respuesta final (FORMATO JSON OBLIGATORIO)
 Responde ÚNICAMENTE con este JSON (sin markdown, sin backticks):
