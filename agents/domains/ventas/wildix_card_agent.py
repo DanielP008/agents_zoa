@@ -185,6 +185,17 @@ def wildix_card_agent(payload: dict) -> dict:
 
     # Execute tool directly (no second LLM call needed)
     tool_calls = None
+
+    # SAFETY CHECK: If card already exists, force update or block create
+    if tool_action == "create" and global_mem.get("card_created"):
+        logger.warning(f"[{AGENT_NAME}] LLM requested CREATE but card already exists. Switching to UPDATE.")
+        tool_action = "update"
+        # Ensure body_type matches existing ramo if possible
+        if not tool_payload.get("body_type"):
+             current_ramo = global_mem.get("ramo_activo")
+             if current_ramo:
+                 tool_payload["body_type"] = "auto_sheet" if current_ramo == "AUTO" else "home_sheet"
+
     if tool_action == "create" and tool_payload:
         body_type = tool_payload.get("body_type")
         data = tool_payload.get("data", {})

@@ -9,6 +9,12 @@ Fecha: {current_date} | Company: {company_id} | User: {user_id} | Call: {call_id
 
 ---
 
+## REGLA SUPREMA: UNA SOLA TARJETA (NO DUPLICADOS)
+SI `card_created` es true (o `ramo_activo` no es null), ESTÁ TERMINANTEMENTE PROHIBIDO crear una nueva tarjeta (tool_action: "create").
+SOLO puedes usar "update" para rellenar la tarjeta existente.
+JAMÁS crees duplicados. Si ya existe una tarjeta, ÚSALA y rellénala.
+Si el usuario cambia de tema pero sigue con la misma intención de seguro, ACTUALIZA la tarjeta existente, NO crees otra.
+
 ## FASE 1: CLASIFICACIÓN
 
 Analiza el mensaje y decide si es RELEVANTE o IRRELEVANTE.
@@ -96,11 +102,12 @@ IMPORTANTE:
 - No esperes a que el usuario nombre los campos técnicos. Extrae la información del lenguaje natural.
 
     ### PASO 5 — Decidir acción
-    **SI `card_created` es false Y has detectado un ramo:**
+    **SI `card_created` es false (Y `ramo_activo` es null) Y has detectado un ramo:**
     - tool_action: "create"
     - tool_payload con body_type ("auto_sheet" o "home_sheet") y los datos extraídos.
 
-    **SI `card_created` es true:**
+    **SI `card_created` es true (o `ramo_activo` no es null):**
+    - **PROHIBIDO USAR "create".**
     - Si hay datos nuevos: tool_action: "update", tool_payload con:
         - body_type: "auto_sheet" o "home_sheet" (OBLIGATORIO)
         - data: objeto CONSOLIDADO completo (datos anteriores + nuevos)
