@@ -204,6 +204,29 @@ return {
 | `apertura_siniestro_agent`    | Collects data and registers new claim      | `agent_factory` with tools |
 | `consulta_estado_agent`       | Checks status of existing claims           | `agent_factory` with tools |
 
+### Classifier Gestion (`classifier_gestion_agent.py`)
+
+- **Function**: Handles policy management inquiries.
+- **Specialists**:
+  - `consultar_poliza_agent`: Queries policy details.
+  - `modificar_poliza_agent`: Handles policy modifications (currently disabled).
+  - `devolucion_agent`: Processes returns (currently disabled).
+
+### Classifier Ventas (`classifier_ventas_agent.py`)
+
+- **Function**: Manages sales and renewals.
+- **Specialists**:
+  - `renovacion_agent`: Handles policy renewals.
+  - `nueva_poliza_agent`: Processes new policy applications (currently disabled).
+  - `venta_cruzada_agent`: Suggests cross-selling opportunities (currently disabled).
+  - `wildix_card_agent`: Handles Wildix card interactions.
+
+### Common Agents
+
+- `generic_knowledge_agent`: Handles general queries not specific to a domain.
+- `aichat_receptionist_agent`: Specialized receptionist for AI Chat interactions.
+
+
 ### Implementation Patterns
 
 **All agents follow these established patterns:**
@@ -305,6 +328,19 @@ cp .env.example .env
 | `GEMINI_OCR_MODEL`         | Model for OCR                  | `gemini-1.5-flash`         |
 | `LANGSMITH_API_KEY`        | Key for tracing                | -                          |
 | `LANGCHAIN_TRACING_V2`     | Enable tracing                 | `false`                    |
+
+### Extended Configuration
+
+New providers and configurations are supported:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `LLM_PROVIDER` | Main LLM provider (`gemini`, `mistral`) | `mistral` |
+| `MISTRAL_API_KEY` | API Key for Mistral AI | - |
+| `FAST_LLM_PROVIDER` | Provider for fast tasks (`openai`, `gemini`) | `openai` |
+| `OPENAI_API_KEY` | API Key for OpenAI | - |
+| `OPENAI_MODEL_FAST` | Model for fast tasks | `gpt-5.2` |
+
 
 ### Database
 
@@ -453,6 +489,42 @@ zoa_agents/
 ├── Dockerfile
 ├── docker-compose.yml
 └── requirements.txt
+
+## Updated Module Structure (Current)
+
+```
+zoa_agents/
+├── agents/
+│   ├── domains/
+│   │   ├── common/             # Generic knowledge agents
+│   │   ├── gestion/            # Policy management agents
+│   │   ├── siniestros/         # Claims agents
+│   │   └── ventas/             # Sales and renewal agents
+│   └── aichat_receptionist_agent.py
+│
+├── api/                        # API Handlers
+│   ├── aichat_handler.py
+│   ├── wildix_handler.py
+│   └── wildix_card_handler.py
+│
+├── infra/                      # Infrastructure & Config
+│   ├── llm.py                  # Multi-provider LLM factory
+│   ├── db.py                   # Database connection
+│   └── tracing.py              # Observability
+│
+├── services/                   # External Services
+│   ├── erp_client.py
+│   ├── ocr_service.py
+│   └── zoa_client.py
+│
+└── tools/                      # Agent Tools
+    ├── communication/
+    ├── document_ai/
+    ├── erp/
+    ├── sales/
+    └── zoa/
+```
+
 ```
 
 ---
@@ -467,6 +539,26 @@ zoa_agents/
 | Database       | PostgreSQL (Cloud SQL)          |
 | Runtime        | Python 3.11                     |
 | Container      | Docker                          |
+| LLM Providers  | Mistral AI, OpenAI              |
+
+## Services & Integrations
+
+The system now includes dedicated services for external integrations:
+
+- **OCR Service** (`services/ocr_service.py`): Handles document parsing and text extraction.
+- **ERP Client** (`services/erp_client.py`): Interface for Enterprise Resource Planning system interactions.
+- **ZOA Client** (`services/zoa_client.py`): Client for ZOA API interactions.
+- **Local CP DB** (`services/local_cp_db.py`): Local database service for postal codes.
+
+## Infrastructure (`infra/`)
+
+Core infrastructure components have been moved to the `infra/` directory for better separation of concerns:
+
+- `llm.py`: Enhanced LLM factory supporting multiple providers (Gemini, Mistral, OpenAI).
+- `db.py`: Database connection management.
+- `config.py`: Centralized configuration.
+- `tracing.py`: OpenTelemetry and LangSmith tracing setup.
+
 
 ## Architecture Highlights
 
@@ -482,10 +574,10 @@ zoa_agents/
 ## Roadmap
 
 - [x] **Architecture Refactoring**: Centralized LangChain agents, error handling, and memory management
-- [ ] Implementar `classifier_gestion_agent`
-- [ ] Implementar `classifier_ventas_agent`
+- [x] Implementar `classifier_gestion_agent`
+- [x] Implementar `classifier_ventas_agent`
+- [x] Migrar credenciales DB a variables de entorno
 - [ ] Agregar summary automático de conversación
-- [ ] Migrar credenciales DB a variables de entorno
 - [ ] Agregar tests unitarios para nuevos módulos core
 - [ ] Add monitoring/metrics for LLM calls and agent performance
 
