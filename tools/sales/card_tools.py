@@ -158,3 +158,33 @@ def update_card_tool(data: str) -> dict:
         logger.info(f"[CARD_TOOLS] Card updated: ramo={_card_state.get('ramo_activo')}")
 
     return result
+
+
+def update_card_tool_direct(
+    body_type: str,
+    data: dict = None,
+    complete: bool = False,
+) -> dict:
+    """
+    Direct Python call to update a tarification card (no JSON parsing needed).
+    Used by the optimized wildix_card_agent to avoid LangChain tool overhead.
+    """
+    if body_type not in ("auto_sheet", "home_sheet"):
+        return {"error": "body_type debe ser 'auto_sheet' o 'home_sheet'"}
+
+    card_data = data or {}
+
+    result = update_aichat_card(
+        company_id=_call_context["company_id"],
+        user_id=_call_context["user_id"],
+        call_id=_call_context["call_id"],
+        body_type=body_type,
+        data=card_data,
+        complete=bool(complete),
+    )
+
+    if "error" not in result:
+        _card_state["card_data"] = card_data
+        logger.info(f"[CARD_TOOLS] Card updated (direct): ramo={_card_state.get('ramo_activo')}")
+
+    return result

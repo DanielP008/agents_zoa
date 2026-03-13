@@ -2,17 +2,22 @@
 
 Receives concatenated call transcriptions from zoa_buffer, classifies them,
 extracts insurance-relevant data, and creates/updates AI Chat cards via flow-zoa.
+
+OPTIMIZED: Uses a single direct LLM call + JSON parsing instead of a full
+LangChain agent loop (which required 2 LLM round-trips for tool calls).
+Uses the fast LLM for speed.
 """
 
 import json
 import logging
+import re
 from datetime import datetime
 
-from infra.agent_runner import create_langchain_agent, run_langchain_agent
-from infra.llm import get_llm
+from infra.llm import get_llm_fast
+from infra.timing import Timer, set_current_agent
 from tools.sales.card_tools import (
-    create_card_tool_wrapper,
-    update_card_tool,
+    create_card_tool,
+    update_card_tool_direct,
     get_card_state,
     reset_card_state,
     set_call_context,
@@ -22,6 +27,23 @@ from agents.domains.ventas.wildix_card_agent_prompts import get_wildix_card_prom
 logger = logging.getLogger(__name__)
 
 AGENT_NAME = "wildix_card_agent"
+
+# Noise patterns — fragments that contain no insurance-relevant data
+_NOISE_PATTERNS = re.compile(
+    r"^("
+    r"(hola|buenos d[ií]as|buenas tardes|buenas noches|adiós|adi[oó]s|hasta luego|vale|ok|sí|no|un momento|espera|de acuerdo|perfecto|claro|entendido|gracias|muchas gracias)"
+    r"[.!?,\s]*"
+    r")+$",
+    re.IGNORECASE,
+)
+
+
+def _is_noise(text: str) -> bool:
+    """Return True if the text is pure conversational filler with no data."""
+    cleaned = text.strip()
+    if not cleaned or len(cleaned) < 3:
+        return True
+    return bool(_NOISE_PATTERNS.match(cleaned))
 
 
 def _build_card_state_text(memory_global: dict) -> str:
@@ -41,17 +63,38 @@ def _build_card_state_text(memory_global: dict) -> str:
     return "\n".join(lines)
 
 
+def _clean_llm_response(raw: str) -> str:
+    """Strip markdown fences and leading/trailing whitespace from LLM output."""
+    text = raw.strip()
+    if text.startswith("```"):
+        lines = text.split("\n")
+        # Remove first line (```json or ```)
+        lines = lines[1:]
+        # Remove last line if it's ```
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        text = "\n".join(lines).strip()
+    # Also handle inline ```json prefix
+    if text.startswith("json"):
+        text = text[4:].strip()
+    return text
+
+
 def wildix_card_agent(payload: dict) -> dict:
     """Process a buffered call transcription and manage the tarification card.
 
+    OPTIMIZED: Single LLM call + direct tool invocation instead of
+    LangChain agent loop (eliminates one full LLM round-trip).
+
     Args:
         payload: dict with keys: company_id, user_id, call_id, message,
-                 session (dict with agent_memory)
+                 session (dict with agent_memory), new_text (optional delta)
 
     Returns:
         dict with estado, ramo, action, memory_patch
     """
     message = payload.get("message", "").strip()
+    new_text = payload.get("new_text", "").strip()
     company_id = payload.get("company_id", "")
     user_id = payload.get("user_id", "")
     call_id = payload.get("call_id", "")
@@ -63,11 +106,23 @@ def wildix_card_agent(payload: dict) -> dict:
     global_mem = memory["global"]
 
     logger.info(
-        f"[{AGENT_NAME}] Processing message ({len(message)} chars) for call={call_id}"
+        f"[{AGENT_NAME}] Processing message ({len(message)} chars, "
+        f"delta={len(new_text)} chars) for call={call_id}"
     )
 
     if not message:
         return {"action": "processed", "estado": "irrelevant", "ramo": None}
+
+    # FAST PATH: If we have delta text and it's pure noise, skip LLM entirely
+    if new_text and _is_noise(new_text):
+        logger.info(f"[{AGENT_NAME}] Delta is noise, skipping LLM: '{new_text[:80]}'")
+        return {
+            "action": "processed",
+            "estado": "noise_skip",
+            "ramo": global_mem.get("ramo_activo"),
+            "memory_patch": {},
+            "tool_calls": None,
+        }
 
     card_state_text = _build_card_state_text(global_mem)
     current_date = datetime.now().strftime("%d/%m/%Y")
@@ -84,15 +139,83 @@ def wildix_card_agent(payload: dict) -> dict:
     reset_card_state()
     set_call_context(company_id, user_id, call_id)
 
-    llm = get_llm()
-    tools = [create_card_tool_wrapper, update_card_tool]
+    # Use FAST LLM (GPT-4o-mini / Gemini Flash) — extraction doesn't need a heavy model
+    llm = get_llm_fast()
 
-    agent = create_langchain_agent(llm, tools, system_prompt)
-    result = run_langchain_agent(agent, message, history=None, agent_name=AGENT_NAME)
+    set_current_agent(AGENT_NAME)
 
-    output_text = result.get("output", "")
-    tool_calls = result.get("tool_calls")
+    # SINGLE LLM call — no agent loop, no tool-calling round-trip
+    model_name = getattr(llm, "model_name", "") or getattr(llm, "model", "") or ""
+    with Timer("agent", AGENT_NAME, model=model_name):
+        try:
+            llm_response = llm.invoke([
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": message},
+            ])
+            raw_output = llm_response.content if hasattr(llm_response, "content") else str(llm_response)
+        except Exception as e:
+            logger.error(f"[{AGENT_NAME}] LLM invocation failed: {e}")
+            raise
 
+    logger.info(f"[{AGENT_NAME}] LLM output ({len(raw_output)} chars): {raw_output[:300]}")
+
+    # Parse structured JSON response
+    cleaned = _clean_llm_response(raw_output)
+    try:
+        parsed = json.loads(cleaned)
+    except (json.JSONDecodeError, TypeError) as e:
+        logger.warning(f"[{AGENT_NAME}] Failed to parse LLM JSON: {e}. Raw: {cleaned[:200]}")
+        return {
+            "action": "processed",
+            "estado": "parse_error",
+            "ramo": global_mem.get("ramo_activo"),
+            "memory_patch": {},
+            "tool_calls": None,
+        }
+
+    estado = parsed.get("estado", "irrelevant")
+    ramo = parsed.get("ramo")
+    tool_action = parsed.get("tool_action")
+    tool_payload = parsed.get("tool_payload", {})
+
+    logger.info(
+        f"[{AGENT_NAME}] Parsed: estado={estado}, ramo={ramo}, "
+        f"tool_action={tool_action}"
+    )
+
+    # Execute tool directly (no second LLM call needed)
+    tool_calls = None
+    if tool_action == "create" and tool_payload:
+        body_type = tool_payload.get("body_type")
+        data = tool_payload.get("data", {})
+        complete = tool_payload.get("complete", False)
+
+        with Timer("tool", "create_card_direct", parent=AGENT_NAME):
+            result = create_card_tool(
+                body_type=body_type,
+                data=data,
+                complete=complete,
+            )
+
+        tool_calls = [{"name": "create_card_tool", "args": tool_payload}]
+        logger.info(f"[{AGENT_NAME}] Card created: {result}")
+
+    elif tool_action == "update" and tool_payload:
+        body_type = tool_payload.get("body_type")
+        data = tool_payload.get("data", {})
+        complete = tool_payload.get("complete", False)
+
+        with Timer("tool", "update_card_direct", parent=AGENT_NAME):
+            result = update_card_tool_direct(
+                body_type=body_type,
+                data=data,
+                complete=complete,
+            )
+
+        tool_calls = [{"name": "update_card_tool", "args": tool_payload}]
+        logger.info(f"[{AGENT_NAME}] Card updated: {result}")
+
+    # Build memory patch from card state
     new_state = get_card_state()
     memory_patch = {}
     if new_state.get("ramo_activo"):
@@ -106,28 +229,20 @@ def wildix_card_agent(payload: dict) -> dict:
                 "card_data": new_state["card_data"],
             }
         }
-        logger.info(f"[{AGENT_NAME}] Card state updated: ramo={new_state['ramo_activo']}, created={new_state['card_created']}")
+        logger.info(
+            f"[{AGENT_NAME}] Card state updated: "
+            f"ramo={new_state['ramo_activo']}, created={new_state['card_created']}"
+        )
 
-    estado = "irrelevant"
-    ramo = global_mem.get("ramo_activo")
-    try:
-        parsed = json.loads(output_text)
-        estado = parsed.get("estado", "esperando")
-        ramo = parsed.get("ramo", ramo)
-    except (json.JSONDecodeError, TypeError):
-        if tool_calls:
-            tc_names = {tc["name"] for tc in tool_calls}
-            if "create_card_tool_wrapper" in tc_names:
-                estado = "creado"
-            elif "update_card_tool" in tc_names:
-                estado = "actualizado"
+    # Use ramo from parsed response or from memory
+    final_ramo = ramo or global_mem.get("ramo_activo")
 
-    logger.info(f"[{AGENT_NAME}] Done: estado={estado}, ramo={ramo}")
+    logger.info(f"[{AGENT_NAME}] Done: estado={estado}, ramo={final_ramo}")
 
     return {
         "action": "processed",
         "estado": estado,
-        "ramo": ramo,
+        "ramo": final_ramo,
         "memory_patch": memory_patch,
         "tool_calls": tool_calls,
     }

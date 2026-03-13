@@ -110,11 +110,15 @@ def handle_insurance_agent(request) -> tuple:
     if not message:
         return _json_response({"status": "ok", "estado": "ignored", "reason": "empty_message"})
 
+    # new_text = delta (only fragments not yet processed by the agent)
+    new_text = data.get("new_text", "").strip()
+
     session = session_manager.get_session(call_id, company_id)
     existing_global = session.get("agent_memory", {}).get("global", {})
     logger.info(
         f"[WILDIX_CARD_HANDLER] Session loaded: ramo_activo={existing_global.get('ramo_activo')}, "
-        f"card_created={existing_global.get('card_created', False)}"
+        f"card_created={existing_global.get('card_created', False)}, "
+        f"new_text_len={len(new_text)}"
     )
 
     payload = {
@@ -122,6 +126,7 @@ def handle_insurance_agent(request) -> tuple:
         "user_id": user_id,
         "call_id": call_id,
         "message": message,
+        "new_text": new_text,
         "session": session,
     }
 
