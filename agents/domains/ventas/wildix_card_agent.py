@@ -256,23 +256,37 @@ def wildix_card_agent(payload: dict) -> dict:
         else:
             logger.error(f"[{AGENT_NAME}] Cannot update card: missing body_type and no ramo_activo in memory")
 
-    # Build memory patch from card state
+    # Build memory patch — ALWAYS persist card_data after a tool call
+    # so the next flush cycle has the full merged state
     new_state = get_card_state()
     memory_patch = {}
-    if new_state.get("ramo_activo"):
-        global_mem["ramo_activo"] = new_state["ramo_activo"]
-        global_mem["card_created"] = new_state["card_created"]
-        global_mem["card_data"] = new_state["card_data"]
+
+    # Determine the authoritative values for ramo/created:
+    # Prefer new_state (set by create_card_tool), fall back to existing memory
+    effective_ramo = new_state.get("ramo_activo") or global_mem.get("ramo_activo")
+    effective_created = new_state.get("card_created") or global_mem.get("card_created", False)
+    # For card_data: if a tool was called, use merged_data; otherwise keep existing
+    effective_data = global_mem.get("card_data", {})
+    if tool_action == "update" and tool_payload:
+        effective_data = merged_data  # The deep-merged object we sent to the API
+    elif tool_action == "create" and new_state.get("card_data"):
+        effective_data = new_state["card_data"]
+
+    if effective_ramo or effective_created or tool_calls:
+        global_mem["ramo_activo"] = effective_ramo
+        global_mem["card_created"] = effective_created
+        global_mem["card_data"] = effective_data
         memory_patch = {
             "global": {
-                "ramo_activo": new_state["ramo_activo"],
-                "card_created": new_state["card_created"],
-                "card_data": new_state["card_data"],
+                "ramo_activo": effective_ramo,
+                "card_created": effective_created,
+                "card_data": effective_data,
             }
         }
         logger.info(
-            f"[{AGENT_NAME}] Card state updated: "
-            f"ramo={new_state['ramo_activo']}, created={new_state['card_created']}"
+            f"[{AGENT_NAME}] Memory updated: "
+            f"ramo={effective_ramo}, created={effective_created}, "
+            f"data_keys={list(effective_data.keys())}"
         )
 
     # Use ramo from parsed response or from memory
