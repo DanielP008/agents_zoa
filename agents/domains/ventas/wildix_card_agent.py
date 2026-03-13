@@ -144,13 +144,18 @@ def wildix_card_agent(payload: dict) -> dict:
 
     set_current_agent(AGENT_NAME)
 
+    # DELTA MODE: Prefer processing only the new text to save tokens and latency
+    # If new_text is available, use it. Otherwise fall back to full message.
+    target_text = new_text if new_text else message
+    logger.info(f"[{AGENT_NAME}] Delta Mode: Processing '{target_text[:100]}...' (Is Delta: {bool(new_text)})")
+
     # SINGLE LLM call — no agent loop, no tool-calling round-trip
     model_name = getattr(llm, "model_name", "") or getattr(llm, "model", "") or ""
     with Timer("agent", AGENT_NAME, model=model_name):
         try:
             llm_response = llm.invoke([
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": message},
+                {"role": "user", "content": target_text},
             ])
             raw_output = llm_response.content if hasattr(llm_response, "content") else str(llm_response)
         except Exception as e:
