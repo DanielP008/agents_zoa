@@ -96,6 +96,7 @@ if prompt := st.chat_input("Escribe tu mensaje aquí..."):
         "mensaje": prompt,
         "phone_number_id": company_id,
         "name": user_name,
+        "channel": "test",
     }
 
     # Handle file upload
