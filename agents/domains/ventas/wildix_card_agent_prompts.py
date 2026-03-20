@@ -118,7 +118,6 @@ IMPORTANTE:
     - Si hay datos nuevos: tool_action: "update", tool_payload con:
         - body_type: "auto_sheet" o "home_sheet" (OBLIGATORIO)
         - data: objeto CONSOLIDADO completo (datos anteriores + nuevos)
-        - complete: boolean
     - Si NO hay datos nuevos: tool_action: null.
 
 ### PASO 6 — Respuesta final (FORMATO JSON OBLIGATORIO)
@@ -131,28 +130,6 @@ Al hacer UPDATE, mantén los datos que ya había, PERO SIEMPRE PRIORIZA LA INFOR
 - **Persistencia:** Si en `card_state` hay datos que el usuario NO ha mencionado en este mensaje, MANTENLOS tal cual.
 - **Sobreescritura (CORRECCIÓN IMPLÍCITA):** Si en `card_state` ya existe un valor (ej: "apellido1: Bulvar") y el usuario dice ahora "Mi primer apellido es Pulgar", DEBES SOBREESCRIBIR con "Pulgar".
   **NO hace falta que el usuario niegue el anterior.** Si el usuario vuelve a dar un dato que ya tenías, asume SIEMPRE que el nuevo valor es el correcto y el anterior estaba mal escuchado o era erróneo. La última palabra del usuario MANDA.
-
-### REGLA CRÍTICA DE COMPLETITUD (complete: true)
-Un seguro se considera "complete" ÚNICAMENTE si TODOS los campos obligatorios tienen un valor real (distinto de "-" o vacío "").
-
-**REVISA UNO A UNO ESTOS CAMPOS ANTES DE DECIDIR:**
-
-**Campos OBLIGATORIOS para AUTO:**
-1. vehiculo: matricula
-2. tomador: nombre, apellido1, apellido2, dni, fecha_nacimiento, fecha_carnet, sexo, estado_civil, codigo_postal
-3. poliza_actual: numero_poliza, company, fecha_efecto
-
-**Campos OBLIGATORIOS para HOGAR:**
-1. tomador: nombre, apellido1, dni, fecha_nacimiento, sexo, estado_civil, codigo_postal
-2. inmueble: direccion, tipo_vivienda
-3. uso: tipo_uso, regimen
-4. poliza_actual: fecha_efecto
-
-**IMPORTANTE: SI TODOS LOS CAMPOS DE LA LISTA ANTERIOR TIENEN VALOR, DEBES PONER `complete: true`. NO LO DUDES.**
-Para HOGAR, 'apellido2', 'email' y 'telefono' SON OPCIONALES. Si faltan, IGUALMENTE es `complete: true`.
-
-Cuando TODOS los campos obligatorios del ramo estén rellenos con valores reales, DEBES poner `complete: true` en el `tool_payload` para activar el botón de "Enviar a tarificar".
-Si FALTA aunque sea UN SOLO campo obligatorio (o tiene un "-"), DEBES poner `complete: false`.
 """
 
 

@@ -80,6 +80,60 @@ def _clean_llm_response(raw: str) -> str:
     return text
 
 
+def _check_if_complete(body_type: str, data: dict) -> bool:
+    """Logical checker to determine if all required fields are filled."""
+    if not data:
+        return False
+
+    def _has_value(val):
+        if not val:
+            return False
+        if isinstance(val, str) and (val.strip() == "" or val.strip() == "-"):
+            return False
+        return True
+
+    if body_type == "auto_sheet":
+        # vehiculo: matricula
+        vehiculo = data.get("vehiculo", {})
+        if not _has_value(vehiculo.get("matricula")): return False
+
+        # tomador: nombre, apellido1, apellido2, dni, fecha_nacimiento, fecha_carnet, sexo, estado_civil, codigo_postal
+        tomador = data.get("tomador", {})
+        for field in ["nombre", "apellido1", "apellido2", "dni", "fecha_nacimiento", "fecha_carnet", "sexo", "estado_civil", "codigo_postal"]:
+            if not _has_value(tomador.get(field)): return False
+            
+        # poliza_actual: numero_poliza, company, fecha_efecto
+        poliza = data.get("poliza_actual", {})
+        for field in ["numero_poliza", "company", "fecha_efecto"]:
+            if not _has_value(poliza.get(field)): return False
+
+        return True
+
+    elif body_type == "home_sheet":
+        # tomador: nombre, apellido1, dni, fecha_nacimiento, sexo, estado_civil, codigo_postal
+        tomador = data.get("tomador", {})
+        for field in ["nombre", "apellido1", "dni", "fecha_nacimiento", "sexo", "estado_civil", "codigo_postal"]:
+            if not _has_value(tomador.get(field)): return False
+            
+        # inmueble: direccion, tipo_vivienda
+        inmueble = data.get("inmueble", {})
+        for field in ["direccion", "tipo_vivienda"]:
+            if not _has_value(inmueble.get(field)): return False
+            
+        # uso: tipo_uso, regimen
+        uso = data.get("uso", {})
+        for field in ["tipo_uso", "regimen"]:
+            if not _has_value(uso.get(field)): return False
+            
+        # poliza_actual: fecha_efecto
+        poliza = data.get("poliza_actual", {})
+        if not _has_value(poliza.get("fecha_efecto")): return False
+
+        return True
+
+    return False
+
+
 def wildix_card_agent(payload: dict) -> dict:
     """Process a buffered call transcription and manage the tarification card.
 
@@ -204,7 +258,10 @@ def wildix_card_agent(payload: dict) -> dict:
     if tool_action == "create" and tool_payload:
         body_type = tool_payload.get("body_type")
         data = tool_payload.get("data", {})
-        complete = tool_payload.get("complete", False)
+        
+        # Determine completeness logically
+        complete = _check_if_complete(body_type, data)
+        tool_payload["complete"] = complete
 
         with Timer("tool", "create_card_direct", parent=AGENT_NAME):
             result = create_card_tool(
@@ -242,7 +299,9 @@ def wildix_card_agent(payload: dict) -> dict:
                 # Direct value update
                 merged_data[category] = fields
                 
-        complete = tool_payload.get("complete", False)
+        # Determine completeness logically
+        complete = _check_if_complete(body_type, merged_data)
+        tool_payload["complete"] = complete
 
         if body_type:
             with Timer("tool", "update_card_direct", parent=AGENT_NAME):
