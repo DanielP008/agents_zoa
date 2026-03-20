@@ -18,5 +18,4 @@ services:
 
 networks:
   zoa-network:
-    external: true
     name: zoa-network
