@@ -237,7 +237,11 @@ return {
 
 - **Structured Output**: Use `llm.with_structured_output()` for decision agents (routing/classification)
 
-- **Path Resolution**: Use `hooks.get_contracts_path()` and `get_config_path()` for consistent file access across the project
+- **Path Resolution**: Use `hooks.get_z_contracts_path()` and `get_config_path()` for consistent file access across the project
+
+- **Prompts Management**: Each agent has a corresponding `*_prompts.py` file in its directory for prompt isolation.
+
+- **Infrastructure Core**: Use `infra/agent_runner.py` for executing agent logic and `infra/llm.py` for multi-provider LLM access.
 
 - **Response Building**: Return standardized dicts with consistent `action`, `message`, `memory` structure
 
@@ -319,15 +323,22 @@ cp .env.example .env
 |--------------------|--------------------------------------|-----------------------------|
 | `GEMINI_API_KEY`   | Google AI API key                    | `AIza...`                   |
 | `GEMINI_MODEL`     | Main model                           | `gemini-2.5-flash`          |
-| `ZOA_ENDPOINT_URL` | ZOA API URL for WhatsApp             | `https://flow-zoa-...`      |
+| `ZOA_ENDPOINT_URL` | ZOA API URL for WhatsApp             | `https://prod-flow-zoa-...` |
+| `ZOA_API_KEY`      | ZOA API Key                          | `sk_test_...`               |
 
 **Optional variables:**
 
 | Variable                   | Description                    | Default                    |
 |----------------------------|--------------------------------|----------------------------|
-| `GEMINI_OCR_MODEL`         | Model for OCR                  | `gemini-1.5-flash`         |
-| `LANGSMITH_API_KEY`        | Key for tracing                | -                          |
-| `LANGCHAIN_TRACING_V2`     | Enable tracing                 | `false`                    |
+| `GEMINI_OCR_MODEL`         | Model for OCR                  | `gemini-2.0-flash`         |
+| `GEMINI_MODEL_FAST`        | Model for fast tasks           | `gemini-2.0-flash`         |
+| `LANGSMITH_TRACING`        | Enable tracing                 | `true`                     |
+| `LANGSMITH_ENDPOINT`       | LangSmith Endpoint             | `https://eu.api.smith...`  |
+| `LANGSMITH_PROJECT`        | LangSmith Project Name         | `agents-repo-test`         |
+| `ERP_ENDPOINT_URL`         | ERP API URL                    | `https://prod-flow-erp...` |
+| `DB_HOST`                  | Database Host                  | `34.175.165.97`            |
+| `WILDIX_API_KEY`           | Wildix API Key                 | `wsk-v1-...`               |
+| `MERLIN_BASE_URL`          | Merlin API URL                 | `https://drseguros...`     |
 
 ### Extended Configuration
 
@@ -356,7 +367,7 @@ CREATE TABLE sessions (
 );
 ```
 
-### Routing (`core/routing/routes.json`)
+### Routing (`z_contracts/routes.json`)
 
 Defines the agent hierarchy and their labels. Access via `core.hooks.get_routes_path()`:
 
@@ -365,13 +376,34 @@ Defines the agent hierarchy and their labels. Access via `core.hooks.get_routes_
   "default": "receptionist_agent",
   "domains": {
     "siniestros": {
+      "enabled": true,
       "receptionist_label": "siniestros",
       "classifier": "classifier_siniestros_agent",
-      "specialists": [
-        "telefonos_asistencia_agent",
-        "apertura_siniestro_agent",
-        "consulta_estado_agent"
-      ]
+      "specialists": {
+        "telefonos_asistencia_agent": {"enabled": true},
+        "apertura_siniestro_agent": {"enabled": true},
+        "consulta_estado_agent": {"enabled": false}
+      }
+    },
+    "gestion": {
+      "enabled": true,
+      "receptionist_label": "gestión de una poliza",
+      "classifier": "classifier_gestion_agent",
+      "specialists": {
+        "devolucion_agent": {"enabled": false},
+        "consultar_poliza_agent": {"enabled": true},
+        "modificar_poliza_agent": {"enabled": false}
+      }
+    },
+    "ventas": {
+      "enabled": true,
+      "receptionist_label": "contratación o renovación de una póliza",
+      "classifier": "classifier_ventas_agent",
+      "specialists": {
+        "nueva_poliza_agent": {"enabled": false},
+        "venta_cruzada_agent": {"enabled": false},
+        "renovacion_agent": {"enabled": true}
+      }
     }
   }
 }
