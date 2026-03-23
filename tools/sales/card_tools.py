@@ -105,14 +105,13 @@ def create_card_tool_wrapper(data: str) -> dict:
 
     Input: JSON string con:
     - body_type: "auto_sheet" o "home_sheet"
-    - complete: boolean (false por defecto)
     - data: objeto con los datos extraídos (vehiculo, tomador, vivienda, poliza_actual)
 
     Ejemplo AUTO:
-    {"body_type": "auto_sheet", "complete": false, "data": {"vehiculo": {"matricula": "1234ABC"}, "tomador": {"nombre": "Juan", "dni": "12345678A"}, "poliza_actual": {}}}
+    {"body_type": "auto_sheet", "data": {"vehiculo": {"matricula": "1234ABC"}, "tomador": {"nombre": "Juan", "dni": "12345678A"}, "poliza_actual": {}}}
 
     Ejemplo HOGAR:
-    {"body_type": "home_sheet", "complete": false, "data": {"tomador": {"nombre": "Ana"}, "vivienda": {"nombre_via": "Gran Via", "tipo_vivienda": "PISO_EN_ALTO"}, "poliza_actual": {}}}
+    {"body_type": "home_sheet", "data": {"tomador": {"nombre": "Ana"}, "vivienda": {"nombre_via": "Gran Via", "tipo_vivienda": "PISO_EN_ALTO"}, "poliza_actual": {}}}
     """
     return create_card_tool(data)
 
@@ -127,7 +126,6 @@ def update_card_tool(data: str) -> dict:
 
     Input: JSON string con:
     - body_type: "auto_sheet" o "home_sheet"
-    - complete: boolean (false por defecto, true si TODOS los campos obligatorios están rellenos)
     - data: objeto consolidado completo (memoria + datos nuevos)
 
     Los campos sin dato van como cadena vacía "".

@@ -295,7 +295,7 @@ class ERPClient(ERPBaseInterface):
 def _extract_siniestralidad(policy: Dict[str, Any]) -> Dict[str, Any]:
     """Extract siniestralidad fields from a policy response.
 
-    Tries several common field-name conventions used by eBroker/SINCO.
+    Tries several common field-name conventions used by eBroker.
     Returns a dict with keys: anos_asegurado, anos_compania, anos_sin_siniestros.
     Values default to None when not found so the caller can decide on defaults.
     """
