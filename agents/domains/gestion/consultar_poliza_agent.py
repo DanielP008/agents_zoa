@@ -53,7 +53,7 @@ def consultar_poliza_agent(payload: dict) -> dict:
     memory = session.get("agent_memory", {})
     global_mem = memory.get("global", {})
     nif = global_mem.get("nif")
-    company_id = payload.get("company_id")
+    company_id = payload.get("phone_number_id") or session.get("company_id") or "default"
     wa_id = payload.get("wa_id")
     history = get_global_history(memory)
 
@@ -79,7 +79,7 @@ def consultar_poliza_agent(payload: dict) -> dict:
         nif=nif or 'NO_IDENTIFICADO',
         ramo=ramo or 'No especificado',
         company_id=company_id,
-        wa_id=wa_id or ''
+        wa_id=wa_id or 'NO_DISPONIBLE'
     )
 
     task_done = task_tool_already_called(memory, AGENT_NAME)
@@ -108,13 +108,16 @@ def consultar_poliza_agent(payload: dict) -> dict:
     if not task_done:
         updated_tool_calls = auto_create_task_if_needed(
             tool_calls, output_text,
-            company_id=company_id, nif_value=nif or "NO_IDENTIFICADO", wa_id=wa_id or "",
+            company_id=company_id, nif_value=nif or "NO_IDENTIFICADO", wa_id=wa_id or "NO_DISPONIBLE",
             title="Consulta de Póliza",
             description=f"Cliente consulta sobre su póliza. NIF: {nif or 'NO_IDENTIFICADO'}.",
             activity_title="Llamar para informar sobre póliza",
+            activity_description=f"El cliente ha tenido un problema técnico al consultar su póliza de {ramo or 'seguros'}. Contactar para ayudarle.",
             agent_label="CONSULTAR_POLIZA_AGENT",
         )
         if updated_tool_calls:
+            if not result.get("tool_calls"):
+                result["tool_calls"] = []
             result["tool_calls"] = updated_tool_calls
             tool_calls = updated_tool_calls
 

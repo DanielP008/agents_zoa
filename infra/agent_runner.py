@@ -119,6 +119,10 @@ _CALLBACK_HINTS = (
     "te llame mañana", "te llamará", "pondrá en contacto",
     "gestor revisará", "ya está anotado", "siniestro registrado",
     "he registrado", "un compañero", "contacto contigo",
+    "problema técnico", "error al conectar", "gestor se ocupará",
+    "gestor lo mirará", "gestor lo revisará", "paso nota",
+    "no he encontrado", "no aparecen", "no encuentro",
+    "gestor se ocupe", "gestor se ponga", "gestor lo revise",
 )
 
 
@@ -141,10 +145,6 @@ def auto_create_task_if_needed(
     Returns the updated tool_calls list if a task was created, or None if nothing was done.
     The caller MUST update result["tool_calls"] with the return value when not None.
     """
-    # Disable auto-creation for AiChat
-    if get_wa_channel() == "aichat":
-        return None
-
     tc_names = {tc["name"] for tc in (tool_calls or [])}
     if "create_task_activity_tool" in tc_names:
         return None

@@ -14,11 +14,11 @@ info and assembles the prompt accordingly.
 DOMAIN_DATA = {
     "siniestros": {
         "label": "SINIESTROS",
-        "base_services": ["siniestros"],
+        "base_services": [],
         "specialist_services": {
             "apertura_siniestro_agent": "apertura de parte",
             "consulta_estado_agent": "consulta de estado de parte",
-            "telefonos_asistencia_agent": "TELEFONOS DE ASISTENCIA",
+            "telefonos_asistencia_agent": "teléfonos de asistencia (asistencia en carretera, grúa, accidentes, emergencias, cerrajero)",
         },
         # Classification signal rows (high priority) mapped to specialists
         "signal_rows": {
@@ -84,8 +84,12 @@ DOMAIN_DATA = {
     },
     "ventas": {
         "label": "VENTAS",
-        "base_services": ["contratación y mejora de seguros"],
-        "specialist_services": {},
+        "base_services": [],
+        "specialist_services": {
+            "nueva_poliza_agent": "contratación de nuevos seguros",
+            "renovacion_agent": "renovación de pólizas existentes",
+            "venta_cruzada_agent": "mejora de coberturas",
+        },
         "signal_rows": {
             "nueva_poliza_agent": [
                 '| "contratar seguro", "cotización", "presupuesto nuevo", "quiero asegurar" | ventas | Nueva contratación |',
@@ -247,14 +251,32 @@ def _build_areas_section(active_domains: list[str], active_specialists_by_domain
         if not data:
             continue
         active_specs = active_specialists_by_domain.get(domain, [])
-        services = list(data["base_services"])
-        for spec, label in data["specialist_services"].items():
-            if spec in active_specs:
-                services.append(label)
+        
+        # Get labels for active specialists
+        spec_labels = [
+            data["specialist_services"][spec] 
+            for spec in active_specs 
+            if spec in data.get("specialist_services", {})
+        ]
+        
+        # Combine base services with active specialist labels
+        services = list(data.get("base_services", [])) + spec_labels
+        
         if not services:
             continue
-        desc = ", ".join(services) if len(services) > 1 else services[0]
-        lines.append(f"- **{data['label']}**: que incluye {desc}")
+            
+        # If there's only one service in total across the whole domain, 
+        # use a more direct description instead of the generic domain label
+        if len(services) == 1:
+            desc = services[0]
+            # Capitalize first letter if it's a string
+            if isinstance(desc, str) and desc:
+                desc = desc[0].upper() + desc[1:]
+            lines.append(f"- {desc}")
+        else:
+            desc = ", ".join(services)
+            lines.append(f"- **{data['label']}**: que incluye {desc}")
+            
     return "\n".join(lines)
 
 
@@ -351,9 +373,9 @@ def _build_whatsapp_prompt(active_domains, active_specialists_by_domain):
     medium_section = medium_rows + "\n" if medium_rows else ""
 
     prompt = """Eres Sofía, la recepcionista virtual de ZOA Seguros. Tu rol es identificar qué necesita el cliente y dirigirlo al área correcta.
-
-## ÁREAS DISPONIBLES {available_domains}
-$AREAS$
+   
+## ÁREAS DISPONIBLES
+{available_domains}
 
 ---
 
@@ -456,8 +478,8 @@ Si el usuario pide algo que NO es sobre seguros (comida, transporte, informació
 
 Si el usuario pregunta explícitamente en qué puedes ayudarle o qué opciones tiene (ej: "¿en qué me puedes ayudar?", "¿qué opciones tengo?", "¿con qué puedes ayudarme?"):
 
-- Lista las áreas disponibles en formato bullet (usando • o -)
-- Ejemplo: "Puedo ayudarte con:\n\n• Siniestros (accidentes, asistencia, estado de parte)\n• Gestión de pólizas (consultas, modificaciones, devoluciones)\n• Contratación y renovación de seguros\n\n¿Con cuál de estos temas necesitas ayuda?"
+- Lista las áreas disponibles que aparecen en la sección ÁREAS DISPONIBLES en formato bullet (usando • o -). DEBES poner cada área en una línea nueva, separada por un salto de línea doble. NO inventes ni ofrezcas áreas que no estén en esa lista.
+- Ejemplo de cómo responder: "Puedo ayudarte con:\n\n• [Área 1] (ejemplo de servicio)\n\n• [Área 2] (ejemplo de servicio)\n\n¿Con cuál de estos temas necesitas ayuda?"
 - NO listes todas las opciones en la primera interacción si el usuario no lo pide
 - Solo usa el formato bullet cuando el usuario pide ver las opciones
 
@@ -490,7 +512,6 @@ Responde SIEMPRE en JSON válido:
 
 {consultation_context}"""
 
-    prompt = prompt.replace("$AREAS$", areas)
     prompt = prompt.replace("$SIGNAL_TABLE$", signal_table)
     prompt = prompt.replace("$MEDIUM_ROWS$", medium_section)
     prompt = prompt.replace("$EXAMPLES$", examples)

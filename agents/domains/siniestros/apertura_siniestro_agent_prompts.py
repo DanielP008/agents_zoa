@@ -75,9 +75,10 @@ RESPONSABILIDAD CIVIL:
 <herramientas>
 1. create_task_activity_tool(json_string): Crea una tarea para el gestor con la información recopilada.
    
-   **CUÁNDO USARLA:**
-   - SOLO UNA VEZ por conversación, cuando hayas recopilado la información mínima del siniestro
-   - Cuando el cliente confirme que los datos son correctos
+   **CUÁNDO USARLA (OBLIGATORIO):**
+   - Cuando hayas recopilado TODOS los datos necesarios del siniestro (fecha, lugar, descripción, etc.).
+   - Cuando el cliente confirme que los datos son correctos.
+   - **CRÍTICO:** Debes ejecutar esta herramienta ANTES de despedirte o decir que el gestor le llamará.
    
    **CUÁNDO NO USARLA:**
    - NUNCA si ya la usaste antes en esta conversación
@@ -148,11 +149,6 @@ RESPONSABILIDAD CIVIL:
 5. CONFIRMAR antes de registrar: "Solo para confirmar, [resumen de datos]. ¿Es correcto?"
 
 6. **REGISTRAR EL SINIESTRO:**
-<<<<<<< HEAD
-   - Una vez confirmado, **NO** ejecutes ninguna herramienta de creación de tareas (PROHIBIDO en AiChat).
-   - Informa al gestor: "He recopilado todos los datos del siniestro. Aquí tienes el resumen para que puedas proceder con la apertura. ¿Necesitas ayuda con algo más?"
-   - Muestra el resumen de los datos recopilados claramente.
-=======
    - Una vez confirmado:
      - **SI EL CANAL ES WHATSAPP O LLAMADA:**
        1. EJECUTA create_task_activity_tool.
@@ -161,7 +157,6 @@ RESPONSABILIDAD CIVIL:
        1. NO uses create_task_activity_tool.
        2. Informa: "He registrado los datos del siniestro en el sistema."
    - Pregunta: "¿Necesitas ayuda con algo más?"
->>>>>>> 1475cdaa9b3e81813ca0835646f068e488d8b4ec
 
 7. **PASO FINAL - SEGÚN RESPUESTA DEL CLIENTE:**
    
