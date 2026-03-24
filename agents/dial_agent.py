@@ -69,7 +69,7 @@ def dial_agent(payload: dict) -> dict:
         extension = output_text.split("__TRANSFER_CALL__:")[1].strip()
         clean_msg = output_text.split("__TRANSFER_CALL__:")[0].strip()
         if not clean_msg:
-            clean_msg = "Te paso con un compañero . . . Un momento."
+            clean_msg = "Perfecto . . . un compañero te atenderá en seguida . . . Un momento por favor."
         return {
             "action": "transfer_call",
             "extension": extension,
