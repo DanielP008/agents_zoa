@@ -228,7 +228,7 @@ def receptionist_agent(payload: dict) -> dict:
         extracted_nif = ""
         # If the LLM thought it was valid but it wasn't, we override the message to ask again
         if channel == "call":
-            decision.message = "Disculpa . . . No he podido leer bien tu DNI . . . ¿¿Podrías repetirlo completo incluyendo la letra??"
+            decision.message = "Disculpa . . . No he podido leer bien tu DNI . . . ¿¿Podrías repetirlo completo cifra a cifra incluyendo la letra???"
         else:
             decision.message = "Lo siento, el DNI/NIF que me has dado no parece tener un formato válido. ¿Podrías indicarlo completo incluyendo la letra?"
         decision.domain = None # Force to stay in receptionist until valid NIF is given
