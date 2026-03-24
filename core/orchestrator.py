@@ -141,6 +141,9 @@ def _run_routing_chain(payload: dict, session: dict, memory: dict,
         if action == "end_chat":
             break
 
+        if action == "transfer_call":
+            break
+
         # Silent passthrough: route with no user-facing message
         if action == "route":
             new_target = response.get("next_agent")
@@ -219,6 +222,16 @@ def process_message(payload: dict) -> dict:
     default_agent = "aichat_receptionist_agent" if is_aichat else _DEFAULT_AGENT
     target_agent = session.get("target_agent") or default_agent
 
+    # Override agent if force_agent is set (e.g. dial_agent during business hours)
+    force_agent = payload.get("force_agent")
+    if force_agent:
+        target_agent = force_agent
+    
+    # Optional override if current agent matches a specific key (e.g. force exit dial_agent if out of hours)
+    force_agent_if_current = payload.get("force_agent_if_current", {})
+    if target_agent in force_agent_if_current:
+        target_agent = force_agent_if_current[target_agent]
+
     if is_aichat:
         logger.info(f"[ORCHESTRATOR] Processing AiChat message for user {wa_id}. Target agent: {target_agent}")
 
@@ -264,6 +277,21 @@ def process_message(payload: dict) -> dict:
     if action == "end_chat":
         return handle_end_chat(wa_id, company_id, agent_message, channel,
                                session_manager, is_aichat=payload.get("is_aichat", False))
+
+    # 3b. transfer_call: dial_agent wants to transfer to a PBX extension
+    if action == "transfer_call":
+        extension = response.get("extension", "")
+        logger.info(f"[ORCHESTRATOR] transfer_call to extension={extension} for wa_id={wa_id}")
+        deleted = session_manager.delete_session(wa_id, company_id)
+        dump_trace(channel)
+        return {
+            "type": "transfer",
+            "message": agent_message,
+            "extension": extension,
+            "agent": target_agent,
+            "status": "transfer",
+            "session_deleted": deleted,
+        }
 
     # Append user turn AFTER routing chain resolved
     memory = append_turn(

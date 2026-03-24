@@ -20,6 +20,8 @@ from agents.domains.ventas.renovacion_agent import renovacion_agent
 from agents.domains.ventas.nueva_poliza_agent import nueva_poliza_agent
 from agents.domains.ventas.venta_cruzada_agent import venta_cruzada_agent
 
+from agents.dial_agent import dial_agent
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -43,6 +45,8 @@ _AGENT_REGISTRY: dict[str, callable] = {
     "renovacion_agent": renovacion_agent,
     "nueva_poliza_agent": nueva_poliza_agent,
     "venta_cruzada_agent": venta_cruzada_agent,
+    # Special
+    "dial_agent": dial_agent,
 }
 
 
