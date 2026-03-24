@@ -147,10 +147,37 @@ def process_attachments_ocr(memory: dict) -> tuple[dict, str]:
     return memory, "\n\n".join(ocr_texts)
 
 
+def is_valid_nif(nif: str) -> bool:
+    """Check if the provided NIF/DNI/NIE/CIF matches a valid Spanish format.
+    
+    Standard patterns:
+    - DNI: 8 digits + 1 letter (e.g. 12345678A)
+    - NIE: 1 letter (XYZ) + 7 digits + 1 letter (e.g. X1234567L)
+    - CIF/Other: 1 letter + 7 digits + 1 letter/digit (e.g. B12345678)
+    """
+    if not nif:
+        return False
+    
+    # Remove any spaces or dashes
+    nif = nif.replace(" ", "").replace("-", "").upper()
+    
+    patterns = [
+        r"^\d{8}[A-Z]$",        # DNI
+        r"^[XYZ]\d{7}[A-Z]$",   # NIE
+        r"^[A-Z]\d{7}[A-Z0-9]$" # CIF / Others
+    ]
+    
+    for pattern in patterns:
+        if re.match(pattern, nif):
+            return True
+    return False
+
+
 def extract_nif_from_text(text: str) -> str:
     """Extract NIF/DNI/NIE/CIF from free text using regex."""
     if not text:
         return ""
+    # We use the same patterns as is_valid_nif but with word boundaries for extraction
     patterns = [
         r"\b\d{8}[A-Za-z]\b",
         r"\b[XYZ]\d{7}[A-Za-z]\b",
@@ -159,7 +186,9 @@ def extract_nif_from_text(text: str) -> str:
     for pattern in patterns:
         match = re.search(pattern, text, re.IGNORECASE)
         if match:
-            return match.group(0).upper()
+            val = match.group(0).upper()
+            if is_valid_nif(val):
+                return val
     return ""
 
 

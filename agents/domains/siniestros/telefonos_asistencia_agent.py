@@ -1,5 +1,6 @@
 """Telefonos asistencia agent for LangChain 1.x."""
 import logging
+from datetime import datetime
 
 from infra.agent_runner import (
     create_langchain_agent, run_langchain_agent,
@@ -30,8 +31,16 @@ def telefonos_asistencia_agent(payload: dict) -> dict:
    global_mem = memory.get("global", {})
    nif_value = global_mem.get("nif") or "NO_IDENTIFICADO"
 
+   now = datetime.now()
+   current_date = now.strftime("%d/%m/%Y")
+   current_time = now.strftime("%H:%M")
+   current_year = now.year
+
    channel = payload.get("channel", "whatsapp")
    system_prompt = get_prompt(channel).format(
+       current_date=current_date,
+       current_time=current_time,
+       current_year=current_year,
        nif_value=nif_value,
        company_id=company_id,
        wa_id=wa_id

@@ -6,6 +6,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List, Union
 
+from langsmith import traceable
 from services.interfaces.zoa_interfaces import (
     ContactsInterface,
     ConversationsInterface,
@@ -179,6 +180,7 @@ def fetch_policy(policy_number: str) -> Dict[str, Any]:
         "valid_until": "2026-12-31"
     }
 
+@traceable(name="ZOA CRM Create Activity", run_type="tool")
 def create_task_activity(
     company_id: str,
     title: str,

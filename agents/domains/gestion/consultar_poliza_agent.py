@@ -1,5 +1,7 @@
+"""Consultar poliza agent for LangChain 1.x."""
 import json
 import logging
+from datetime import datetime
 from typing import Any, Dict
 
 from langchain.tools import tool
@@ -74,8 +76,16 @@ def consultar_poliza_agent(payload: dict) -> dict:
         result = generic_knowledge_agent(sub_payload)
         return result.get("message", "No pude obtener respuesta del experto.")
 
+    now = datetime.now()
+    current_date = now.strftime("%d/%m/%Y")
+    current_time = now.strftime("%H:%M")
+    current_year = now.year
+
     channel = payload.get("channel", "whatsapp")
     system_prompt = get_prompt(channel).format(
+        current_date=current_date,
+        current_time=current_time,
+        current_year=current_year,
         nif=nif or 'NO_IDENTIFICADO',
         ramo=ramo or 'No especificado',
         company_id=company_id,

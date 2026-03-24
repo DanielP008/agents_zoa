@@ -5,6 +5,7 @@ import logging
 import re
 from typing import Any, Dict, List, Optional
 
+from langsmith import traceable
 from langchain.agents import create_agent, AgentState
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
@@ -126,6 +127,7 @@ _CALLBACK_HINTS = (
 )
 
 
+@traceable(name="Auto-Create Task (Fail-safe)", run_type="tool")
 def auto_create_task_if_needed(
     tool_calls,
     output_text: str,

@@ -1,4 +1,6 @@
 """Nueva poliza agent for LangChain 1.x."""
+import logging
+from datetime import datetime
 from infra.agent_runner import (
     create_langchain_agent, run_langchain_agent,
     auto_create_task_if_needed, task_tool_already_called, _TASK_DONE_SUFFIX
@@ -23,9 +25,17 @@ def nueva_poliza_agent(payload: dict) -> dict:
     global_mem = memory.get("global", {})
     nif_value = global_mem.get("nif") or "NO_IDENTIFICADO"
 
+    now = datetime.now()
+    current_date = now.strftime("%d/%m/%Y")
+    current_time = now.strftime("%H:%M")
+    current_year = now.year
+
     # Get prompt based on channel
     channel = payload.get("channel", "whatsapp")
     system_prompt = get_prompt(channel).format(
+        current_date=current_date,
+        current_time=current_time,
+        current_year=current_year,
         company_id=company_id,
         nif_value=nif_value,
         wa_id=wa_id or 'NO_DISPONIBLE'

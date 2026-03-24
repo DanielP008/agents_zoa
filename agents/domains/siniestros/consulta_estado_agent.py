@@ -1,5 +1,6 @@
 """Consulta estado de siniestros agent for LangChain 1.x."""
 import logging
+from datetime import datetime
 from infra.agent_runner import (
     create_langchain_agent, run_langchain_agent,
     task_tool_already_called, _TASK_DONE_SUFFIX,
@@ -42,8 +43,16 @@ def consulta_estado_agent(payload: dict) -> dict:
         result = generic_knowledge_agent(sub_payload)
         return result.get("message", "No pude obtener respuesta del experto.")
 
+    now = datetime.now()
+    current_date = now.strftime("%d/%m/%Y")
+    current_time = now.strftime("%H:%M")
+    current_year = now.year
+
     channel = payload.get("channel", "whatsapp")
     system_prompt = get_prompt(channel).format(
+        current_date=current_date,
+        current_time=current_time,
+        current_year=current_year,
         nif=nif or 'NO_IDENTIFICADO',
         company_id=company_id,
         wa_id=wa_id or ''

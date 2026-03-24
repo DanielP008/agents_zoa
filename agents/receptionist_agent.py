@@ -16,18 +16,46 @@ logger = logging.getLogger(__name__)
 
 _ROUTES_PATH = get_routes_path()
 
+def is_valid_nif(nif: str) -> bool:
+    """Check if the provided NIF/DNI/NIE/CIF matches a valid Spanish format.
+    
+    Standard patterns:
+    - DNI: 8 digits + 1 letter (e.g. 12345678A)
+    - NIE: 1 letter (XYZ) + 7 digits + 1 letter (e.g. X1234567L)
+    - CIF/Other: 1 letter + 7 digits + 1 letter/digit (e.g. B12345678)
+    """
+    if not nif:
+        return False
+    
+    # Remove any spaces or dashes
+    nif = nif.replace(" ", "").replace("-", "").upper()
+    
+    patterns = [
+        r"^\d{8}[A-Z]$",        # DNI
+        r"^[XYZ]\d{7}[A-Z]$",   # NIE
+        r"^[A-Z]\d{7}[A-Z0-9]$" # CIF / Others
+    ]
+    
+    for pattern in patterns:
+        if re.match(pattern, nif):
+            return True
+    return False
+
 def _extract_nif_from_text(text: str) -> str:
     if not text:
         return ""
+    # We use the same patterns as is_valid_nif but with word boundaries for extraction
     patterns = [
-        r"\b\d{8}[A-Za-z]\b",
-        r"\b[XYZ]\d{7}[A-Za-z]\b",
-        r"\b[A-Za-z]\d{7}[A-Za-z0-9]\b",
+        r"\b\d{8}[A-Z]\b",
+        r"\b[XYZ]\d{7}[A-Z]\b",
+        r"\b[A-Z]\d{7}[A-Z0-9]\b",
     ]
     for pattern in patterns:
         match = re.search(pattern, text, re.IGNORECASE)
         if match:
-            return match.group(0).upper()
+            val = match.group(0).upper()
+            if is_valid_nif(val):
+                return val
     return ""
 
 def _build_nif_memory_patch(nif: str) -> dict:
@@ -184,17 +212,29 @@ def receptionist_agent(payload: dict) -> dict:
         error_context="receptionist_decision"
     )
 
-    # --- NIF extraction ---
+    # --- NIF extraction & validation ---
     extracted_nif = ""
     # If the decision contains a NIF, use it
     if decision.nif:
-        extracted_nif = decision.nif.strip().upper()
+        extracted_nif = decision.nif.strip().replace(" ", "").replace("-", "").upper()
     
     # If not, try to extract it from the user text
     if not extracted_nif:
         extracted_nif = _extract_nif_from_text(user_text)
 
-    # If NIF was found (either in decision or extracted from text)
+    # Validate the extracted NIF format
+    if extracted_nif and not is_valid_nif(extracted_nif):
+        logger.warning(f"[RECEPTIONIST] Invalid NIF format detected: {extracted_nif}. Ignoring it.")
+        extracted_nif = ""
+        # If the LLM thought it was valid but it wasn't, we override the message to ask again
+        if channel == "call":
+            decision.message = "Disculpa . . . No he podido leer bien tu DNI . . . ¿¿Podrías repetirlo completo incluyendo la letra??"
+        else:
+            decision.message = "Lo siento, el DNI/NIF que me has dado no parece tener un formato válido. ¿Podrías indicarlo completo incluyendo la letra?"
+        decision.domain = None # Force to stay in receptionist until valid NIF is given
+        decision.confidence = 0.0
+
+    # If NIF was found and is valid
     if extracted_nif:
         # If we didn't have a NIF before, or if the new NIF is different, update it
         if not nif_value or nif_value != extracted_nif:

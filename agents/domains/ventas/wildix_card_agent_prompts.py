@@ -97,7 +97,9 @@ IMPORTANTE:
 ### PASO 4 — Normalización (OBLIGATORIO)
 - Fechas (nacimiento, carnet, etc.) → YYYY-MM-DD
 - Fecha de Efecto (poliza_actual.fecha_efecto) → DD/MM/YYYY (Ejemplo: 10/03/2026)
-- DNI → mayúsculas sin espacios
+- **DNI/NIF/NIE:** Debe tener un formato válido (DNI: 8 números + 1 letra; NIE: letra inicial [XYZ] + 7 números + letra final; CIF: letra inicial + 7 números + letra/número final). 
+  - **REGLA DE ORO:** Si el DNI/NIF extraído NO cumple con el formato anterior (ej: le faltan números o no tiene letra), **IGNÓRALO** y NO lo guardes en el campo `dni`.
+  - Formato final: mayúsculas sin espacios.
 - hombre/varón/masculino → MASCULINO, mujer/hembra/femenino → FEMENINO
 - casado/a → CASADO, soltero/a → SOLTERO, viudo/a → VIUDO, divorciado/a → DIVORCIADO
 - **tipo_uso (uso):** habitual → VIVIENDA_HABITUAL, secundaria → VIVIENDA_SECUNDARIA, deshabitada → DESHABITADA, alquiler turístico/vacacional → ALQUILER_TURISTICO
