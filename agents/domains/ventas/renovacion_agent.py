@@ -1,4 +1,4 @@
-"""Renovación agent - gestiona renovaciones de pólizas vía WhatsApp."""
+"""Renovation agent - manages policy renewals via WhatsApp."""
 
 import logging
 from datetime import datetime

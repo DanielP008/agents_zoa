@@ -30,17 +30,17 @@ logger = logging.getLogger(__name__)
 _AGENT_REGISTRY: dict[str, callable] = {
     "receptionist_agent": receptionist_agent,
     "aichat_receptionist_agent": aichat_receptionist_agent,
-    # Siniestros
+    # Claims
     "classifier_siniestros_agent": classifier_siniestros_agent,
     "apertura_siniestro_agent": apertura_siniestro_agent,
     "consulta_estado_agent": consulta_estado_agent,
     "telefonos_asistencia_agent": telefonos_asistencia_agent,
-    # Gestión
+    # Management
     "classifier_gestion_agent": classifier_gestion_agent,
     "devolucion_agent": devolucion_agent,
     "consultar_poliza_agent": consultar_poliza_agent,
     "modificar_poliza_agent": modificar_poliza_agent,
-    # Ventas
+    # Sales
     "classifier_ventas_agent": classifier_ventas_agent,
     "renovacion_agent": renovacion_agent,
     "nueva_poliza_agent": nueva_poliza_agent,

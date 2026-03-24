@@ -5,8 +5,8 @@ from agents.domains.common.generic_knowledge_agent_prompts import get_prompt
 
 def generic_knowledge_agent(payload: dict) -> dict:
     """
-    Agente experto en conocimientos generales de seguros.
-    Puede ser instanciado por otros agentes para responder dudas genéricas.
+    Expert agent in general insurance knowledge.
+    Can be instantiated by other agents to answer generic questions.
     """
     user_text = payload.get("mensaje", "")
     session = payload.get("session", {})

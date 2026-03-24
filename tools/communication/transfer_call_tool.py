@@ -4,14 +4,12 @@ from langchain.tools import tool
 
 @tool(return_direct=True)
 def transfer_call_tool(extension: str) -> str:
-    """
-    Transfiere la llamada del cliente a una extensión interna de la centralita.
-
-    Usar cuando:
-    - El cliente está en horario de oficina y necesita hablar con un departamento concreto.
-    - Ya se ha identificado a qué departamento corresponde la consulta del cliente.
-
+        """
+    Transfers the client's call to an internal PBX extension.
+    Use when:
+    - The client is within business hours and needs to talk to a specific department.
+    - The department corresponding to the client's query has already been identified.
     Args:
-        extension: Número de extensión al que transferir (ej: "201", "202").
+        extension: Extension number to transfer to (e.g., "201", "202").
     """
     return f"__TRANSFER_CALL__:{extension}"

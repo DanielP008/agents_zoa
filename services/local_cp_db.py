@@ -3,8 +3,8 @@ from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
-# Base de datos local mínima de códigos postales (Valencia y alrededores, expandible)
-# Formato: "CP": {"poblacion": "NOMBRE", "provincia": "PROVINCIA", "descripcion_provincia": "PROVINCIA"}
+# Minimum local database of postal codes (Valencia and surroundings, expandable)
+# Format: "CP": {"poblacion": "NAME", "provincia": "PROVINCIA", "descripcion_provincia": "PROVINCIA"}
 _LOCAL_CP_DB = {
     "46025": {"poblacion": "VALENCIA", "provincia": "VALENCIA", "descripcion_provincia": "VALENCIA"},
     "46001": {"poblacion": "VALENCIA", "provincia": "VALENCIA", "descripcion_provincia": "VALENCIA"},
@@ -91,8 +91,8 @@ _LOCAL_CP_DB = {
 
 def get_local_town_by_cp(cp: str) -> Optional[Dict[str, str]]:
     """
-    Busca un código postal en la base de datos local.
-    Devuelve None si no se encuentra.
+    Searches for a postal code in the local database.
+    Returns None if not found.
     """
     cp = cp.strip()
     result = _LOCAL_CP_DB.get(cp)

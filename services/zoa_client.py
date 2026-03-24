@@ -216,7 +216,7 @@ def create_task_activity(
     To link to a contact, provide at least one of: phone, email, nif, mobile.
     For 'llamada' activities, date and start_time are auto-set to now+5min if not provided.
     """
-    # tags_name must always include "<Dominio>-<Ramo>" (e.g. "Siniestros-Hogar")
+    # tags_name must always include "<Domain>-<Line>" (e.g. "Claims-Home")
     text_low = f"{title}\n{description or ''}".lower()
     if any(k in text_low for k in ("siniestro", "asistencia", "grua", "grúa", "carretera")):
         domain_tag = "Siniestros"

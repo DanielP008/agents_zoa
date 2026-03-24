@@ -4,43 +4,43 @@ from services.zoa_client import create_task_activity
 
 @tool
 def create_refund_request_tool(data: str) -> dict:
-    """Registra una solicitud de devolución creando una tarea para el gestor (JSON string).
-    Campos esperados: company_id, nif, policy_number, reason, amount, iban, phone (opcional)."""
+    """Registers a refund request by creating a task for the manager (JSON string).
+    Expected fields: company_id, nif, policy_number, reason, amount, iban, phone (optional)."""
     try:
         payload = json.loads(data)
         
-        # Extraer campos
+        # Extract fields
         company_id = payload.get("company_id")
         nif = payload.get("nif")
-        policy_number = payload.get("policy_number", "No especificada")
-        reason = payload.get("reason", "No especificado")
-        amount = payload.get("amount", "No especificado")
-        iban = payload.get("iban", "No especificado")
+        policy_number = payload.get("policy_number", "Not specified")
+        reason = payload.get("reason", "Not specified")
+        amount = payload.get("amount", "Not specified")
+        iban = payload.get("iban", "Not specified")
         phone = payload.get("phone")
         wa_id = payload.get("wa_id")
         
         if not company_id:
             return {"error": "company_id is required"}
         
-        # Construir descripción para el gestor
-        description = f"""Solicitud de devolución:
-- Póliza: {policy_number}
-- Motivo: {reason}
-- Importe: {amount}
-- IBAN destino: {iban}
-- NIF: {nif or 'No proporcionado'}
+        # Build description for the manager
+        description = f"""Refund request:
+- Policy: {policy_number}
+- Reason: {reason}
+- Amount: {amount}
+- Destination IBAN: {iban}
+- NIF: {nif or 'Not provided'}
 
-El cliente solicita devolución. Verificar datos y procesar."""
+The client requests a refund. Verify data and process."""
         
-        # Crear tarea + actividad
+        # Create task + activity
         task_data = {
             "company_id": company_id,
-            "title": f"Devolución - Póliza {policy_number}",
+            "title": f"Refund - Policy {policy_number}",
             "description": description,
             "card_type": "task",
             "type_of_activity": "call",
-            "activity_title": "Gestionar devolución",
-            "activity_description": f"Contactar al cliente para gestionar devolución de {amount}",
+            "activity_title": "Manage refund",
+            "activity_description": f"Contact the client to manage refund of {amount}",
         }
         
         if nif:
@@ -52,11 +52,11 @@ El cliente solicita devolución. Verificar datos y procesar."""
         
         result = create_task_activity(**task_data)
         
-        # Si fue exitoso, devolver mensaje amigable
+        # If successful, return friendly message
         if result.get("success") or result.get("status") == "success":
             return {
                 "success": True,
-                "message": "Solicitud de devolución registrada. Un gestor se pondrá en contacto contigo para tramitarla."
+                "message": "Refund request registered. A manager will contact you to process it."
             }
         else:
             return result

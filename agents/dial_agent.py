@@ -38,11 +38,11 @@ def _build_extensions_prompt() -> str:
     lines = []
     for dept, cfg in EXTENSIONS_CONFIG.items():
         if dept == "default":
-            lines.append(f"- Por defecto (cualquier otra consulta): extensión {cfg['extension']}")
+            lines.append(f"- Default (any other query): extension {cfg['extension']}")
         else:
             label = dept.upper()
             kw = ", ".join(cfg["keywords"][:5])
-            lines.append(f"- {label} ({kw}...): extensión {cfg['extension']}")
+            lines.append(f"- {label} ({kw}...): extension {cfg['extension']}")
     return "\n".join(lines)
 
 

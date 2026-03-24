@@ -67,14 +67,13 @@ def consultar_poliza_agent(payload: dict) -> dict:
 
     @tool
     def ask_expert_knowledge(query: str) -> str:
-        """Consulta al agente experto en seguros para responder dudas GENÉRICAS.
-        Usar cuando la pregunta es sobre conceptos, coberturas generales o dudas que no requieren datos del cliente."""
+        """Consults the insurance expert agent to answer GENERIC questions.
+        Use when the question is about concepts, general coverage, or doubts that do not require client data."""
         sub_payload = {
             "mensaje": query,
             "session": session
         }
-        result = generic_knowledge_agent(sub_payload)
-        return result.get("message", "No pude obtener respuesta del experto.")
+        return generic_knowledge_agent(sub_payload).get("message", "Could not get response from expert.")
 
     now = datetime.now()
     current_date = now.strftime("%d/%m/%Y")

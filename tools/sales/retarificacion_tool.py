@@ -1,13 +1,13 @@
-"""Tools para tarificación en Merlin Multitarificador (Auto y Hogar).
+"""Tools for pricing in Merlin Multitarificador (Auto and Home).
 
-Contiene cinco herramientas:
-  1. consulta_vehiculo_tool: Consulta DGT por matrícula (vía ERP).
-  2. get_town_by_cp_tool: Obtiene población por código postal (vía ERP).
-  3. consultar_catastro_tool: Consulta Catastro y calcula capitales (vía ERP).
-  4. create_retarificacion_project_tool: Crea el proyecto final en Merlin (vía ERP).
-  5. finalizar_proyecto_hogar_tool: Finaliza proyecto HOGAR con capitales elegidos (vía ERP).
+Contains five tools:
+  1. consulta_vehiculo_tool: DGT lookup by license plate (via ERP).
+  2. get_town_by_cp_tool: Gets town/city by postal code (via ERP).
+  3. consultar_catastro_tool: Cadastre lookup and capital calculation (via ERP).
+  4. create_retarificacion_project_tool: Creates final project in Merlin (via ERP).
+  5. finalizar_proyecto_hogar_tool: Finalizes HOME project with chosen capitals (via ERP).
 
-NOTA: Estas herramientas llaman al webservice del ERP (ebroker-api) que centraliza la lógica.
+NOTE: These tools call the ERP webservice (ebroker-api) which centralizes the logic.
 """
 
 import json
@@ -34,24 +34,24 @@ _REQUIRED_FIELDS_HOGAR = ["dni", "codigo_postal", "fecha_efecto", "nombre_via", 
 
 
 # ============================================================================
-# TOOL 1: Consulta de vehículo (DGT) - Solo AUTO
+# TOOL 1: Vehicle Lookup (DGT) - AUTO only
 # ============================================================================
 
 @tool
 def consulta_vehiculo_tool(matricula: str, company_id: str) -> dict:
     """
-    Consulta los datos técnicos de un vehículo en la DGT a partir de su matrícula.
-    Devuelve marca, modelo, versión, combustible, garaje, km, fechas, etc.
+    Look up technical data for a vehicle in the DGT using its license plate.
+    Returns make, model, version, fuel, garage, km, dates, etc.
 
-    Usa esta herramienta en cuanto el cliente proporcione la matrícula.
-    Muestra los datos al cliente en una LISTA DE PUNTOS y pregúntale si son correctos.
+    Use this tool as soon as the client provides the license plate.
+    Show the data to the client in a BULLET LIST and ask if it is correct.
 
     Args:
-        matricula: Matrícula del vehículo (ej: "3492GYW")
-        company_id: ID de la compañía (se obtiene automáticamente del contexto)
+        matricula: Vehicle license plate (e.g. "3492GYW")
+        company_id: Company ID (automatically obtained from context)
 
     Returns:
-        dict con los datos del vehículo recuperados de la DGT.
+        dict with vehicle data retrieved from DGT.
     """
     matricula = matricula.strip().upper()
     logger.info(f"[CONSULTA_VEHICULO] Looking up vehicle: {matricula}")
@@ -89,23 +89,23 @@ def consulta_vehiculo_tool(matricula: str, company_id: str) -> dict:
 
 
 # ============================================================================
-# TOOL 2: Consulta de población (CP) - Ambos ramos
+# TOOL 2: Town/City Lookup (CP) - Both lines
 # ============================================================================
 
 @tool
 def get_town_by_cp_tool(cp: str, company_id: str) -> dict:
     """
-    Obtiene la población y provincia a partir de un código postal.
+    Retrieves town/city and province from a postal code.
 
-    Usa esta herramienta en cuanto el cliente proporcione el código postal.
-    Muestra la población al cliente y pregúntale si es correcta.
+    Use this tool as soon as the client provides the postal code.
+    Show the town to the client and ask if it is correct.
 
     Args:
-        cp: Código postal (ej: "28001")
-        company_id: ID de la compañía (se obtiene automáticamente del contexto)
+        cp: Postal code (e.g. "28001")
+        company_id: Company ID (automatically obtained from context)
 
     Returns:
-        dict con la población y provincia.
+        dict with town and province.
     """
     cp = cp.strip()
     logger.info(f"[GET_TOWN_BY_CP] Looking up CP: {cp}")
@@ -140,7 +140,7 @@ def get_town_by_cp_tool(cp: str, company_id: str) -> dict:
 
 
 # ============================================================================
-# TOOL 3: Consulta de Catastro (Hogar)
+# TOOL 3: Cadastre Lookup (Home)
 # ============================================================================
 
 @tool
@@ -160,25 +160,25 @@ def consultar_catastro_tool(
     tipo_vivienda: str = "PISO_EN_ALTO",
 ) -> str:
     """
-    Consulta los datos de una vivienda en el Catastro (superficie, año construcción, uso).
+    Look up technical data for a dwelling in the Cadastre (surface, construction year, use).
 
-    Usa esta herramienta en cuanto el cliente proporcione la dirección completa en Hogar.
-    Muestra los datos recuperados (año y superficie) al cliente y pregúntale si son correctos.
+    Use this tool as soon as the client provides the full address for Home insurance.
+    Show the retrieved data (year and surface) to the client and ask if it is correct.
 
     Args:
-        provincia: Nombre de la provincia (ej: "MADRID")
-        municipio: Nombre del municipio/población (ej: "MADRID")
-        tipo_via: Código del tipo de vía (CL, AV, PZ, PO, RD, CLZ, CM)
-        nombre_via: Nombre de la vía (ej: "ALCALA")
-        numero: Número de la vía (ej: "5")
-        company_id: ID de la compañía (se obtiene automáticamente del contexto)
-        bloque: Bloque (opcional)
-        escalera: Escalera (opcional)
-        planta: Planta (ej: "5")
-        puerta: Puerta (ej: "A")
-        piso: Alias para planta (opcional)
-        numero_personas: Número de personas en la vivienda (ej: "3")
-        tipo_vivienda: Tipo de vivienda (PISO_EN_ALTO, PISO_EN_BAJO, ATICO, CHALET_O_VIVIENDA_UNIFAMILIAR, CHALET_O_VIVIENDA_ADOSADA)
+        provincia: Province name (e.g. "MADRID")
+        municipio: Town/City name (e.g. "MADRID")
+        tipo_via: Road type code (CL, AV, PZ, PO, RD, CLZ, CM)
+        nombre_via: Road name (e.g. "ALCALA")
+        numero: Road number (e.g. "5")
+        company_id: Company ID (automatically obtained from context)
+        bloque: Block (optional)
+        escalera: Staircase (optional)
+        planta: Floor (e.g. "5")
+        puerta: Door (e.g. "A")
+        piso: Alias for floor (optional)
+        numero_personas: Number of people in the house (e.g. "3")
+        tipo_vivienda: Dwelling type (PISO_EN_ALTO, PISO_EN_BAJO, ATICO, CHALET_O_VIVIENDA_UNIFAMILIAR, CHALET_O_VIVIENDA_ADOSADA)
     """
     final_planta = planta or piso
     
@@ -243,23 +243,23 @@ def consultar_catastro_tool(
 
 
 # ============================================================================
-# TOOL 4: Creación de proyecto en Merlin (Auto o Hogar)
+# TOOL 4: Project creation in Merlin (Auto or Home)
 # ============================================================================
 
 @tool
 def create_retarificacion_project_tool(data: str, company_id: str) -> dict:
     """
-    Crea un proyecto de tarificación de seguro (Auto o Hogar) en Merlin.
-    Enriquece automáticamente los datos usando la DGT, el ERP, el Catastro y servicios de localización.
+    Creates a project for insurance pricing (Auto or Home) in Merlin.
+    Automatically enriches data using DGT, ERP, Cadastre and location services.
     
-    Si la tarificación tiene éxito, devuelve el objeto 'proyecto' completo con las ofertas de las aseguradoras
-    en el campo 'tarificaciones' o 'afinaciones'.
+    If pricing is successful, returns the full 'proyecto' object with insurance offers
+    in the 'tarificaciones' or 'afinaciones' field.
 
-    Input: JSON string con los datos recopilados.
+    Input: JSON string with collected data.
 
     Args:
-        data: JSON string con todos los datos recopilados del cliente
-        company_id: ID de la compañía (se obtiene automáticamente del contexto)
+        data: JSON string with all collected client data
+        company_id: Company ID (automatically obtained from context)
     """
     logger.info(f"[RETARIFICACION] === RAW LLM DATA (first 3000 chars) ===")
     logger.info(f"[RETARIFICACION] {data[:3000]}")
@@ -331,7 +331,7 @@ def create_retarificacion_project_tool(data: str, company_id: str) -> dict:
 
 
 # ============================================================================
-# TOOL 5: Finalizar proyecto HOGAR con capitales elegidos
+# TOOL 5: Finalize HOME project with chosen capitals
 # ============================================================================
 
 @tool
@@ -344,23 +344,23 @@ def finalizar_proyecto_hogar_tool(
     company_id: str,
 ) -> dict:
     """
-    Finaliza un proyecto de HOGAR en Merlin con los capitales elegidos por el cliente
-    y lanza la tarificación multi-aseguradora.
+    Finalizes a HOME project in Merlin with capitals chosen by the client
+    and launches multi-insurer pricing.
 
-    Usa esta herramienta DESPUÉS de que create_retarificacion_project_tool haya devuelto
-    action_required='select_capitals' y el cliente haya elegido sus capitales preferidos
-    de entre las recomendaciones por aseguradora.
+    Use this tool AFTER create_retarificacion_project_tool has returned
+    action_required='select_capitals' and the client has chosen their preferred capitals
+    from the recommendations per insurer.
 
     Args:
-        proyecto_id: ID MongoDB del proyecto (campo "proyecto_id" devuelto por create_retarificacion_project_tool, ej: "69a6c89815a9590f351dc961")
-        id_pasarela: ID numérico de pasarela (campo "id_pasarela" devuelto por create_retarificacion_project_tool, ej: 3410). DEBE ser un entero.
-        capital_continente: Capital de continente elegido por el cliente (ej: 150000)
-        capital_contenido: Capital de contenido elegido por el cliente (ej: 30000)
-        fecha_efecto: Fecha de efecto de la póliza (formato YYYY-MM-DD)
-        company_id: ID de la compañía (se obtiene automáticamente del contexto)
+        proyecto_id: MongoDB project ID ("proyecto_id" field returned by create_retarificacion_project_tool, e.g. "69a6c89815a9590f351dc961")
+        id_pasarela: Numeric gateway ID ("id_pasarela" field returned by create_retarificacion_project_tool, e.g. 3410). MUST be an integer.
+        capital_continente: Continent capital chosen by the client (e.g. 150000)
+        capital_contenido: Content capital chosen by the client (e.g. 30000)
+        fecha_efecto: Policy effective date (YYYY-MM-DD format)
+        company_id: Company ID (automatically obtained from context)
 
     Returns:
-        dict con el resultado de la tarificación, incluyendo ofertas de las aseguradoras.
+        dict with pricing result, including insurer offers.
     """
     logger.info(
         f"[FINALIZAR_HOGAR] project={proyecto_id}, pasarela={id_pasarela}, "

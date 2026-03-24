@@ -94,18 +94,25 @@ Processes WhatsApp messages through a hierarchy of specialized agents with persi
 ### Agent Hierarchy
 
 ```
-receptionist_agent
+dial_agent (Call Router - Business Hours)
+│   └── transfer_call_tool → PBX Extensions (201, 202, etc.)
+│
+receptionist_agent (Standard Flow / After-hours)
 │
 ├── classifier_siniestros_agent
 │   ├── telefonos_asistencia_agent    → Tow truck/assistance numbers
 │   ├── apertura_siniestro_agent      → Report new claim
 │   └── consulta_estado_agent         → Check existing claim status
 │
-├── classifier_gestion_agent          → (pending)
-│   └── ...
+├── classifier_gestion_agent
+│   ├── consultar_poliza_agent        → Query policy details
+│   ├── modificar_poliza_agent        → Handle policy modifications
+│   └── devolucion_agent              → Process returns
 │
-└── classifier_ventas_agent           → (pending)
-    └── ...
+└── classifier_ventas_agent
+    ├── renovacion_agent              → Handle policy renewals
+    ├── nueva_poliza_agent            → Process new policy applications
+    └── venta_cruzada_agent           → Cross-selling opportunities
 ```
 
 ---
@@ -183,11 +190,18 @@ return {
 
 ### Receptionist (`receptionist_agent.py`)
 
-- **Function**: Classifies the message domain (claims, management, sales)
-- **First interaction**: Shows welcome message if it cannot classify
-- **Subsequent interactions**: Asks for clarification if it cannot classify
-- **Architecture**: Uses `llm.with_structured_output()` for structured decisions
-- **Output**: Always `route` with passthrough or `ask` to clarify
+- **Function**: Classifies the message domain (claims, management, sales).
+- **First interaction**: Shows welcome message if it cannot classify.
+- **NIF/DNI Validation**: Strictly validates identification formats (8 numbers + 1 letter) and suggests "digit-by-digit" dictation in voice channels if incorrect.
+- **Architecture**: Uses `llm.with_structured_output()` for structured decisions.
+- **Output**: Always `route` with passthrough or `ask` to clarify.
+
+### Dial Agent (`dial_agent.py`)
+
+- **Function**: Specialized agent for handling incoming calls during business hours.
+- **Goal**: Understand the user's intent (sales, claims, etc.) and route the call to the appropriate internal PBX extension.
+- **Rules**: Never asks for DNI, never solves queries, always transfers to human specialists.
+- **Tools**: Uses `transfer_call_tool` to execute the PBX transfer.
 
 ### Classifier Siniestros (`classifier_agent.py`)
 
@@ -325,6 +339,9 @@ cp .env.example .env
 | `GEMINI_MODEL`     | Main model                           | `gemini-2.5-flash`          |
 | `ZOA_ENDPOINT_URL` | ZOA API URL for WhatsApp             | `https://prod-flow-zoa-...` |
 | `ZOA_API_KEY`      | ZOA API Key                          | `sk_test_...`               |
+| `FIREBASE_PROJECT_ID` | Firebase Project ID for schedule lookup | `zoa-suite`                |
+| `FIREBASE_CREDENTIALS_PATH` | Path to JSON service account key     | `firebase-key.json`        |
+| `WILDIX_TRANSFER_CONTEXT` | Context for Wildix call transfers | `from-internal`            |
 
 **Optional variables:**
 
@@ -532,29 +549,35 @@ zoa_agents/
 │   │   ├── gestion/            # Policy management agents
 │   │   ├── siniestros/         # Claims agents
 │   │   └── ventas/             # Sales and renewal agents
+│   ├── receptionist_agent.py   # Domain classifier & NIF validation
+│   ├── dial_agent.py           # Call router for business hours
 │   └── aichat_receptionist_agent.py
 │
 ├── api/                        # API Handlers
 │   ├── aichat_handler.py
-│   ├── wildix_handler.py
+│   ├── wildix_handler.py       # Webhook for Wildix calls (w/ schedule check)
 │   └── wildix_card_handler.py
+│
+├── core/
+│   ├── preprocessors.py        # NIF/DNI/NIE validation helpers
+│   ├── orchestrator.py         # Flow orchestration (handles transfers)
+│   ├── ...
 │
 ├── infra/                      # Infrastructure & Config
 │   ├── llm.py                  # Multi-provider LLM factory
 │   ├── db.py                   # Database connection
-│   └── tracing.py              # Observability
+│   ├── agent_runner.py         # LangChain agent wrapper (w/ task fail-safe)
+│   └── tracing.py              # Observability & LangSmith setup
 │
 ├── services/                   # External Services
+│   ├── schedule_service.py     # Firebase-based business hours lookup
 │   ├── erp_client.py
 │   ├── ocr_service.py
 │   └── zoa_client.py
 │
 └── tools/                      # Agent Tools
-    ├── communication/
-    ├── document_ai/
-    ├── erp/
-    ├── sales/
-    └── zoa/
+    ├── communication/          # end_chat_tool, transfer_call_tool, etc.
+    ├── ...
 ```
 
 ```
@@ -578,8 +601,9 @@ zoa_agents/
 The system now includes dedicated services for external integrations:
 
 - **OCR Service** (`services/ocr_service.py`): Handles document parsing and text extraction.
+- **Schedule Service** (`services/schedule_service.py`): Checks business hours against Firebase Firestore for call routing.
 - **ERP Client** (`services/erp_client.py`): Interface for Enterprise Resource Planning system interactions.
-- **ZOA Client** (`services/zoa_client.py`): Client for ZOA API interactions.
+- **ZOA Client** (`services/zoa_client.py`): Client for ZOA API interactions (includes LangSmith traceability).
 - **Local CP DB** (`services/local_cp_db.py`): Local database service for postal codes.
 
 ## Infrastructure (`infra/`)
@@ -609,6 +633,9 @@ Core infrastructure components have been moved to the `infra/` directory for bet
 - [x] Implementar `classifier_gestion_agent`
 - [x] Implementar `classifier_ventas_agent`
 - [x] Migrar credenciales DB a variables de entorno
+- [x] Implementar `dial_agent` para derivación telefónica en horario comercial
+- [x] Integrar validación NIF/DNI/NIE en todos los agentes
+- [x] Implementar `Schedule Service` con Firebase
 - [ ] Agregar summary automático de conversación
 - [ ] Agregar tests unitarios para nuevos módulos core
 - [ ] Add monitoring/metrics for LLM calls and agent performance

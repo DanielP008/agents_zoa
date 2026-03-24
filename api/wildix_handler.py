@@ -81,8 +81,8 @@ def handle_wildix(request):
     
     try:
         # Check business hours to decide flow
-        # Mapeo manual de bot_id a company_id si es necesario (para pruebas)
-        # El usuario indica que su company_id es 521783407682043
+        # Manual mapping from bot_id to company_id if necessary (for testing)
+        # User indicates their company_id is 521783407682043
         search_id = bot_id or "default"
         if bot_id == "cXTekS0kyn5f":
             search_id = "521783407682043"

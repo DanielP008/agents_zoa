@@ -4,15 +4,15 @@ from services.zoa_client import create_task_activity
 
 @tool
 def update_policy_tool(data: str) -> dict:
-    """Actualiza datos de una póliza creando una tarea para el gestor (JSON string).
-    Campos esperados: company_id, nif, policy_number, changes (dict), phone (opcional)."""
+    """Updates policy data by creating a task for the manager (JSON string).
+    Expected fields: company_id, nif, policy_number, changes (dict), phone (optional)."""
     try:
         payload = json.loads(data)
         
-        # Extraer campos
+        # Extract fields
         company_id = payload.get("company_id")
         nif = payload.get("nif")
-        policy_number = payload.get("policy_number", "No especificada")
+        policy_number = payload.get("policy_number", "Not specified")
         changes = payload.get("changes", {})
         phone = payload.get("phone")
         wa_id = payload.get("wa_id")
@@ -22,27 +22,27 @@ def update_policy_tool(data: str) -> dict:
         if not changes:
             return {"error": "changes is required"}
         
-        # Construir descripción de cambios
+        # Build description of changes
         changes_str = "\n".join([f"- {key}: {value}" for key, value in changes.items()])
         
-        description = f"""Solicitud de modificación de póliza:
-- Póliza: {policy_number}
-- NIF: {nif or 'No proporcionado'}
+        description = f"""Policy modification request:
+- Policy: {policy_number}
+- NIF: {nif or 'Not provided'}
 
-Cambios solicitados:
+Requested changes:
 {changes_str}
 
-El cliente solicita estos cambios. Verificar datos y actualizar póliza."""
+The client requests these changes. Verify data and update policy."""
         
-        # Crear tarea + actividad
+        # Create task + activity
         task_data = {
             "company_id": company_id,
-            "title": f"Modificar Póliza {policy_number}",
+            "title": f"Modify Policy {policy_number}",
             "description": description,
             "card_type": "task",
             "type_of_activity": "call",
-            "activity_title": "Gestionar modificación",
-            "activity_description": f"Contactar al cliente para confirmar y aplicar cambios en póliza {policy_number}",
+            "activity_title": "Manage modification",
+            "activity_description": f"Contact the client to confirm and apply changes in policy {policy_number}",
         }
         
         if nif:
@@ -54,13 +54,13 @@ El cliente solicita estos cambios. Verificar datos y actualizar póliza."""
         
         result = create_task_activity(**task_data)
         
-        # Si fue exitoso, devolver mensaje amigable
+        # If successful, return friendly message
         if result.get("success") or result.get("status") == "success":
             return {
                 "success": True,
                 "policy_number": policy_number,
                 "updated_fields": list(changes.keys()),
-                "message": "Solicitud de modificación registrada. Un gestor verificará los cambios y te confirmará."
+                "message": "Modification request registered. A manager will verify the changes and confirm with you."
             }
         else:
             return result
