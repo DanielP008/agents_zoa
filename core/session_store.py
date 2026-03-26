@@ -26,6 +26,15 @@ DB_NAME = os.getenv("DB_NAME", "postgres")
 DB_PORT = os.getenv("DB_PORT", "5432")
 
 _POOL = None
+_SESSION_MANAGER = None
+
+
+def get_session_manager():
+    """Return a shared SessionManager singleton."""
+    global _SESSION_MANAGER
+    if _SESSION_MANAGER is None:
+        _SESSION_MANAGER = SessionManager()
+    return _SESSION_MANAGER
 
 
 def _init_connection_pool():

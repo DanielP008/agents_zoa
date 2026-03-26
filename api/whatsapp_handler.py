@@ -18,7 +18,7 @@ def handle_whatsapp(request):
 
     mensaje = data.get("mensaje", "").strip()
     if mensaje == "BORRAR TODO":
-        return handle_session_reset(data)
+        return _json_response(handle_session_reset(data))
 
     wa_id = data.get("wa_id")
     company_id = data.get("phone_number_id") or "default"

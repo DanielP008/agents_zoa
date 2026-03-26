@@ -19,8 +19,8 @@ from core.memory import (
 from core.preprocessors import extract_attachments, process_attachments_ocr, try_silent_nif_lookup
 from core.routing.allowlist import build_agent_allowlist, load_routes_config
 from core.routing.main_router import route_request
-from infra.agent_runner import set_wa_context
-from infra.db import SessionManager
+from core.request_context import set_wa_context
+from core.session_store import get_session_manager
 from infra.timing import start_trace, dump_trace
 from services.zoa_client import send_whatsapp_response_sync
 
@@ -33,7 +33,7 @@ _DEFAULT_AGENT = "receptionist_agent"
 _MAX_CHAIN_DEPTH = 10
 _ROUTE_BLOCKED_MSG = "No pude derivarte en este momento. ¿Podés intentar de nuevo?"
 
-session_manager = SessionManager()
+session_manager = get_session_manager()
 
 _ROUTES_CONFIG = load_routes_config()
 _AGENT_ALLOWLIST = build_agent_allowlist(_ROUTES_CONFIG)

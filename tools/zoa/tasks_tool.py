@@ -3,7 +3,7 @@ import logging
 import re
 from langchain.tools import tool
 from services.zoa_client import create_task_activity
-from infra.agent_runner import get_client_name, get_wa_channel, get_wa_id
+from core.request_context import get_client_name, get_wa_channel, get_wa_id
 
 logger = logging.getLogger(__name__)
 

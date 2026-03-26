@@ -8,12 +8,12 @@ and extract data, then persists the card state in the session.
 import json
 import logging
 
-from infra.db import SessionManager
+from core.session_store import get_session_manager
 from agents.domains.ventas.wildix_card_agent import wildix_card_agent
 
 logger = logging.getLogger(__name__)
 
-session_manager = SessionManager()
+session_manager = get_session_manager()
 
 
 def handle_insurance_agent(request) -> tuple:

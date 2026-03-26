@@ -24,11 +24,11 @@ import logging
 import base64
 import requests
 from core.orchestrator import process_message
-from infra.db import SessionManager
+from core.session_store import get_session_manager
 from services.zoa_client import send_aichat_response
 
 logger = logging.getLogger(__name__)
-session_manager = SessionManager()
+session_manager = get_session_manager()
 
 def _download_and_encode_media(url):
     """Download file from URL and encode to base64 for OCR."""

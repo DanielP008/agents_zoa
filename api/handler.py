@@ -38,7 +38,9 @@ def handle_request(request):
 
     # Status toggle endpoint
     if data.get("action") == "set_status":
-        return handle_status_toggle(data)
+        result = handle_status_toggle(data)
+        status_code = result.pop("_status_code", 200)
+        return _json_response(result, status_code)
     
     # Health check endpoint
     if request.path == "/health":

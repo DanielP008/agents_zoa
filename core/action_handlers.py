@@ -94,33 +94,6 @@ def handle_end_chat(wa_id: str, company_id: str, agent_message: str | None,
     }
 
 
-def _handle_session_reset(wa_id: str, company_id: str, is_aichat: bool = False):
-    """Reset user session and return a clean start message."""
-    deleted = session_manager.delete_session(wa_id, company_id)
-    
-    # Choose the correct receptionist based on channel
-    receptionist = "aichat_receptionist_agent" if is_aichat else _DEFAULT_AGENT
-    
-    # Default greeting
-    if is_aichat:
-        message = (
-            "Hola, soy Sofía, tu asistente virtual de ZOA Seguros para corredores. "
-            "He borrado todos los datos anteriores (incluyendo NIF y documentos).\n\n"
-            "Puedo ayudarte con:\n\n"
-            "• Teléfonos de asistencia para tu cliente\n\n"
-            "• Retarificación y renovación de pólizas\n\n"
-            "¿Con cuál de estas opciones necesitas ayuda hoy?"
-        )
-    else:
-        message = "Hola, soy Sofía. ¿En qué puedo ayudarte hoy?"
-
-    return {
-        "status": "ok",
-        "message": message,
-        "agent": receptionist,
-        "session_deleted": deleted
-    }
-
 
 def handle_ask(response: dict, session: dict, session_id: str, memory: dict,
                target_agent: str, channel: str, session_manager,
