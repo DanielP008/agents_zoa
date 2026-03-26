@@ -42,10 +42,6 @@ def handle_request(request):
         status_code = result.pop("_status_code", 200)
         return _json_response(result, status_code)
     
-    # Health check endpoint
-    if request.path == "/health":
-        return _json_response({"status": "ok", "message": "Service is healthy"})
-    
     # Insurance agent (buffered call transcriptions from zoa_buffer)
     if data.get("action") == "insurance_agent":
         logger.info("[HANDLER] Routing to insurance_agent (wildix card handler)")
