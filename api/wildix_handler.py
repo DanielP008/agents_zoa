@@ -9,7 +9,7 @@ import hashlib
 import logging
 import requests
 from core.orchestrator import process_message
-from infra.db import SessionManager
+from core.session_store import get_session_manager
 from infra.timing import Timer, get_trace
 from services.schedule_service import is_within_business_hours
 
@@ -20,7 +20,7 @@ WILDIX_API_KEY = os.getenv("WILDIX_API_KEY", "")
 WILDIX_WEBHOOK_SECRET = os.getenv("WILDIX_WEBHOOK_SECRET", "")
 WILDIX_TRANSFER_CONTEXT = os.getenv("WILDIX_TRANSFER_CONTEXT", "from-internal")
 
-session_manager = SessionManager()
+session_manager = get_session_manager()
 
 
 def _verify_signature(request) -> bool:

@@ -8,7 +8,7 @@ from infra.llm import get_llm
 from core.memory import get_global_history
 from infra.llm_utils import safe_structured_invoke
 from infra.config import get_routes_path
-from infra.decision_schemas import ReceptionistDecision
+from core.schemas import ReceptionistDecision
 from core.routing.allowlist import get_active_specialists
 from agents.receptionist_agent_prompts import get_prompt, DOMAIN_DATA
 

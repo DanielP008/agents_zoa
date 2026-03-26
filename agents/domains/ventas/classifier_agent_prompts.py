@@ -4,7 +4,7 @@ dynamically filtered by get_prompt() based on which specialists are active
 in routes.json.
 """
 
-from infra.prompt_utils import filter_specialists
+from core.prompt_utils import filter_specialists
 
 ALL_SPECIALISTS = [
     "nueva_poliza_agent",

@@ -1,10 +1,8 @@
 """Nueva poliza agent for LangChain 1.x."""
 import logging
 from datetime import datetime
-from infra.agent_runner import (
-    create_langchain_agent, run_langchain_agent,
-    auto_create_task_if_needed, task_tool_already_called, _TASK_DONE_SUFFIX
-)
+from infra.agent_runner import create_langchain_agent, run_langchain_agent
+from core.agent_safeguards import auto_create_task_if_needed, task_tool_already_called, _TASK_DONE_SUFFIX
 from core.memory import get_global_history
 
 from infra.llm import get_llm

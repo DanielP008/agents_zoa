@@ -8,11 +8,8 @@ from langchain.tools import tool
 
 from infra.llm import get_llm
 from agents.domains.common.generic_knowledge_agent import generic_knowledge_agent
-from infra.agent_runner import (
-    create_langchain_agent, run_langchain_agent,
-    task_tool_already_called, _TASK_DONE_SUFFIX,
-    auto_create_task_if_needed, force_redirect_if_task_done,
-)
+from infra.agent_runner import create_langchain_agent, run_langchain_agent
+from core.agent_safeguards import task_tool_already_called, _TASK_DONE_SUFFIX, auto_create_task_if_needed, force_redirect_if_task_done
 from core.memory import get_global_history
 from tools.zoa.tasks_tool import create_task_activity_tool
 from tools.communication.end_chat_tool import end_chat_tool

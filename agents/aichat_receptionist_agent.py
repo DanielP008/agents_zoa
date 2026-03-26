@@ -3,7 +3,7 @@ from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from infra.llm import get_llm
 from core.memory import get_global_history
 from infra.llm_utils import safe_structured_invoke
-from infra.decision_schemas import ReceptionistDecision
+from core.schemas import ReceptionistDecision
 from agents.aichat_receptionist_prompts import get_prompt
 
 from infra.config import get_routes_path
