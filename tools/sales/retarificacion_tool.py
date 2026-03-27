@@ -317,6 +317,8 @@ def create_retarificacion_project_tool(data: str, company_id: str) -> dict:
         logger.info(f"[RETARIFICACION] Capitals: continente={payload.get('capital_continente')} (type={type(payload.get('capital_continente')).__name__}), contenido={payload.get('capital_contenido')} (type={type(payload.get('capital_contenido')).__name__})")
     
     client = ERPClient(company_id)
+    payload["max_wait_polling"] = 30
+    payload["poll_interval"] = 2
     result = client.merlin_create_project(payload)
     
     if result.get("success"):
@@ -328,6 +330,22 @@ def create_retarificacion_project_tool(data: str, company_id: str) -> dict:
             _project_ids["proyecto_id"] = str(pid)
             _project_ids["id_pasarela"] = int(pas)
             logger.info(f"[PROJECT_IDS] Stored: proyecto_id={_project_ids['proyecto_id']}, id_pasarela={_project_ids['id_pasarela']}")
+        
+        # Deduplicate offers if present (for AUTO and non-HOGAR projects)
+        if "ofertas" in result:
+            ofertas_raw = result.get("ofertas", [])
+            seen_offers = set()
+            ofertas_dedup = []
+            for o in ofertas_raw:
+                key = (
+                    str(o.get("nombre_aseguradora", "")).strip().upper(),
+                    str(o.get("prima_anual", "")).strip()
+                )
+                if key not in seen_offers:
+                    seen_offers.add(key)
+                    ofertas_dedup.append(o)
+            result["ofertas"] = ofertas_dedup
+            logger.info(f"[RETARIFICACION] Deduplicated to {len(ofertas_dedup)} offers")
     else:
         logger.error(f"[RETARIFICACION] FAILED: {result.get('error')}")
         logger.error(f"[RETARIFICACION] Full error result: {json.dumps(result, default=str, ensure_ascii=False)[:1000]}")
@@ -379,11 +397,29 @@ def finalizar_proyecto_hogar_tool(
         "capital_continente": capital_continente,
         "capital_contenido": capital_contenido,
         "fecha_efecto": fecha_efecto,
+        "max_wait_polling": 30,
+        "poll_interval": 2,
     })
 
     if result.get("success"):
-        ofertas = result.get("ofertas", [])
-        logger.info(f"[FINALIZAR_HOGAR] Success: {len(ofertas)} offers returned")
+        ofertas_raw = result.get("ofertas", [])
+        logger.info(f"[FINALIZAR_HOGAR] Success: {len(ofertas_raw)} raw offers returned")
+        
+        # Deduplicate offers by insurer name and annual premium
+        seen_offers = set()
+        ofertas_dedup = []
+        for o in ofertas_raw:
+            # Create a unique key for the offer
+            key = (
+                str(o.get("nombre_aseguradora", "")).strip().upper(),
+                str(o.get("prima_anual", "")).strip()
+            )
+            if key not in seen_offers:
+                seen_offers.add(key)
+                ofertas_dedup.append(o)
+        
+        logger.info(f"[FINALIZAR_HOGAR] Deduplicated to {len(ofertas_dedup)} offers")
+        result["ofertas"] = ofertas_dedup
     else:
         logger.error(f"[FINALIZAR_HOGAR] FAILED: {result.get('error')}")
 

@@ -117,8 +117,8 @@ def renovacion_agent(payload: dict) -> dict:
                 
                 # IMPORTANT: Clear task_created flag in memory for this agent to allow a new task
                 # for the second tarification.
-                history = memory.get("conversation_history", [])
-                for turn in reversed(history):
+                history_list = memory.get("conversation_history", [])
+                for turn in reversed(history_list):
                     if turn.get("agent") == AGENT_NAME:
                         for tc in (turn.get("tool_calls") or []):
                             if tc.get("name") == "create_task_activity_tool":
