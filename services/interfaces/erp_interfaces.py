@@ -170,21 +170,26 @@ class ERPBaseInterface:
                     headers=headers,
                     timeout=self.timeout
                 )
-                response.raise_for_status()
 
                 try:
                     result = response.json()
-                    logger.debug(f"ERP response: {result}")
-                    return result
                 except json.JSONDecodeError:
+                    if response.status_code >= 400:
+                        raise ERPClientError(f"HTTP {response.status_code}: {response.text[:300]}")
                     return {"status": response.status_code, "text": response.text}
+
+                if response.status_code >= 500:
+                    raise ERPClientError(f"HTTP {response.status_code}: {result}")
+
+                logger.debug(f"ERP response: {result}")
+                return result
 
             except requests.exceptions.Timeout:
                 raise ERPClientError("Request timeout - ERP service took too long to respond")
             except requests.exceptions.ConnectionError as e:
                 raise ERPClientError(f"Connection failed: {str(e)}")
-            except requests.exceptions.HTTPError as e:
-                raise ERPClientError(f"HTTP error: {str(e)}")
+            except ERPClientError:
+                raise
             except Exception as e:
                 raise ERPClientError(f"Unexpected error: {str(e)}")
 

@@ -6,6 +6,8 @@ from infra.agent_runner import create_langchain_agent, run_langchain_agent
 from core.agent_safeguards import task_tool_already_called, _TASK_DONE_SUFFIX, auto_create_task_if_needed, force_redirect_if_task_done
 from core.memory import get_global_history
 from infra.llm import get_llm
+from services.erp_client import ERPClient
+from core.firebase_db import get_company_config
 
 from tools.zoa.tasks_tool import create_task_activity_tool
 from tools.communication.end_chat_tool import end_chat_tool
@@ -76,11 +78,22 @@ def renovacion_agent(payload: dict) -> dict:
      2. Ejecuta `end_chat_tool`.
 """
 
+    # Identificar tarificador (Avant2 vs Merlin) dinámicamente desde Firebase
+    try:
+        company_config = get_company_config(company_id) or {}
+        erp_config = company_config.get('erp', {})
+        tarificador = str(erp_config.get('tarificador', 'merlin')).lower().strip()
+        logger.info(f"[RENOVACION_AGENT] Dynamic tarificador for {company_id}: {tarificador}")
+    except Exception as e:
+        logger.error(f"[RENOVACION_AGENT] Error identifying tarificador: {e}")
+        tarificador = "merlin"
+
     system_prompt = get_prompt(channel).format(
         current_date=current_date,
         current_time=current_time,
         current_year=current_year,
         company_id=company_id,
+        tarificador=tarificador,
         nif_value=nif_value,
         wa_id=wa_id or "NO_DISPONIBLE",
         proyecto_id=proyecto_id,
@@ -89,6 +102,32 @@ def renovacion_agent(payload: dict) -> dict:
     )
 
     task_done = task_tool_already_called(memory, AGENT_NAME)
+
+    # Persistent flag: once user requests a second tarification, keep tools unlocked
+    # until the second project is created (create_retarificacion_project_tool called again)
+    in_second_tarification = global_mem.get("second_tarification", False)
+
+    if task_done:
+        tarif_keywords = ["hogar", "auto", "coche", "moto", "tarificar", "seguro", "póliza", "poliza"]
+        if any(kw in user_text.lower() for kw in tarif_keywords) or in_second_tarification:
+            if not in_second_tarification:
+                global_mem["second_tarification"] = True
+                memory["global"] = global_mem
+                logger.info("[RENOVACION_AGENT] User wants another tarification — setting persistent flag")
+                
+                # IMPORTANT: Clear task_created flag in memory for this agent to allow a new task
+                # for the second tarification.
+                history = memory.get("conversation_history", [])
+                for turn in reversed(history):
+                    if turn.get("agent") == AGENT_NAME:
+                        for tc in (turn.get("tool_calls") or []):
+                            if tc.get("name") == "create_task_activity_tool":
+                                tc["name"] = "create_task_activity_tool_OLD"
+                                logger.info("[RENOVACION_AGENT] Renamed old task tool call to allow new task creation")
+            else:
+                logger.info("[RENOVACION_AGENT] Continuing second tarification (persistent flag active)")
+            task_done = False
+
     if task_done:
         system_prompt += _TASK_DONE_SUFFIX
         logger.info("[RENOVACION_AGENT] Task already created — restricting tools")
@@ -123,9 +162,23 @@ def renovacion_agent(payload: dict) -> dict:
     else:
         logger.info(f"[RENOVACION_AGENT] No new IDs from tool. Current memory IDs: proyecto_id={global_mem.get('proyecto_id')}, id_pasarela={global_mem.get('id_pasarela')}")
 
+    # Clear second_tarification flag once the project tool has been called in this turn
+    tool_calls_result = result.get("tool_calls") or []
+    tc_names_result = {tc.get("name") for tc in tool_calls_result}
+    if in_second_tarification and "create_retarificacion_project_tool" in tc_names_result:
+        global_mem["second_tarification"] = False
+        memory["global"] = global_mem
+        logger.info("[RENOVACION_AGENT] Second tarification project created — clearing flag")
+
     output_text = result.get("output", "")
     action = result.get("action", "ask")
     tool_calls = result.get("tool_calls")
+
+    # Persist second_tarification flag in memory patch
+    if global_mem.get("second_tarification") is not None:
+        if "global" not in _memory_patch:
+            _memory_patch["global"] = {}
+        _memory_patch["global"]["second_tarification"] = global_mem["second_tarification"]
 
     if not task_done:
         updated_tool_calls = auto_create_task_if_needed(

@@ -119,17 +119,22 @@ def get_town_by_cp_tool(cp: str, company_id: str) -> dict:
     
     # Fallback to local DB if ERP fails
     logger.warning(f"[GET_TOWN_BY_CP] ERP failed: {result.get('error')}. Trying local fallback.")
-    from services.local_cp_db import get_local_town_by_cp
-    local_result = get_local_town_by_cp(cp)
-    
-    if local_result:
-        return local_result
+    try:
+        from services.local_cp_db import get_local_town_by_cp
+        local_result = get_local_town_by_cp(cp)
+        if local_result:
+            logger.info(f"[GET_TOWN_BY_CP] Local DB SUCCESS for {cp}: {local_result.get('poblacion')}")
+            return local_result
+    except Exception as e:
+        logger.error(f"[GET_TOWN_BY_CP] Local DB import/query failed: {e}")
 
     # If local fallback fails, try ERP again with a small retry (sometimes Cloud Run cold starts or timeouts)
-    logger.warning(f"[GET_TOWN_BY_CP] Local fallback failed for {cp}. Retrying ERP once...")
+    logger.warning(f"[GET_TOWN_BY_CP] Local fallback failed for {cp}. Retrying ERP with backoff...")
     import time
-    for attempt in range(2): # Up to 2 retries
-        time.sleep(1.5 * (attempt + 1))
+    for attempt in range(3): # Up to 3 retries
+        wait_time = 1.0 * (attempt + 1)
+        logger.info(f"[GET_TOWN_BY_CP] ERP Retry {attempt+1} in {wait_time}s...")
+        time.sleep(wait_time)
         result = client.merlin_get_town_by_cp(cp)
         if result.get("success"):
             logger.info(f"[GET_TOWN_BY_CP] ERP Retry {attempt+1} SUCCESS: {result.get('poblacion')}")
@@ -206,8 +211,8 @@ def consultar_catastro_tool(
         ref = result.get("referencia_catastral", "")
         cp_catastro = result.get("codigo_postal", "")
         
-        capital_continente = result.get("capital_continente", 0)
-        capital_contenido = result.get("capital_contenido", 25000)
+        capital_continente = result.get("capital_continente") or 150000
+        capital_contenido = result.get("capital_contenido") or 25000
         precio_m2_base = result.get("precio_m2_base", 1500)
         factor_tipologia = result.get("factor_tipologia", 1.0)
         precio_m2_contenido = result.get("precio_m2_contenido", 250)

@@ -23,4 +23,7 @@ venv/
 *.log
 timings/
 
+# secrets
+service-account.json
+
 *streamlit_app.py
