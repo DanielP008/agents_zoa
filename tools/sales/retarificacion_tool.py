@@ -339,7 +339,8 @@ def create_retarificacion_project_tool(data: str, company_id: str) -> dict:
             for o in ofertas_raw:
                 key = (
                     str(o.get("nombre_aseguradora", "")).strip().upper(),
-                    str(o.get("prima_anual", "")).strip()
+                    str(o.get("prima_anual", "")).strip(),
+                    str(o.get("descripcion", "")).strip().upper()
                 )
                 if key not in seen_offers:
                     seen_offers.add(key)
@@ -412,7 +413,8 @@ def finalizar_proyecto_hogar_tool(
             # Create a unique key for the offer
             key = (
                 str(o.get("nombre_aseguradora", "")).strip().upper(),
-                str(o.get("prima_anual", "")).strip()
+                str(o.get("prima_anual", "")).strip(),
+                str(o.get("descripcion", "")).strip().upper()
             )
             if key not in seen_offers:
                 seen_offers.add(key)
