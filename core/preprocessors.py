@@ -33,9 +33,10 @@ def extract_attachments(payload: dict) -> list:
         mime_type = media_obj.get("mime_type", "application/octet-stream")
         message_ids = payload.get("message_ids", [])
         wamid = message_ids[0] if message_ids else payload.get("id")
-        if wamid:
-            logger.info(f"[ATTACHMENTS] Downloading {msg_type} via ZOA, wamid={wamid}")
-            result = download_media(wamid, company_id)
+        media_id = media_obj.get("id")
+        if wamid or media_id:
+            logger.info(f"[ATTACHMENTS] Downloading {msg_type} via ZOA, wamid={wamid}, media_id={media_id}")
+            result = download_media(wamid, company_id, media_id=media_id)
             data = result.get("data") or result.get("base64")
             if data:
                 attachments.append({
@@ -47,7 +48,7 @@ def extract_attachments(payload: dict) -> list:
             else:
                 logger.error(f"[ATTACHMENTS] ZOA returned no data: {result}")
         else:
-            logger.error("[ATTACHMENTS] No wamid found to download media")
+            logger.error("[ATTACHMENTS] No wamid or media_id found to download media")
         return attachments
 
     # Legacy: media[] with inline base64 (tests / old format)
