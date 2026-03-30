@@ -25,6 +25,7 @@ def handle_request(request):
     logger.info(f"[HANDLER] Incoming request: {request.method} {request.url}")
     logger.info(f"[HANDLER] Headers: {dict(request.headers)}")
     
+    # Look if it's really necessary.
     # Handle CORS preflight
     if request.method == 'OPTIONS':
         return ('', 204, {
