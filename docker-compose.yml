@@ -12,7 +12,7 @@ services:
       - "8080:8080"
     volumes:
       - .:/app
-      # - C:/Users/desar/OneDrive/Desktop/DESARROLLO/Pruebas/zoa_flow_erp:/zoa_flow_erp
+      - C:/Users/desar/OneDrive/Desktop/DESARROLLO/Pruebas/zoa_flow_erp:/zoa_flow_erp
     networks:
       - zoa-network
 

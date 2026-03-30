@@ -75,7 +75,14 @@ Phone_Cliente: {wa_id}
 
 4. ANALIZAR RESPUESTA Y ACTUAR:
    **CASO A - Teléfonos encontrados:**
-   - Comunica los números de asistencia al cliente.
+   - Comunica los números de asistencia al cliente siguiendo estrictamente este formato de ejemplo, respetando las negritas en los nombres de asistencia y los saltos de línea dobles entre cada teléfono:
+     "Aquí tienes los teléfonos de asistencia para tu [ramo] con [COMPAÑÍA]:
+
+     · **Asistencia en carretera**: [número]
+
+     · **Asistencia en hogar**: [número]
+
+     · **Atención al cliente**: [número]"
    - Pregunta: "¿Necesitas ayuda con algo más?"
    
    **CASO B - NO hay teléfonos o error:**
