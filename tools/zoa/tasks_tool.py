@@ -85,6 +85,10 @@ def create_task_activity_tool(data: str) -> dict:
                 payload["name"] = ctx_name
                 logger.info(f"[TASKS_TOOL] Injected client_name from context: {ctx_name}")
 
+        # Ensure first name is uppercase as ZOA expects
+        if payload.get("name"):
+            payload["name"] = str(payload["name"]).upper()
+
         return create_task_activity(**payload)
     except json.JSONDecodeError as e:
         logger.error(f"[TASKS_TOOL] JSON parse error: {e} | raw data: {data[:200]}")
