@@ -242,9 +242,16 @@ def process_message(payload: dict) -> dict:
     # 2. Preprocessing
     memory, session, mensaje = _preprocess_message(payload, session)
     payload["session"] = session
+    
+    # Update mensaje if it was changed during preprocessing (OCR/NIF)
+    if payload.get("mensaje"):
+        mensaje = payload["mensaje"]
+    
+    # If NIF was extracted in this turn, ensure it's available for routing
+    global_mem = memory.get("global", {})
+    nif_value = global_mem.get("nif")
 
     # Set WhatsApp context so agent_runner can send "please wait" on tool use
-    global_mem = memory.get("global", {})
     client_name = global_mem.get("client_name", "")
     set_wa_context(wa_id, phone_number_id, channel, client_name=client_name)
 

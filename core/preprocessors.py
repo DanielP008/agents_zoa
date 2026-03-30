@@ -1,8 +1,11 @@
 """Pre-processing helpers for the orchestrator: attachments, NIF extraction, OCR."""
 
+import base64
 import json
 import logging
 import re
+
+import requests
 
 from core.memory import update_global
 from services.ocr_service import extract_document_data
@@ -38,15 +41,21 @@ def extract_attachments(payload: dict) -> list:
             logger.info(f"[ATTACHMENTS] Downloading {msg_type} via ZOA, wamid={wamid}, media_id={media_id}")
             result = download_media(wamid, company_id, media_id=media_id)
             data = result.get("data") or result.get("base64")
+
+            if not data and result.get("media_url"):
+                data = _download_from_url(result["media_url"])
+                if not mime_type or mime_type == "application/octet-stream":
+                    mime_type = result.get("mime_type") or mime_type
+
             if data:
                 attachments.append({
                     "mime_type": mime_type,
                     "data": data,
-                    "filename": media_obj.get("filename"),
+                    "filename": media_obj.get("filename") or result.get("file_name"),
                     "source": msg_type,
                 })
             else:
-                logger.error(f"[ATTACHMENTS] ZOA returned no data: {result}")
+                logger.error(f"[ATTACHMENTS] ZOA returned no usable data: {result}")
         else:
             logger.error("[ATTACHMENTS] No wamid or media_id found to download media")
         return attachments
@@ -319,3 +328,18 @@ def try_extract_client_name_retroactive(memory: dict) -> dict:
                 continue
 
     return memory
+
+
+def _download_from_url(url: str, timeout: int = 20) -> str | None:
+    """Download binary from a URL and return base64-encoded string."""
+    try:
+        logger.info(f"[ATTACHMENTS] Downloading binary from media_url: {url[:120]}...")
+        resp = requests.get(url, timeout=timeout)
+        if resp.status_code == 200 and resp.content:
+            b64 = base64.b64encode(resp.content).decode("utf-8")
+            logger.info(f"[ATTACHMENTS] Downloaded {len(resp.content)} bytes from media_url")
+            return b64
+        logger.error(f"[ATTACHMENTS] media_url returned HTTP {resp.status_code}")
+    except Exception as e:
+        logger.error(f"[ATTACHMENTS] Failed to download from media_url: {e}")
+    return None
