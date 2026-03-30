@@ -148,7 +148,7 @@ class ERPBaseInterface:
         self.company_id = company_id
         self.endpoint_url = os.environ.get(
             "ERP_ENDPOINT_URL",
-            "https://ebroker-api-673887944015.europe-southwest1.run.app"
+            "https://prod-flow-erp-673887944015.europe-southwest1.run.app"
         )
         # Increased default timeout to 300s to allow long-running operations like Merlin retarification
         self.timeout = int(os.environ.get("ERP_TIMEOUT", "300"))
