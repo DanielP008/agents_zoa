@@ -56,6 +56,7 @@ def renovacion_agent(payload: dict) -> dict:
     # Define closing instructions based on channel
     if is_aichat:
         closing_instructions = """
+   - **PRESENTACIÓN DE OFERTAS:** Muestra SIEMPRE TODAS las ofertas devueltas por la herramienta, sin omitir ninguna.
    - Si el cliente responde que **SÍ** le interesa alguna opción (o pregunta cómo contratar):
      1. **NO** ejecutes ninguna herramienta de creación de tareas (PROHIBIDO en AiChat).
      2. Responde directamente: "Perfecto, puedes proceder con la contratación usando estos datos. ¿Necesitas ayuda con algo más?"
@@ -66,6 +67,7 @@ def renovacion_agent(payload: dict) -> dict:
 """
     else:
         closing_instructions = """
+   - **PRESENTACIÓN DE OFERTAS:** Muestra SIEMPRE TODAS las ofertas devueltas por la herramienta, sin omitir ninguna.
    - Si el cliente responde que **SÍ** le interesa alguna opción (o pregunta cómo contratar):
      1. Ejecuta `create_task_activity_tool` con:
         - title: "Interesado en oferta renovación"
