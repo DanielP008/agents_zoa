@@ -118,7 +118,7 @@ def _send_whatsapp(text: str, phone_number_id: str, wa_id: str) -> None:
 # ---------------------------------------------------------------------------
 # Routing chain
 # ---------------------------------------------------------------------------
-
+# TO-DO: think if this is necessary.
 def _run_routing_chain(payload: dict, session: dict, memory: dict,
                        target_agent: str) -> tuple[dict, dict, str, int]:
     """Execute the silent-passthrough routing loop.
@@ -217,11 +217,13 @@ def process_message(payload: dict) -> dict:
     # 1. Session
     session = session_manager.get_session(wa_id, company_id)
     
+    # TODO: Is this the best way to determine the target agent?
     # Use specialized receptionist for AiChat
     is_aichat = payload.get("is_aichat", False)
     default_agent = "aichat_receptionist_agent" if is_aichat else _DEFAULT_AGENT
     target_agent = session.get("target_agent") or default_agent
 
+    # TODO: What is this?
     # Override agent if force_agent is set (e.g. dial_agent during business hours)
     force_agent = payload.get("force_agent")
     if force_agent:
@@ -251,11 +253,12 @@ def process_message(payload: dict) -> dict:
     global_mem = memory.get("global", {})
     nif_value = global_mem.get("nif")
 
+    # TODO: What is this?
     # Set WhatsApp context so agent_runner can send "please wait" on tool use
     client_name = global_mem.get("client_name", "")
     set_wa_context(wa_id, phone_number_id, channel, client_name=client_name)
 
-    # 3. Routing chain
+    # 3. Routing chain. The routing chain lets the agent chain route the message to the next agent.
     response, memory, target_agent, chain_depth = _run_routing_chain(
         payload, session, memory, target_agent,
     )
