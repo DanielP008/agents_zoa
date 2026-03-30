@@ -309,6 +309,20 @@ def create_retarificacion_project_tool(data: str, company_id: str) -> dict:
         }
     
     logger.info(f"[RETARIFICACION] Delegating {ramo} project to ERP for DNI: {payload.get('dni')}")
+    
+    if ramo == "AUTO":
+        codigo_vehiculo = payload.get("codigo_vehiculo")
+        if codigo_vehiculo:
+            logger.info(f"[RETARIFICACION] Using technical Base7 code for version: {codigo_vehiculo}")
+            payload["version"] = codigo_vehiculo
+        else:
+            version_val = str(payload.get("version", ""))
+            if version_val and not version_val.replace(".", "").isdigit():
+                logger.info(f"[RETARIFICACION] Removing text version '{version_val}' — ERP will resolve from matricula")
+                payload.pop("version", None)
+                for field in ("marca", "modelo", "combustible", "km_anuales", "km_totales", "garaje", "fecha_matriculacion"):
+                    payload.pop(field, None)
+
     logger.info(f"[RETARIFICACION] Payload keys: {sorted(payload.keys())}")
     logger.info(f"[RETARIFICACION] Key values: ramo={ramo}, tipo_vivienda={payload.get('tipo_vivienda')}, cp={payload.get('codigo_postal')}, fecha_efecto={payload.get('fecha_efecto')}")
     
