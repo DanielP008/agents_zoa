@@ -36,6 +36,14 @@ def download_media(wamid: str, company_id: str) -> Dict[str, Any]:
         option="search",
         request_data={"wamid": wamid},
     )
+    # Handle legacy/alternative response format from ZOA
+    if "data" not in result and "base64" not in result:
+        # If it's a list or has another structure, try to find the data
+        if isinstance(result, list) and len(result) > 0:
+            return result[0]
+        if "media" in result:
+            return result["media"]
+            
     return result
 
 def send_whatsapp_response_sync(
