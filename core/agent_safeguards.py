@@ -86,7 +86,9 @@ def auto_create_task_if_needed(
         "phone": wa_id,
     }
     if resolved_name:
-        task_payload["name"] = resolved_name
+        task_payload["name"] = resolved_name.upper()
+    if nif_value and nif_value != "NO_IDENTIFICADO":
+        task_payload["nif"] = nif_value
     if activity_description:
         task_payload["activity_description"] = activity_description
 
