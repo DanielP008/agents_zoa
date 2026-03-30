@@ -34,7 +34,7 @@ def renovacion_agent(payload: dict) -> dict:
     memory = session.get("agent_memory", {})
     history = get_global_history(memory)
 
-    company_id = payload.get("phone_number_id") or session.get("company_id", "")
+    company_id = payload.get("company_id") or payload.get("phone_number_id") or session.get("company_id", "")
     wa_id = payload.get("wa_id")
     if "global" not in memory:
         memory["global"] = {}
