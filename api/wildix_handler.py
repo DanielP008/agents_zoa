@@ -81,12 +81,7 @@ def handle_wildix(request):
     
     try:
         # Check business hours to decide flow
-        # Manual mapping from bot_id to company_id if necessary (for testing)
-        # User indicates their company_id is 521783407682043
         search_id = bot_id or "default"
-        if bot_id == "cXTekS0kyn5f":
-            search_id = "521783407682043"
-            logger.info(f"[WILDIX] Mapping bot_id {bot_id} to company_id {search_id}")
 
         in_business_hours = is_within_business_hours(search_id)
         

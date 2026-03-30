@@ -269,7 +269,7 @@ class SessionManager:
     def unlock_session(self, user_id: str, company_id: str) -> None:
         """Release the processing lock on a session."""
         session_id = self._get_composite_id(user_id, company_id)
-        query = text("UPDATE sessions SET processing = FALSE WHERE session_id = :sid")
+        query = text("UPDATE sessions SET processing = FALSE, updated_at = NOW() WHERE session_id = :sid")
 
         _execute_with_retry(
             self.pool, "unlock_session", query, {"sid": session_id},

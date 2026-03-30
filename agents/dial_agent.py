@@ -14,35 +14,37 @@ logger = logging.getLogger(__name__)
 AGENT_NAME = "dial_agent"
 
 EXTENSIONS_CONFIG = {
-    "ventas": {
+    "ecuestres": {
         "extension": "201",
-        "keywords": ["contratar", "cotización", "presupuesto", "renovar", "renovación", "tarificar", "nuevo seguro", "precio"],
+        "keywords": ["caballo", "yegua", "potro", "jinete", "cuadra", "hípica", "ecuestre"],
     },
-    "siniestros": {
+    "albatera": {
         "extension": "202",
-        "keywords": ["siniestro", "accidente", "parte", "grúa", "robo", "incendio", "daños", "asistencia"],
+        "keywords": ["Albatera", "oficina de Albatera"],
     },
-    "gestion": {
+    "valencia_carlet": {
         "extension": "203",
-        "keywords": ["póliza", "consulta", "modificar", "cambiar", "IBAN", "devolución", "reembolso", "coberturas"],
+        "keywords": ["Valencia", "Carlet", "oficina Valencia"],
     },
     "default": {
-        "extension": "200",
+        "extension": "202",
         "keywords": [],
     },
 }
 
+_DEPT_LABELS = {
+    "ecuestres": "Ecuestres — caballos , hípica , jinetes",
+    "albatera": "Oficina Albatera — seguros generales",
+    "valencia_carlet": "Oficina Valencia / Carlet — seguros generales",
+    "default": "Por defecto — cualquier consulta no identificada",
+}
 
 def _build_extensions_prompt() -> str:
     """Build a human-readable extensions map for the prompt."""
     lines = []
     for dept, cfg in EXTENSIONS_CONFIG.items():
-        if dept == "default":
-            lines.append(f"- Default (any other query): extension {cfg['extension']}")
-        else:
-            label = dept.upper()
-            kw = ", ".join(cfg["keywords"][:5])
-            lines.append(f"- {label} ({kw}...): extension {cfg['extension']}")
+        label = _DEPT_LABELS.get(dept, dept.upper())
+        lines.append(f"- {label}: extensión {cfg['extension']}")
     return "\n".join(lines)
 
 
