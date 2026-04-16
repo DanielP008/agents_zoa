@@ -1,0 +1,47 @@
+{
+  "default": "receptionist_agent",
+  "domains": {
+    "siniestros": {
+      "enabled": true,
+      "receptionist_label": "siniestros",
+      "classifier": "classifier_siniestros_agent",
+      "specialists": {
+        "telefonos_asistencia_agent": {"enabled": true},
+        "apertura_siniestro_agent": {"enabled": true},
+        "consulta_estado_agent": {"enabled": false}
+      }
+    },
+    "gestion": {
+      "enabled": true,
+      "receptionist_label": "gestión de una poliza",
+      "classifier": "classifier_gestion_agent",
+      "specialists": {
+        "devolucion_agent": {"enabled": false},
+        "consultar_poliza_agent": {"enabled": true},
+        "modificar_poliza_agent": {"enabled": false}
+      }
+    },
+    "ventas": {
+      "enabled": true,
+      "receptionist_label": "contratación o renovación de una póliza",
+      "classifier": "classifier_ventas_agent",
+      "specialists": {
+        "nueva_poliza_agent": {"enabled": false},
+        "venta_cruzada_agent": {"enabled": false},
+        "renovacion_agent": {"enabled": true}
+      }
+    }
+  },
+  "tools": {
+    "end_chat_tool": {
+      "description": "Herramienta para finalizar la conversación cuando el usuario ya no necesita ayuda. Úsala cuando la consulta del usuario esté completamente resuelta y no necesite nada más.",
+      "available_to": ["specialists"]
+    }
+  },
+  "transitions": {
+    "aichat_receptionist_agent": [
+      "telefonos_asistencia_agent",
+      "renovacion_agent"
+    ]
+  }
+}

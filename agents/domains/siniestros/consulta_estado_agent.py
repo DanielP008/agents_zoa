@@ -1,64 +1,83 @@
-import json
+"""Consulta estado de siniestros agent for LangChain 1.x."""
+from infra.agent_runner import create_langchain_agent, run_langchain_agent
+from core.memory import get_global_history
+from langchain.tools import tool
 
-from langchain.agents import AgentExecutor, create_tool_calling_agent
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.tools import tool
+from infra.llm import get_llm
+from agents.domains.common.generic_knowledge_agent import generic_knowledge_agent
+from tools.communication.end_chat_tool import end_chat_tool
+from tools.communication.redirect_to_receptionist_tool import redirect_to_receptionist_tool
+from tools.zoa.tasks_tool import create_task_activity_tool
+from tools.erp.erp_tool import get_claims_tool
+from agents.domains.siniestros.consulta_estado_agent_prompts import get_prompt
 
-from agents.llm import get_llm
-from tools.zoa_client import fetch_policy
-from tools.ocr_client import extract_text
-from tools.state_store import get_state, set_state
+def consulta_estado_agent(payload: dict) -> dict:
+    user_text = payload.get("mensaje", "")
+    session = payload.get("session", {})
+    memory = session.get("agent_memory", {})
+    global_mem = memory.get("global", {})
+    nif = global_mem.get("nif")
+    history = get_global_history(memory)
+    company_id = payload.get("company_id")
+    wa_id = payload.get("wa_id")
 
+    @tool
+    def ask_expert_knowledge(query: str) -> str:
+        """Consulta al agente experto en seguros para responder dudas GENÉRICAS.
+        Usar cuando la pregunta es sobre coberturas generales, procedimientos estándar o dudas teóricas,
+        y NO sobre un expediente específico."""
+        sub_payload = {
+            "mensaje": query,
+            "session": session
+        }
+        result = generic_knowledge_agent(sub_payload)
+        return result.get("message", "No pude obtener respuesta del experto.")
 
-@tool
-def lookup_policy(policy_number: str) -> dict:
-    """Busca informacion de una poliza por su numero."""
-    return fetch_policy(policy_number)
-
-@tool
-def process_document(doc_type: str) -> dict:
-    """Procesa un documento (OCR) para extraer texto. Simulado."""
-    # En la realidad, aqui pasariamos la URL o el binario del documento
-    return extract_text({"type": doc_type})
-
-
-def handle(payload: dict) -> dict:
-    user_text = payload.get("text", "")
-    user_id = payload.get("from", "unknown")
-    session_id = payload.get("session_id", user_id)
-    
-    state = get_state(session_id)
-    history = state.get("consulta_history", [])
-
-    system_prompt = (
-        "Eres el agente de Consulta de Estado de ZOA. "
-        "Ayudas a clientes a ver el estado de su poliza o siniestro. "
-        "Pide el numero de poliza si es necesario y usa 'lookup_policy'. "
-        "Si envian un documento, usa 'process_document'. "
-    )
-
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", system_prompt),
-            *history,
-            ("human", "{user_text}"),
-        ]
+    # Get prompt based on channel and format with variables
+    channel = payload.get("channel", "whatsapp")
+    system_prompt = get_prompt(channel).format(
+        nif=nif or 'NO_IDENTIFICADO',
+        company_id=company_id,
+        wa_id=wa_id or ''
     )
 
     llm = get_llm()
-    tools = [lookup_policy, process_document]
-    agent = create_tool_calling_agent(llm, tools, prompt)
-    executor = AgentExecutor(agent=agent, tools=tools, verbose=False)
 
-    result = executor.invoke({"user_text": user_text})
+    tools = [
+        get_claims_tool,
+        end_chat_tool,
+        redirect_to_receptionist_tool,
+        create_task_activity_tool,
+        ask_expert_knowledge,
+    ]
+    
+    agent = create_langchain_agent(llm, tools, system_prompt)
+    result = run_langchain_agent(agent, user_text, history, agent_name="consulta_estado_agent")
+    
     output_text = result.get("output", "")
+    action = result.get("action", "ask")
+    tool_calls = result.get("tool_calls")
 
-    # Update state
-    history.append(("human", user_text))
-    history.append(("ai", output_text))
-    set_state(session_id, {**state, "consulta_history": history[-6:]})
+    # Check if redirect to receptionist was triggered
+    if "__REDIRECT_TO_RECEPTIONIST__" in output_text:
+        clean_message = output_text.replace("__REDIRECT_TO_RECEPTIONIST__", "").strip()
+        return {
+            "action": "route",
+            "next_agent": "receptionist_agent",
+            "domain": None,
+            "message": clean_message,
+            "tool_calls": tool_calls
+        }
+
+    if action == "end_chat":
+        return {
+            "action": "end_chat",
+            "message": output_text,
+            "tool_calls": tool_calls
+        }
 
     return {
-        "agent": "consulta_estado_agent",
+        "action": action,
         "message": output_text,
+        "tool_calls": tool_calls
     }

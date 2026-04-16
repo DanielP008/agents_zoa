@@ -1,86 +1,122 @@
 import json
 import os
+from typing import Optional, List
 
-from langchain.agents import AgentExecutor, create_tool_calling_agent
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.tools import tool
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from pydantic import BaseModel, Field
 
-from agents.llm import get_llm
-from tools.state_store import get_state, set_state
-from tools.whatsapp_client import send_whatsapp_message
+from infra.llm import get_llm_fast
+from core.memory import get_agent_memory, get_global_history
+from infra.llm_utils import safe_structured_invoke
+from infra.decision_schemas import ClassificationDecision
+from infra.config import get_routes_path
+from core.routing.allowlist import get_active_specialists
+from agents.domains.siniestros.classifier_agent_prompts import get_prompt
 
-_BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-_ROUTES_PATH = os.path.join(_BASE_DIR, "contracts", "routes.json")
+_ROUTES_PATH = get_routes_path()
 
 with open(_ROUTES_PATH, "r") as f:
     _ROUTES_CONFIG = json.load(f)
-    _VALID_ROUTES = set(_ROUTES_CONFIG["siniestros_agents"])
-    _DEFAULT_ROUTE = "classifier_siniestros_agent"
 
-@tool
-def whatsapp_send(to: str, text: str) -> dict:
-    """Send a WhatsApp message (mock)."""
-    return send_whatsapp_message(to=to, text=text)
+_ACTIVE_SPECIALISTS = get_active_specialists("siniestros", _ROUTES_CONFIG)
 
+# Fallback confirmation questions per route (never mention agents/transfers)
+_CONFIRMATIONS = {
+    "telefonos_asistencia_agent": "Para confirmar, lo que necesitas son teléfonos de asistencia, ¿cierto?",
+    "apertura_siniestro_agent": "Para confirmar, necesitas registrar un siniestro nuevo, ¿correcto?",
+    "consulta_estado_agent": "Para confirmar, quieres saber el estado de un siniestro que ya tienes abierto, ¿verdad?",
+}
 
-def classify_message(payload: dict) -> dict:
-    user_text = payload.get("text", "")
-    user_id = payload.get("from", "unknown")
-    session_id = payload.get("session_id", user_id)
-    state = get_state(session_id)
+def _sanitize_question(question: str | None) -> str | None:
+    """Strip routing-related phrases from LLM-generated questions."""
+    if not question:
+        return None
+    blocked = ["contacto", "especialista", "redirijo", "paso con", "transfiero", "derivar", "transferi"]
+    if any(phrase in question.lower() for phrase in blocked):
+        return None
+    return question
 
-    system_prompt = (
-        "Eres el clasificador de SINIESTROS de ZOA. "
-        "Tus agentes disponibles son: telefonos_asistencia_agent, apertura_siniestro_agent, consulta_estado_agent. "
-        "Si falta informacion, hace UNA pregunta al usuario enviandola "
-        "por la tool whatsapp_send. Luego responde SOLO un JSON con: "
-        "{route, confidence, needs_more_info, question}. "
-        "Contexto previo: ultimo_route={last_route}, ultima_pregunta={last_question}."
-    )
-
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", system_prompt),
-            ("human", "Cliente ({user_id}): {user_text}"),
-        ]
-    )
-
-    llm = get_llm()
-    tools = [whatsapp_send]
-    agent = create_tool_calling_agent(llm, tools, prompt)
-    executor = AgentExecutor(agent=agent, tools=tools, verbose=False)
-
-    result = executor.invoke(
-        {
-            "user_id": user_id,
-            "user_text": user_text,
-            "last_route": state.get("last_route", "unknown"),
-            "last_question": state.get("last_question", ""),
-        }
-    )
-    output = result.get("output", "")
-    try:
-        decision = json.loads(output)
-        route = decision.get("route")
-        if route not in _VALID_ROUTES:
-            route = _DEFAULT_ROUTE
-            decision["route"] = route
-
-        set_state(
-            session_id,
-            {
-                "last_route": route,
-                "last_question": decision.get("question", ""),
-            },
-        )
-        return decision
-    except json.JSONDecodeError:
+def classifier_siniestros_agent(payload: dict) -> dict:
+    decision = classify_message(payload)
+    
+    if decision.action == "end_chat":
         return {
-            "route": "classifier",
-            "confidence": 0.1,
-            "needs_more_info": True,
-            "question": (
-                "Para ayudarte, podrias decirme si es asistencia, siniestro "
-                "o consulta de poliza?"
-            ),
+            "action": "end_chat",
+            "message": decision.question or "¡Perfecto! Fue un placer ayudarte. Si necesitas algo más, aquí estaré. ¡Que tengas un excelente día! 😊"
         }
+
+    # If the classifier needs more info, ask the user
+    if decision.needs_more_info:
+        clean_q = _sanitize_question(decision.question)
+        if clean_q:
+            return {
+                "action": "ask",
+                "message": clean_q,
+                "memory": {
+                    "agents": {
+                        "classifier_siniestros_agent": {
+                            "last_route": decision.route,
+                            "confidence": decision.confidence,
+                        }
+                    }
+                } 
+            }
+
+    # Always confirm before routing — never silently passthrough.
+    # Use the LLM-generated question if clean, otherwise use fallback.
+    confirmation = _sanitize_question(decision.question) or _CONFIRMATIONS.get(
+        decision.route, "Para confirmar, ¿es esto lo que necesitas?"
+    )
+    return {
+        "action": "route",
+        "next_agent": decision.route, 
+        "domain": "siniestros",
+        "message": confirmation
+    }
+
+def classify_message(payload: dict) -> ClassificationDecision:
+    user_text = payload.get("mensaje", "")
+    user_id = payload.get("wa_id", "unknown")
+    session = payload.get("session", {})
+    
+    memory = session.get("agent_memory", {})
+    agent_mem = get_agent_memory(memory, "classifier_siniestros_agent")
+    last_route = agent_mem.get("last_route", "unknown")
+    history = get_global_history(memory)
+    
+    # Get prompt based on channel, filtered to active specialists
+    channel = payload.get("channel", "whatsapp")
+    system_prompt = get_prompt(channel, _ACTIVE_SPECIALISTS)
+
+    # Build messages manually to avoid ChatPromptTemplate interpreting
+    # curly braces in history (e.g. OCR JSON) as template variables.
+    messages = [SystemMessage(content=system_prompt)]
+    for role, text in history:
+        if role == "human":
+            messages.append(HumanMessage(content=text))
+        else:
+            messages.append(AIMessage(content=text))
+    messages.append(HumanMessage(
+        content=f"Contexto adicional: ultimo_route_provisional={last_route}\n\nMensaje del Usuario: {user_text}"
+    ))
+
+    llm = get_llm_fast()
+    
+    try:
+        structured_llm = llm.with_structured_output(ClassificationDecision, method="json_mode")
+    except:
+        structured_llm = llm.with_structured_output(ClassificationDecision)
+
+    result = safe_structured_invoke(
+        structured_llm,
+        messages,
+        fallback_factory=lambda: ClassificationDecision(
+            route="classifier_siniestros_agent",
+            confidence=0.0,
+            needs_more_info=True,
+            question="Disculpa, no entendí bien. ¿Podrías decirme si necesitas asistencia, denunciar un siniestro o consultar un trámite?"
+        ),
+        error_context="classifier_siniestros_decision"
+    )
+    
+    return result

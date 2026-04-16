@@ -1,0 +1,148 @@
+"""ZOA API interfaces following internal ZOA interface pattern."""
+
+import os
+import requests
+import json
+import logging
+from typing import Optional, Dict, Any, Tuple
+from infra.timing import Timer, get_current_agent
+
+logger = logging.getLogger(__name__)
+
+def _get_zoa_headers() -> Dict[str, str]:
+    """Return headers for ZOA API requests."""
+    api_key = os.environ.get("ZOA_API_KEY", "")
+    return {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "apiKey": api_key
+    }
+
+def _make_zoa_request(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Helper to send requests to ZOA Cloud Function."""
+    zoa_endpoint = os.environ.get(
+        "ZOA_ENDPOINT_URL",
+        "https://prod-flow-zoa-673887944015.europe-southwest1.run.app"
+    )
+    zoa_endpoint = zoa_endpoint.strip('"').strip("'")
+    
+    if not zoa_endpoint:
+        return {"error": "ZOA_ENDPOINT_URL not configured"}
+
+    action = payload.get("action", "unknown")
+    option = payload.get("option", "unknown")
+    
+    # Increase log level for AiChat to make it visible in production
+    if action in ("ai_chat"):
+        log_func = logger.info
+    else:
+        log_func = logger.debug
+
+    parent = get_current_agent()
+    with Timer("zoa", f"zoa_{action}_{option}", parent=parent):
+        try:
+            headers = _get_zoa_headers()
+            log_func(f"ZOA request: {payload}")
+            response = requests.post(zoa_endpoint, headers=headers, data=json.dumps(payload), timeout=10)
+            
+            try:
+                result = response.json()
+                log_func(f"ZOA response: {result}")
+                return result
+            except json.JSONDecodeError:
+                logger.error(f"ZOA response is not JSON: {response.text}")
+                return {"status": response.status_code, "text": response.text}
+        except requests.exceptions.Timeout:
+            return {"error": "Request timeout"}
+        except requests.exceptions.ConnectionError as e:
+            return {"error": f"Connection failed: {str(e)}"}
+        except Exception as e:
+            return {"error": str(e)}
+
+# =============================================================================
+# ZOA Interface Classes
+# =============================================================================
+
+class ZoaBaseInterface:
+    """Base class for ZOA API interactions following internal interface."""
+    
+    def __init__(self):
+        self.action_name: Optional[str] = None
+
+    def execute(
+        self, 
+        company_id: str, 
+        option: str, 
+        request_data: Optional[Dict[str, Any]] = None
+    ) -> Tuple[Dict[str, Any], int]:
+        """
+        Execute a specific action ensuring required parameters exist.
+        
+        Args:
+            company_id: Company ID (required)
+            option: Operation to execute (search, create, update, send, assign, status, assign_status)
+            request_data: Additional data for the request
+            
+        Returns:
+            Tuple of (response_dict, status_code)
+        """
+        if request_data is None:
+            request_data = {}
+
+        if not company_id:
+            return {"error": "El campo 'company_id' es obligatorio."}, 400
+        
+        if not option:
+            return {"error": "El campo 'option' es obligatorio."}, 400
+
+        if not self.action_name:
+            return {"error": "Error interno: 'action' no definido en la clase."}, 500
+
+        request_data['company_id'] = company_id
+        request_data['option'] = option
+        request_data['action'] = self.action_name or request_data.get('action') # Ensure action is passed
+        
+        # Validation for action
+        if not request_data.get('action'):
+             return {"error": "Error interno: 'action' no definido en la clase ni en request_data."}, 500
+
+        try:
+            result = _make_zoa_request(request_data)
+            status = 200 if "error" not in result else 400
+            return result, status
+        except Exception as e:
+            return {"error": f"Error interno ejecutando '{self.action_name}/{option}': {str(e)}"}, 500
+
+# =============================================================================
+# Active Interfaces (currently used in the codebase)
+# =============================================================================
+
+class ContactsInterface(ZoaBaseInterface):
+    """Interface for contacts operations. Used for searching contacts by phone."""
+    def __init__(self):
+        super().__init__()
+        self.action_name = "contacts"
+
+class ConversationsInterface(ZoaBaseInterface):
+    """Interface for conversations operations. Used for sending WhatsApp messages."""
+    def __init__(self):
+        super().__init__()
+        self.action_name = "conversations"
+
+class CardActionsInterface(ZoaBaseInterface):
+    """Interface for card+activity operations. Used for creating tasks/opportunities."""
+    def __init__(self):
+        super().__init__()
+        self.action_name = "cardact"
+
+class SchedulerInterface(ZoaBaseInterface):
+    """Interface for scheduler operations. Used for checking business hours."""
+    def __init__(self):
+        super().__init__()
+        self.action_name = "scheduler"
+
+class AiChatInterface(ZoaBaseInterface):
+    """Interface for AiChat operations. Used for sending chat responses."""
+    def __init__(self):
+        super().__init__()
+        self.action_name = "ai_chat"

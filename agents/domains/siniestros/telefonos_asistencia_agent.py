@@ -1,61 +1,65 @@
-import json
+"""Telefonos asistencia agent for LangChain 1.x."""
+import logging
 
-from langchain.agents import AgentExecutor, create_tool_calling_agent
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.tools import tool
+from infra.agent_runner import create_langchain_agent, run_langchain_agent
+from core.memory import get_global_history
+from infra.llm import get_llm
+from tools.communication.end_chat_tool import end_chat_tool
+from tools.communication.redirect_to_receptionist_tool import redirect_to_receptionist_tool
+from tools.communication.send_whatsapp_tool import send_whatsapp_tool
+from tools.zoa.tasks_tool import create_task_activity_tool
+from tools.erp.erp_tool import get_assistance_phones
+from agents.domains.siniestros.telefonos_asistencia_agent_prompts import get_prompt
 
-from agents.llm import get_llm
-from tools.state_store import get_state, set_state
+logger = logging.getLogger(__name__)
 
+def telefonos_asistencia_agent(payload: dict) -> dict:
+   user_text = payload.get("mensaje", "")
+   session = payload.get("session", {})
+   memory = session.get("agent_memory", {})
+   history = get_global_history(memory)
+   company_id = payload.get("company_id") or session.get("company_id", "")
+   wa_id = payload.get("wa_id") or ""
+   global_mem = memory.get("global", {})
+   nif_value = global_mem.get("nif") or "NO_IDENTIFICADO"
 
-@tool
-def get_assistance_phones(policy_type: str) -> dict:
-    """Devuelve los telefonos de asistencia segun el tipo de poliza."""
-    phones = {
-        "auto": {"grua": "0800-111-GRUA", "mecanica": "0800-222-MECA"},
-        "hogar": {"emergencia": "0800-333-CASA"},
-        "vida": {"emergencia": "0800-444-VIDA"}
-    }
-    return phones.get(policy_type.lower(), {"general": "0800-000-ZOA"})
+   # Get prompt based on channel and format with variables
+   channel = payload.get("channel", "whatsapp")
+   system_prompt = get_prompt(channel).format(
+       nif_value=nif_value,
+       company_id=company_id,
+       wa_id=wa_id
+   )
 
+   llm = get_llm()
+   tools = [get_assistance_phones, create_task_activity_tool, end_chat_tool, redirect_to_receptionist_tool]
+   
+   # Add WhatsApp tool for phone calls so the agent can send numbers via message
+   if channel in ("call", "wildix_voice"):
+       tools.append(send_whatsapp_tool)
+   
+   agent = create_langchain_agent(llm, tools, system_prompt)
+   result = run_langchain_agent(agent, user_text, history, agent_name="telefonos_asistencia_agent")
+   
+   output_text = result.get("output", "")
+   action = result.get("action", "ask")
+   tool_calls = result.get("tool_calls")
 
-def handle(payload: dict) -> dict:
-    user_text = payload.get("text", "")
-    user_id = payload.get("from", "unknown")
-    session_id = payload.get("session_id", user_id)
-    
-    state = get_state(session_id)
-    history = state.get("asistencia_history", [])
+   logger.info(f"[TELEFONOS_AGENT] Result: action={action}, output={output_text[:100]}...")
 
-    system_prompt = (
-        "Eres el agente de Telefonos de Asistencia de ZOA. "
-        "Pregunta el tipo de seguro (auto, hogar, vida) si no lo sabes. "
-        "Usa la tool 'get_assistance_phones' para buscar el numero correcto. "
-        "Responde amablemente con la informacion."
-    )
+   # Check if redirect to receptionist was triggered
+   if "__REDIRECT_TO_RECEPTIONIST__" in output_text:
+      clean_message = output_text.replace("__REDIRECT_TO_RECEPTIONIST__", "").strip()
+      return {
+          "action": "route", 
+          "next_agent": "receptionist_agent", 
+          "domain": None,
+          "message": clean_message, 
+          "tool_calls": tool_calls
+      }
 
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", system_prompt),
-            *history,
-            ("human", "{user_text}"),
-        ]
-    )
+   if action == "end_chat":
+      logger.info(f"[TELEFONOS_AGENT] Returning end_chat action")
+      return {"action": "end_chat", "message": output_text, "tool_calls": tool_calls}
 
-    llm = get_llm()
-    tools = [get_assistance_phones]
-    agent = create_tool_calling_agent(llm, tools, prompt)
-    executor = AgentExecutor(agent=agent, tools=tools, verbose=False)
-
-    result = executor.invoke({"user_text": user_text})
-    output_text = result.get("output", "")
-
-    # Update state
-    history.append(("human", user_text))
-    history.append(("ai", output_text))
-    set_state(session_id, {**state, "asistencia_history": history[-6:]})
-
-    return {
-        "agent": "telefonos_asistencia_agent",
-        "message": output_text,
-    }
+   return {"action": action, "message": output_text, "tool_calls": tool_calls}

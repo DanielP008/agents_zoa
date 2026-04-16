@@ -1,0 +1,52 @@
+{
+    "subramo": "HOGAR",
+    "datos_basicos": {
+      "asegurado": {
+        "tipo": "FISICA",
+        "nombre": "Daniel",
+        "apellido1": "Pulgar",
+        "apellido2": "",
+        "sexo": "MASCULINO",
+        "fecha_nacimiento": [1990, 5, 15],
+        "estado_civil": "SOLTERO",
+        "nacionalidad": "108-6"
+      },
+      "direccion": {
+        "id_pais": "108-6",
+        "codigo_postal": "46025",
+        "id_tipo_via": "CL",
+        "nombre_via": "Andres Piles Ibars",
+        "numero": "4",
+        "piso": "5",
+        "puerta": "13",
+        "poblacion": "Valencia",
+        "id_provincia": "46"
+      }
+    },
+    "informacion_adicional": {
+      "fecha": [2026, 2, 19],
+      "capitales": {
+        "continente": 240000,
+        "mobiliario_general": 25000
+      },
+      "cuestionario_hogar": {
+        "tipo_vivienda": "PISO_ALTO",
+        "superficie_construida": 160,
+        "anio_construccion": 1997,
+        "regimen_vivienda": "PROPIETARIO",
+        "uso_vivienda": "VIVIENDA_HABITUAL",
+        "situacion_vivienda": "NUCLEO_URBANO",
+        "calidad_construccion": "NORMAL",
+        "materiales_construccion": "SOLIDA",
+        "tipo_tuberias": "POLIPROPILENO",
+        "utilizacion_vivienda": "VIVIENDA_EXCLUSIVAMENTE",
+        "numero_personas": 3,
+        "vivienda_rehabilitada": false,
+        "protecciones": {
+          "puerta_blindada": true,
+          "alarma_conectada": false,
+          "rejas_ventanas": false
+        }
+      }
+    }
+  }

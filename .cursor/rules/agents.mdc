@@ -1,0 +1,97 @@
+# Agent Patterns & Rules
+
+## Multi-Level Routing
+1. **Receptionist** (`receptionist_agent.py`) - Determines domain (claims, management, sales)
+2. **Domain Classifier** (`classifier_<domain>_agent.py`) - Determines specific intent within the domain
+3. **Specialist Agent** (`<specialist>_agent.py`) - Executes the specific task
+
+## Agent Response Contract
+All agents must return a dict with:
+```python
+{
+    "action": "ask | route | finish",
+    "message": "string | None",  # None = passthrough
+    "next_agent": "string",      # Only if action=route
+    "domain": "string | None",    # Only if action=route
+    "memory": {}                  # Optional, only allowed namespaces
+}
+```
+
+## Passthrough Routing
+- If `action="route"` and `message=None` → Orchestrator calls the next agent immediately (same turn)
+- If `action="route"` and `message="text"` → Message is sent, next turn talks to the new agent
+- Limit: 5 chained passthroughs to prevent infinite loops
+
+## Memory Schema (agent_memory)
+**Structure:**
+- `global.*` - Only Orchestrator writes
+- `conversation_history[]` - Only Orchestrator writes (Source of Truth)
+- `agents.<agent_name>.*` - Agent writes internal state/data (NOT history)
+- `domains.<domain>.*` - Agent writes domain state
+- `metadata.*` - Only Orchestrator writes
+
+**Memory Access:**
+```python
+from core.memory_schema import get_global_history, get_agent_memory
+
+# Read conversation history (ALWAYS use global)
+history = get_global_history(memory)  # Returns (role, content) tuples for LangChain
+
+# Read agent-specific data
+agent_data = get_agent_memory(memory, "agent_name")
+```
+
+**Rules:**
+- Agents NEVER write to `global` or `conversation_history`
+- Agents NEVER maintain their own history (use global history)
+
+## Structured Output (Decision Agents)
+For routing/classification agents that need structured decisions:
+```python
+from pydantic import BaseModel, Field
+from core.llm import get_llm
+
+class Decision(BaseModel):
+    domain: str | None = Field(...)
+    message: str | None = Field(...)
+
+llm = get_llm()
+structured_llm = llm.with_structured_output(Decision)
+chain = prompt | structured_llm
+decision = chain.invoke({...})
+```
+
+For conversational agents with tools, use `create_langchain_agent()` from `core.agent_factory`.
+
+## Naming Conventions
+- All agents must end in `_agent.py`
+- Files: `receptionist_agent.py`, `classifier_siniestros_agent.py`, `apertura_siniestro_agent.py`
+- Functions: `{agent_name}_agent(payload: dict) -> dict`
+
+## Statelessness
+- Agents DO NOT write directly to PostgreSQL
+- State is persisted via `Orchestrator` using `SessionManager`
+- Agents receive `session` in `payload` with `agent_memory` already loaded
+
+## Deterministic Dispatch
+- Router (`main_router.py`) never guesses, it follows `core/routing/routes.json`
+- Validation of allowed routes via `agent_allowlist.py`
+- If route is not allowed → error, no fallback
+
+## Receptionist Behavior
+- First interaction (empty history) → presents itself as Sofía
+- Subsequent interactions → does NOT re-introduce, goes straight to the point
+- Always tries to classify first, only asks if it fails
+
+## Code Style
+- Path resolution: `core.hooks.get_routes_path()` for routes config
+- LangChain agents: `core.agent_factory.create_langchain_agent()`
+- Structured output: `llm.with_structured_output()` for decision agents
+- Memory: `get_global_history()` for history, `get_agent_memory()` for agent data
+
+## Documentation Rules
+- **NEVER create .md files automatically** - Code must be self-explanatory
+- Only create documentation files (.md) when explicitly requested by the user
+- When implementing major changes, focus on making the code clear and well-commented rather than creating separate documentation
+- Use meaningful variable names, clear function signatures, and inline comments when necessary
+- Documentation files should only be created if the user specifically asks for them
