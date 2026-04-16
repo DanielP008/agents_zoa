@@ -12,3 +12,9 @@ services:
       - "8080:8080"
     volumes:
       - .:/app
+    networks:
+      - zoa-network
+
+networks:
+  zoa-network:
+    name: zoa-network

@@ -1,63 +1,73 @@
-"""Tools para tarificación en Merlin Multitarificador (Auto y Hogar).
+"""Tools for pricing in Merlin Multitarificador (Auto and Home).
 
-Contiene tres herramientas:
-  1. consulta_vehiculo_tool: Consulta DGT por matrícula y muestra datos al cliente.
-  2. get_town_by_cp_tool: Obtiene población por código postal.
-  3. create_retarificacion_project_tool: Crea el proyecto final en Merlin (Auto o Hogar).
+Contains five tools:
+  1. consulta_vehiculo_tool: DGT lookup by license plate (via ERP).
+  2. get_town_by_cp_tool: Gets town/city by postal code (via ERP).
+  3. consultar_catastro_tool: Cadastre lookup and capital calculation (via ERP).
+  4. create_retarificacion_project_tool: Creates final project in Merlin (via ERP).
+  5. finalizar_proyecto_hogar_tool: Finalizes HOME project with chosen capitals (via ERP).
+
+NOTE: These tools call the ERP webservice (ebroker-api) which centralizes the logic.
 """
 
 import json
 import logging
 from langchain.tools import tool
-from services.merlin_client import create_merlin_project, get_vehicle_info_by_matricula, get_town_by_cp
-from services.erp_client import get_policy_by_risk_from_erp
-from services.catastro_client import consultar_catastro_por_direccion
+from services.erp_client import ERPClient
 
 logger = logging.getLogger(__name__)
 
+_project_ids: dict = {"proyecto_id": None, "id_pasarela": None}
+
+
+def get_last_project_ids():
+    """Return (proyecto_id, id_pasarela) stored by the last tool invocation, then clear them."""
+    pid = _project_ids.get("proyecto_id")
+    pas = _project_ids.get("id_pasarela")
+    logger.info(f"[PROJECT_IDS] get_last_project_ids called: pid={pid}, pas={pas}")
+    _project_ids["proyecto_id"] = None
+    _project_ids["id_pasarela"] = None
+    return pid, pas
+
 _REQUIRED_FIELDS_AUTO = ["dni", "matricula", "fecha_efecto"]
-_REQUIRED_FIELDS_HOGAR = ["dni", "codigo_postal", "fecha_efecto", "nombre_via", "numero_calle"]
+_REQUIRED_FIELDS_HOGAR = ["dni", "codigo_postal", "fecha_efecto", "nombre_via", "numero_calle", "tipo_vivienda"]
 
 
 # ============================================================================
-# TOOL 1: Consulta de vehículo (DGT) - Solo AUTO
+# TOOL 1: Vehicle Lookup (DGT) - AUTO only
 # ============================================================================
 
 @tool
-def consulta_vehiculo_tool(matricula: str) -> dict:
+def consulta_vehiculo_tool(matricula: str, company_id: str) -> dict:
     """
-    Consulta los datos técnicos de un vehículo en la DGT a partir de su matrícula.
-    Devuelve marca, modelo, versión, combustible, garaje, km, fechas, etc.
+    Look up technical data for a vehicle in the DGT using its license plate.
+    Returns make, model, version, fuel, garage, km, dates, etc.
 
-    Usa esta herramienta en cuanto el cliente proporcione la matrícula.
-    Muestra los datos al cliente en una LISTA DE PUNTOS y pregúntale si son correctos.
+    Use this tool as soon as the client provides the license plate.
+    Show the data to the client in a BULLET LIST and ask if it is correct.
 
     Args:
-        matricula: Matrícula del vehículo (ej: "3492GYW")
+        matricula: Vehicle license plate (e.g. "3492GYW")
+        company_id: Company ID (automatically obtained from context)
 
     Returns:
-        dict con los datos del vehículo recuperados de la DGT.
+        dict with vehicle data retrieved from DGT.
     """
     matricula = matricula.strip().upper()
     logger.info(f"[CONSULTA_VEHICULO] Looking up vehicle: {matricula}")
-    dgt_result = get_vehicle_info_by_matricula(matricula)
+    
+    client = ERPClient(company_id)
+    result = client.merlin_consulta_vehiculo(matricula)
 
-    if dgt_result.get("success"):
-        v = dgt_result.get("vehiculo", {})
-        logger.info(
-            f"[CONSULTA_VEHICULO] Found: {v.get('marca')} {v.get('modelo')} "
-            f"({v.get('version')}) - {v.get('combustible_descripcion')}"
-        )
-
-        def clean(val):
-            if val is None:
-                return "No especificado"
-            s = str(val).strip()
-            return s if s else "No especificado"
-
-        return {
-            "success": True,
-            "datos_vehiculo": {
+    if result.get("success"):
+        datos = result.get("datos_vehiculo", {})
+        if not datos and "raw_data" in result:
+             v = result["raw_data"]
+             def clean(val):
+                s = str(val).strip() if val is not None else ""
+                return s if s else "No especificado"
+             
+             datos = {
                 "Marca": clean(v.get("marca")),
                 "Modelo": clean(v.get("modelo")),
                 "Versión": clean(v.get("version")),
@@ -66,43 +76,76 @@ def consulta_vehiculo_tool(matricula: str) -> dict:
                 "Kilómetros Anuales": clean(v.get("km_anuales")),
                 "Kilómetros Totales": clean(v.get("km_totales")),
                 "Garaje": clean(v.get("garaje")),
-            },
+            }
+            
+        logger.info(f"[CONSULTA_VEHICULO] Found: {datos.get('Marca')} {datos.get('Modelo')}")
+        return {
+            "success": True,
+            "datos_vehiculo": datos
         }
     else:
-        logger.error(f"[CONSULTA_VEHICULO] Failed: {dgt_result.get('error')}")
-        return dgt_result
+        logger.error(f"[CONSULTA_VEHICULO] Failed: {result.get('error')}")
+        return result
 
 
 # ============================================================================
-# TOOL 2: Consulta de población (CP) - Ambos ramos
+# TOOL 2: Town/City Lookup (CP) - Both lines
 # ============================================================================
 
 @tool
-def get_town_by_cp_tool(cp: str) -> dict:
+def get_town_by_cp_tool(cp: str, company_id: str) -> dict:
     """
-    Obtiene la población y provincia a partir de un código postal.
+    Retrieves town/city and province from a postal code.
 
-    Usa esta herramienta en cuanto el cliente proporcione el código postal.
-    Muestra la población al cliente y pregúntale si es correcta.
+    Use this tool as soon as the client provides the postal code.
+    Show the town to the client and ask if it is correct.
 
     Args:
-        cp: Código postal (ej: "28001")
+        cp: Postal code (e.g. "28001")
+        company_id: Company ID (automatically obtained from context)
 
     Returns:
-        dict con la población y provincia.
+        dict with town and province.
     """
     cp = cp.strip()
     logger.info(f"[GET_TOWN_BY_CP] Looking up CP: {cp}")
-    result = get_town_by_cp(cp)
+    
+    client = ERPClient(company_id)
+    result = client.merlin_get_town_by_cp(cp)
+    
     if result.get("success"):
         logger.info(f"[GET_TOWN_BY_CP] Found: {result.get('poblacion')} ({result.get('descripcion_provincia')})")
-    else:
-        logger.error(f"[GET_TOWN_BY_CP] Failed: {result.get('error')}")
+        return result
+    
+    # Fallback to local DB if ERP fails
+    logger.warning(f"[GET_TOWN_BY_CP] ERP failed: {result.get('error')}. Trying local fallback.")
+    try:
+        from services.local_cp_db import get_local_town_by_cp
+        local_result = get_local_town_by_cp(cp)
+        if local_result:
+            logger.info(f"[GET_TOWN_BY_CP] Local DB SUCCESS for {cp}: {local_result.get('poblacion')}")
+            return local_result
+    except Exception as e:
+        logger.error(f"[GET_TOWN_BY_CP] Local DB import/query failed: {e}")
+
+    # If local fallback fails, try ERP again with a small retry (sometimes Cloud Run cold starts or timeouts)
+    logger.warning(f"[GET_TOWN_BY_CP] Local fallback failed for {cp}. Retrying ERP with backoff...")
+    import time
+    for attempt in range(3): # Up to 3 retries
+        wait_time = 1.0 * (attempt + 1)
+        logger.info(f"[GET_TOWN_BY_CP] ERP Retry {attempt+1} in {wait_time}s...")
+        time.sleep(wait_time)
+        result = client.merlin_get_town_by_cp(cp)
+        if result.get("success"):
+            logger.info(f"[GET_TOWN_BY_CP] ERP Retry {attempt+1} SUCCESS: {result.get('poblacion')}")
+            return result
+        
+    logger.error(f"[GET_TOWN_BY_CP] Failed in ERP (all attempts) and Local DB")
     return result
 
 
 # ============================================================================
-# TOOL 3: Consulta de Catastro (Hogar)
+# TOOL 3: Cadastre Lookup (Home)
 # ============================================================================
 
 @tool
@@ -112,299 +155,288 @@ def consultar_catastro_tool(
     tipo_via: str,
     nombre_via: str,
     numero: str,
+    company_id: str,
     bloque: str = "",
     escalera: str = "",
     planta: str = "",
     puerta: str = "",
     piso: str = "",  # Alias for planta
     numero_personas: str = "3",
+    tipo_vivienda: str = "PISO_EN_ALTO",
 ) -> str:
     """
-    Consulta los datos de una vivienda en el Catastro (superficie, año construcción, uso).
+    Look up technical data for a dwelling in the Cadastre (surface, construction year, use).
 
-    Usa esta herramienta en cuanto el cliente proporcione la dirección completa en Hogar.
-    Muestra los datos recuperados (año y superficie) al cliente y pregúntale si son correctos.
+    Use this tool as soon as the client provides the full address for Home insurance.
+    Show the retrieved data (year and surface) to the client and ask if it is correct.
 
     Args:
-        provincia: Nombre de la provincia (ej: "MADRID")
-        municipio: Nombre del municipio/población (ej: "MADRID")
-        tipo_via: Código del tipo de vía (CL, AV, PZ, PO, RD, CLZ, CM)
-        nombre_via: Nombre de la vía (ej: "ALCALA")
-        numero: Número de la vía (ej: "5")
-        bloque: Bloque (opcional)
-        escalera: Escalera (opcional)
-        planta: Planta (ej: "5")
-        puerta: Puerta (ej: "A")
-        piso: Alias para planta (opcional)
-        numero_personas: Número de personas en la vivienda (ej: "3")
+        provincia: Province name (e.g. "MADRID")
+        municipio: Town/City name (e.g. "MADRID")
+        tipo_via: Road type code (CL, AV, PZ, PO, RD, CLZ, CM)
+        nombre_via: Road name (e.g. "ALCALA")
+        numero: Road number (e.g. "5")
+        company_id: Company ID (automatically obtained from context)
+        bloque: Block (optional)
+        escalera: Staircase (optional)
+        planta: Floor (e.g. "5")
+        puerta: Door (e.g. "A")
+        piso: Alias for floor (optional)
+        numero_personas: Number of people in the house (e.g. "3")
+        tipo_vivienda: Dwelling type (PISO_EN_ALTO, PISO_EN_BAJO, ATICO, CHALET_O_VIVIENDA_UNIFAMILIAR, CHALET_O_VIVIENDA_ADOSADA)
     """
-    # Combine planta/piso
     final_planta = planta or piso
     
-    # La normalización de provincia ahora se maneja internamente en consultar_catastro_por_direccion
-
     logger.info(f"[CONSULTAR_CATASTRO] Looking up: {tipo_via} {nombre_via} {numero} {final_planta} {puerta} in {municipio} ({provincia})")
     
-    try:
-        result = consultar_catastro_por_direccion(
-            provincia=provincia,
-            municipio=municipio,
-            tipo_via=tipo_via,
-            nombre_via=nombre_via,
-            numero=numero,
-            bloque=bloque,
-            escalera=escalera,
-            planta=final_planta,
-            puerta=puerta,
-        )
+    payload = {
+        "provincia": provincia,
+        "municipio": municipio,
+        "tipo_via": tipo_via,
+        "nombre_via": nombre_via,
+        "numero": numero,
+        "bloque": bloque,
+        "escalera": escalera,
+        "planta": final_planta,
+        "puerta": puerta,
+        "tipo_vivienda": tipo_vivienda
+    }
+    
+    client = ERPClient(company_id)
+    result = client.merlin_consultar_catastro(payload)
+    
+    if result.get("success") or "anio_construccion" in result:
+        anio = result.get("anio_construccion", "NO DISPONIBLE")
+        superficie = result.get("superficie", "NO DISPONIBLE")
+        ref = result.get("referencia_catastral", "")
+        cp_catastro = result.get("codigo_postal", "")
         
-        if result.get("success"):
-            anio = result.get("anio_construccion", "NO DISPONIBLE")
-            superficie = result.get("superficie", "NO DISPONIBLE")
-            ref = result.get("referencia_catastral", "")
-            uso_catastro = result.get("uso", "")
-            cp_catastro = result.get("codigo_postal", "")
-            
-            # Inferencia básica de uso
-            uso_vivienda = "VIVIENDA_HABITUAL"
-            utilizacion = "VIVIENDA_EXCLUSIVAMENTE"
-            if uso_catastro and not uso_catastro.startswith("R"):
-                 pass
+        capital_continente = result.get("capital_continente") or 150000
+        capital_contenido = result.get("capital_contenido") or 25000
+        precio_m2_base = result.get("precio_m2_base", 1500)
+        factor_tipologia = result.get("factor_tipologia", 1.0)
+        precio_m2_contenido = result.get("precio_m2_contenido", 250)
+        
+        logger.info(f"[CONSULTAR_CATASTRO] SUCCESS - Año: {anio}, Superficie: {superficie}m²")
 
-            logger.info(f"[CONSULTAR_CATASTRO] SUCCESS - Año: {anio}, Superficie: {superficie}m², Ref: {ref}, CP: {cp_catastro}")
-            
-            # Construimos un string con los datos encontrados y los valores por defecto para que el LLM los presente
-            return (
-                f"DATOS ENCONTRADOS: Año: {anio}, Superficie: {superficie}, Ref: {ref}, CP: {cp_catastro}\n"
-                f"VALORES SUGERIDOS (CONFIRMAR CON CLIENTE):\n"
-                f"- Situación: NUCLEO_URBANO\n"
-                f"- Régimen: PROPIEDAD\n"
-                f"- Uso: {uso_vivienda}\n"
-                f"- Utilización: {utilizacion}\n"
-                f"- Nº Personas: {numero_personas}\n"
-                f"- Calidad: NORMAL\n"
-                f"- Materiales: SOLIDA_PIEDRAS_LADRILLOS_ETC\n"
-                f"- Tuberías: POLIPROPILENO\n"
-                f"PROTECCIONES (POR DEFECTO):\n"
-                f"- Puerta principal: DE_MADERA_PVC_METALICA_ETC\n"
-                f"- Puerta secundaria: NO_TIENE\n"
-                f"- Ventanas: SIN_PROTECCION\n"
-                f"- Alarmas (Robo/Incendio/Agua): SIN_ALARMA\n"
-                f"- Caja fuerte: NO_TIENE\n"
-                f"- Vigilancia: SIN_VIGILANCIA"
-            )
-        else:
-            err = result.get('error', 'Desconocido')
-            logger.error(f"[CONSULTAR_CATASTRO] Failed: {err}")
-            return f"NO SE ENCONTRARON DATOS: {err}. Usa valores por defecto."
-            
-    except Exception as e:
-        logger.error(f"[CONSULTAR_CATASTRO] EXCEPTION: {e}", exc_info=True)
-        return f"ERROR TECNICO: {str(e)}. Usa valores por defecto."
+        return (
+            f"DATOS ENCONTRADOS: Año: {anio}, Superficie: {superficie}, Ref: {ref}, CP: {cp_catastro}\n"
+            f"VALORES SUGERIDOS (CONFIRMAR CON CLIENTE):\n"
+            f"- Situación: NUCLEO_URBANO\n"
+            f"- Régimen: PROPIEDAD\n"
+            f"- Uso: VIVIENDA_HABITUAL\n"
+            f"- Utilización: VIVIENDA_EXCLUSIVAMENTE\n"
+            f"- Nº Personas: {numero_personas}\n"
+            f"- Calidad: NORMAL\n"
+            f"- Materiales: SOLIDA_PIEDRAS_LADRILLOS_ETC\n"
+            f"- Tuberías: POLIPROPILENO\n"
+            f"PROTECCIONES (POR DEFECTO):\n"
+            f"- Puerta principal: DE_MADERA_PVC_METALICA_ETC\n"
+            f"- Puerta secundaria: NO_TIENE\n"
+            f"- Ventanas: SIN_PROTECCION\n"
+            f"- Alarmas (Robo/Incendio/Agua): SIN_ALARMA\n"
+            f"- Caja fuerte: NO_TIENE\n"
+            f"- Vigilancia: SIN_VIGILANCIA\n"
+            f"CAPITALES RECOMENDADOS (USAR EN PASO 6):\n"
+            f"- Capital Continente Recomendado: {capital_continente} € (Precio base zona: {int(precio_m2_base)} €/m² | Factor tipo {tipo_vivienda}: {factor_tipologia}x)\n"
+            f"- Capital Contenido Recomendado: {capital_contenido} € (Calculado a {precio_m2_contenido} €/m² según tipo {tipo_vivienda})"
+        )
+    else:
+        err = result.get('error', 'Desconocido')
+        logger.error(f"[CONSULTAR_CATASTRO] Failed: {err}")
+        return f"NO SE ENCONTRARON DATOS: {err}. Usa valores por defecto."
 
 
 # ============================================================================
-# TOOL 4: Creación de proyecto en Merlin (Auto o Hogar)
+# TOOL 4: Project creation in Merlin (Auto or Home)
 # ============================================================================
 
 @tool
-def create_retarificacion_project_tool(data: str) -> dict:
+def create_retarificacion_project_tool(data: str, company_id: str) -> dict:
     """
-    Crea un proyecto de tarificación de seguro (Auto o Hogar) en Merlin.
-    Enriquece automáticamente los datos usando la DGT, el ERP, el Catastro y servicios de localización.
+    Creates a project for insurance pricing (Auto or Home) in Merlin.
+    Automatically enriches data using DGT, ERP, Cadastre and location services.
     
-    Si la tarificación tiene éxito, devuelve el objeto 'proyecto' completo con las ofertas de las aseguradoras
-    en el campo 'tarificaciones' o 'afinaciones'.
+    If pricing is successful, returns the full 'proyecto' object with insurance offers
+    in the 'tarificaciones' or 'afinaciones' field.
 
-    Input: JSON string con los datos recopilados.
+    Input: JSON string with collected data.
 
-    Campo de ramo:
-    - ramo: str ("AUTO" o "HOGAR", por defecto "AUTO")
-
-    Campos comunes obligatorios:
-    - dni: str (NIF/DNI del tomador)
-    - fecha_efecto: str ("YYYY-MM-DD")
-
-    Campos adicionales para AUTO:
-    - matricula: str (matrícula del vehículo)
-
-    Campos adicionales para HOGAR (obligatorios):
-    - codigo_postal: str
-    - nombre_via: str (nombre de la calle, ej: "Gran Vía")
-    - numero_calle: str (número del edificio, ej: "3")
-    - piso: str (opcional, ej: "3")
-    - puerta: str (opcional, ej: "Izquierda")
-    - numero_personas_vivienda: str (ej: "3")
-
-    Campos adicionales para HOGAR (opcionales, se obtienen automáticamente del Catastro si no se proporcionan):
-    - id_tipo_via: str ("CL", "AV", "PZ", etc. - por defecto "CL")
-    - anio_construccion: int (año de construcción - auto del Catastro)
-    - superficie_vivienda: int (metros cuadrados - auto del Catastro)
-    - tipo_vivienda: str ("PISO_EN_ALTO", "CHALET_O_VIVIENDA_UNIFAMILIAR", etc. - por defecto "PISO_EN_ALTO")
-    - capital_continente: int (valor reconstrucción confirmado por el cliente, ej: 240000)
-    - capital_contenido: int (valor mobiliario confirmado por el cliente, ej: 25000)
-    - situacion_vivienda: str (ej: "NUCLEO_URBANO")
-    - regimen_ocupacion: str (ej: "PROPIEDAD")
-    - uso_vivienda: str (ej: "VIVIENDA_HABITUAL")
-    - utilizacion_vivienda: str (ej: "VIVIENDA_EXCLUSIVAMENTE")
-    - calidad_construccion: str (ej: "NORMAL")
-    - materiales_construccion: str (ej: "SOLIDA_PIEDRAS_LADRILLOS_ETC")
-    - tipo_tuberias: str (ej: "POLIPROPILENO")
-    - bloque: str (opcional)
-    - escalera: str (opcional)
-    - planta: str (opcional)
-    - puerta: str (opcional)
+    Args:
+        data: JSON string with all collected client data
+        company_id: Company ID (automatically obtained from context)
     """
+    logger.info(f"[RETARIFICACION] === RAW LLM DATA (first 3000 chars) ===")
+    logger.info(f"[RETARIFICACION] {data[:3000]}")
+    logger.info(f"[RETARIFICACION] === END RAW DATA ===")
+
     try:
         payload = json.loads(data)
-    except json.JSONDecodeError:
-        return {"success": False, "error": "Formato JSON inválido"}
+    except json.JSONDecodeError as e:
+        logger.error(f"[RETARIFICACION] JSON parse error: {e}")
+        return {"success": False, "error": f"Formato JSON inválido: {e}"}
 
-    ramo = str(payload.get("ramo", "AUTO")).upper()
+    if "nif" in payload and "dni" not in payload:
+        payload["dni"] = payload.pop("nif")
 
+    _MATERIALES_NORMALIZE = {
+        "SOLIDA": "SOLIDA_PIEDRAS_LADRILLOS_ETC",
+        "SOLIDA_PIEDRAS": "SOLIDA_PIEDRAS_LADRILLOS_ETC",
+    }
+    mat = str(payload.get("materiales_construccion", "")).upper()
+    if mat in _MATERIALES_NORMALIZE:
+        payload["materiales_construccion"] = _MATERIALES_NORMALIZE[mat]
+
+    ramo = str(payload.get("ramo", "")).upper()
+    
+    if not ramo:
+        hogar_indicators = ["capital_continente", "capital_contenido", "nombre_via", "regimen_ocupacion", "tipo_vivienda", "situacion_vivienda"]
+        if any(payload.get(k) for k in hogar_indicators):
+            ramo = "HOGAR"
+            payload["ramo"] = "HOGAR"
+        else:
+            ramo = "AUTO"
+            payload["ramo"] = "AUTO"
+        logger.info(f"[RETARIFICACION] Ramo not specified, inferred: {ramo}")
+    
     required = _REQUIRED_FIELDS_AUTO if ramo == "AUTO" else _REQUIRED_FIELDS_HOGAR
     missing = [f for f in required if not payload.get(f)]
     if missing:
+        logger.error(f"[RETARIFICACION] Missing fields for {ramo}: {missing}")
         return {
             "success": False,
             "error": f"Campos obligatorios faltantes para {ramo}: {', '.join(missing)}",
         }
-
-    dni = payload.get("dni")
-    cp = payload.get("codigo_postal")
-
-    # 1. Enrichment for AUTO only
+    
+    logger.info(f"[RETARIFICACION] Delegating {ramo} project to ERP for DNI: {payload.get('dni')}")
+    
     if ramo == "AUTO":
-        matricula = payload.get("matricula")
-        logger.info(f"[RETARIFICACION] Enriching with DGT for {matricula}")
-        dgt_result = get_vehicle_info_by_matricula(matricula)
-        if dgt_result.get("success"):
-            v = dgt_result.get("vehiculo", {})
-            payload.update({
-                "marca": v.get("marca"),
-                "modelo": v.get("modelo"),
-                "version": v.get("version"),
-                "combustible": v.get("combustible"),
-                "fecha_matriculacion": v.get("fecha_matriculacion"),
-                "km_anuales": v.get("km_anuales"),
-                "km_totales": v.get("km_totales"),
-                "tipo_de_garaje": v.get("garaje") or payload.get("tipo_de_garaje", "COLECTIVO"),
-                "id_auto_base7": v.get("id_auto_base7"),
-                "id_tipo_base7": v.get("id_tipo_base7"),
-                "id_categoria_base7": v.get("id_categoria_base7"),
-                "id_clase_base7": v.get("id_clase_base7"),
-                "potencia": v.get("potencia_cv"),
-                "cilindrada": v.get("cilindrada"),
-                "precio_vp": v.get("precio_vp"),
-            })
+        codigo_vehiculo = payload.get("codigo_vehiculo")
+        if codigo_vehiculo:
+            logger.info(f"[RETARIFICACION] Using technical Base7 code for version: {codigo_vehiculo}")
+            payload["version"] = codigo_vehiculo
+        else:
+            version_val = str(payload.get("version", ""))
+            if version_val and not version_val.replace(".", "").isdigit():
+                logger.info(f"[RETARIFICACION] Removing text version '{version_val}' — ERP will resolve from matricula")
+                payload.pop("version", None)
+                for field in ("marca", "modelo", "combustible", "km_anuales", "km_totales", "garaje", "fecha_matriculacion"):
+                    payload.pop(field, None)
 
-        if dni and matricula:
-            company_id = payload.get("company_id", "")
-            if company_id:
-                logger.info(f"[RETARIFICACION] Checking ERP for policy (DNI={dni}, Risk={matricula})")
-                erp_result = get_policy_by_risk_from_erp(dni, matricula, company_id)
-                if erp_result.get("success"):
-                    policy = erp_result.get("policy", {})
-                    payload.update({
-                        "aseguradora_actual": policy.get("company_name") or policy.get("company_id"),
-                        "num_poliza": policy.get("number"),
-                    })
-
-    # 2. Enrichment for both (Town/CP)
-    if cp:
-        logger.info(f"[RETARIFICACION] Enriching town for CP {cp}")
-        town_result = get_town_by_cp(cp)
-        if town_result.get("success"):
-            payload.update({
-                "poblacion": town_result.get("poblacion"),
-                "id_provincia": town_result.get("id_provincia"),
-                "descripcion_provincia": town_result.get("descripcion_provincia"),
-            })
-
-    # 3. Catastro enrichment for HOGAR (superficie, año construcción)
+    logger.info(f"[RETARIFICACION] Payload keys: {sorted(payload.keys())}")
+    logger.info(f"[RETARIFICACION] Key values: ramo={ramo}, tipo_vivienda={payload.get('tipo_vivienda')}, cp={payload.get('codigo_postal')}, fecha_efecto={payload.get('fecha_efecto')}")
+    
     if ramo == "HOGAR":
-        nombre_via = payload.get("nombre_via", "")
-        numero_calle = str(payload.get("numero_calle", ""))
-        tipo_via = payload.get("id_tipo_via", "CL")
-        provincia_desc = payload.get("descripcion_provincia", "")
-        municipio_desc = payload.get("poblacion", "")
-        piso = payload.get("piso", "")
-        puerta = payload.get("puerta", "")
+        logger.info(f"[RETARIFICACION] Address: via={payload.get('nombre_via')}, num={payload.get('numero_calle')}, piso={payload.get('piso')}, puerta={payload.get('puerta')}")
+        logger.info(f"[RETARIFICACION] Capitals: continente={payload.get('capital_continente')} (type={type(payload.get('capital_continente')).__name__}), contenido={payload.get('capital_contenido')} (type={type(payload.get('capital_contenido')).__name__})")
+    
+    client = ERPClient(company_id)
+    payload["max_wait_polling"] = 30
+    payload["poll_interval"] = 2
+    result = client.merlin_create_project(payload)
+    
+    if result.get("success"):
+        pid = result.get('proyecto_id')
+        pas = result.get('id_pasarela')
+        logger.info(f"[RETARIFICACION] Project created successfully: ID={pid}, pasarela={pas}, msg={result.get('mensaje')}")
 
-        if nombre_via and numero_calle and provincia_desc and municipio_desc:
-            logger.info(f"[RETARIFICACION] Enriching with Catastro: "
-                        f"{tipo_via} {nombre_via} {numero_calle} {piso} {puerta}, {municipio_desc} ({provincia_desc})")
-            catastro_result = consultar_catastro_por_direccion(
-                provincia=provincia_desc,
-                municipio=municipio_desc,
-                tipo_via=tipo_via,
-                nombre_via=nombre_via,
-                numero=numero_calle,
-                bloque=payload.get("bloque", ""),
-                escalera=payload.get("escalera", ""),
-                planta=piso,
-                puerta=puerta,
-            )
+        if pid and pas:
+            _project_ids["proyecto_id"] = str(pid)
+            _project_ids["id_pasarela"] = int(pas)
+            logger.info(f"[PROJECT_IDS] Stored: proyecto_id={_project_ids['proyecto_id']}, id_pasarela={_project_ids['id_pasarela']}")
+        
+        # Deduplicate offers if present (for AUTO and non-HOGAR projects)
+        if "ofertas" in result:
+            ofertas_raw = result.get("ofertas", [])
+            seen_offers = set()
+            ofertas_dedup = []
+            for o in ofertas_raw:
+                key = (
+                    str(o.get("nombre_aseguradora", "")).strip().upper(),
+                    str(o.get("prima_anual", "")).strip(),
+                    str(o.get("descripcion", "")).strip().upper()
+                )
+                if key not in seen_offers:
+                    seen_offers.add(key)
+                    ofertas_dedup.append(o)
+            result["ofertas"] = ofertas_dedup
+            logger.info(f"[RETARIFICACION] Deduplicated to {len(ofertas_dedup)} offers")
+    else:
+        logger.error(f"[RETARIFICACION] FAILED: {result.get('error')}")
+        logger.error(f"[RETARIFICACION] Full error result: {json.dumps(result, default=str, ensure_ascii=False)[:1000]}")
 
-            if catastro_result.get("success"):
-                cat_superficie = catastro_result.get("superficie")
-                cat_anio = catastro_result.get("anio_construccion")
-                cat_ref = catastro_result.get("referencia_catastral")
+    return result
 
-                if cat_superficie and "superficie_vivienda" not in payload:
-                    payload["superficie_vivienda"] = int(cat_superficie)
-                    logger.info(f"[RETARIFICACION] Catastro -> superficie: {cat_superficie}m²")
 
-                if cat_anio and "anio_construccion" not in payload:
-                    payload["anio_construccion"] = int(cat_anio)
-                    logger.info(f"[RETARIFICACION] Catastro -> año construcción: {cat_anio}")
+# ============================================================================
+# TOOL 5: Finalize HOME project with chosen capitals
+# ============================================================================
 
-                if cat_ref:
-                    payload["referencia_catastral"] = cat_ref
-                    logger.info(f"[RETARIFICACION] Catastro -> ref catastral: {cat_ref}")
-            else:
-                logger.warning(f"[RETARIFICACION] Catastro lookup failed: {catastro_result.get('error')}")
-                if catastro_result.get("multiple_results"):
-                    logger.info("[RETARIFICACION] Multiple properties found - may need planta/puerta")
+@tool
+def finalizar_proyecto_hogar_tool(
+    proyecto_id: str,
+    id_pasarela: int,
+    capital_continente: int,
+    capital_contenido: int,
+    fecha_efecto: str,
+    company_id: str,
+) -> dict:
+    """
+    Finalizes a HOME project in Merlin with capitals chosen by the client
+    and launches multi-insurer pricing.
 
-        # Fallback values if Catastro didn't provide them
-        if "superficie_vivienda" not in payload:
-            payload["superficie_vivienda"] = 90
-            logger.warning("[RETARIFICACION] Using default superficie (90m²) - Catastro unavailable")
-        if "anio_construccion" not in payload:
-            payload["anio_construccion"] = 2000
-            logger.warning("[RETARIFICACION] Using default año construcción (2000) - Catastro unavailable")
+    Use this tool AFTER create_retarificacion_project_tool has returned
+    action_required='select_capitals' and the client has chosen their preferred capitals
+    from the recommendations per insurer.
 
-    # 4. Default values for HOGAR
-    if ramo == "HOGAR":
-        defaults = {
-            "tipo_vivienda": "PISO_EN_ALTO",
-            "situacion_vivienda": "NUCLEO_URBANO",
-            "regimen_ocupacion": "PROPIEDAD",
-            "uso_vivienda": "VIVIENDA_HABITUAL",
-            "utilizacion_vivienda": "VIVIENDA_EXCLUSIVAMENTE",
-            "calidad_construccion": "NORMAL",
-            "materiales_construccion": "SOLIDA_PIEDRAS_LADRILLOS_ETC",
-            "tipo_tuberias": "POLIPROPILENO",
-            "tipo_puerta": "DE_MADERA_PVC_METALICA_ETC",
-            "alarma": "SIN_ALARMA",
-            "tiene_piscina": False,
-            "alquiler_vacacional": False,
-            "vivienda_rehabilitada": False,
-            "numero_personas_vivienda": "3",
-            "numero_habitaciones": "3",
-        }
-        for k, v in defaults.items():
-            if k not in payload:
-                payload[k] = v
+    Args:
+        proyecto_id: MongoDB project ID ("proyecto_id" field returned by create_retarificacion_project_tool, e.g. "69a6c89815a9590f351dc961")
+        id_pasarela: Numeric gateway ID ("id_pasarela" field returned by create_retarificacion_project_tool, e.g. 3410). MUST be an integer.
+        capital_continente: Continent capital chosen by the client (e.g. 150000)
+        capital_contenido: Content capital chosen by the client (e.g. 30000)
+        fecha_efecto: Policy effective date (YYYY-MM-DD format)
+        company_id: Company ID (automatically obtained from context)
 
-    # 5. Create project in Merlin
-    logger.info(f"[RETARIFICACION] Creating {ramo} project in Merlin for DNI: {dni}")
-    result = create_merlin_project(payload)
+    Returns:
+        dict with pricing result, including insurer offers.
+    """
+    logger.info(
+        f"[FINALIZAR_HOGAR] project={proyecto_id}, pasarela={id_pasarela}, "
+        f"continente={capital_continente}, contenido={capital_contenido}"
+    )
+
+    client = ERPClient(company_id)
+    result = client.merlin_finalizar_proyecto_hogar({
+        "proyecto_id": proyecto_id,
+        "id_pasarela": id_pasarela,
+        "capital_continente": capital_continente,
+        "capital_contenido": capital_contenido,
+        "fecha_efecto": fecha_efecto,
+        "max_wait_polling": 30,
+        "poll_interval": 2,
+    })
 
     if result.get("success"):
-        logger.info(f"[RETARIFICACION] Project created: ID={result.get('proyecto_id')}")
+        ofertas_raw = result.get("ofertas", [])
+        logger.info(f"[FINALIZAR_HOGAR] Success: {len(ofertas_raw)} raw offers returned")
+        
+        # Deduplicate offers by insurer name and annual premium
+        seen_offers = set()
+        ofertas_dedup = []
+        for o in ofertas_raw:
+            # Create a unique key for the offer
+            key = (
+                str(o.get("nombre_aseguradora", "")).strip().upper(),
+                str(o.get("prima_anual", "")).strip(),
+                str(o.get("descripcion", "")).strip().upper()
+            )
+            if key not in seen_offers:
+                seen_offers.add(key)
+                ofertas_dedup.append(o)
+        
+        logger.info(f"[FINALIZAR_HOGAR] Deduplicated to {len(ofertas_dedup)} offers")
+        result["ofertas"] = ofertas_dedup
     else:
-        logger.error(f"[RETARIFICACION] Failed: {result.get('error')}")
+        logger.error(f"[FINALIZAR_HOGAR] FAILED: {result.get('error')}")
 
     return result

@@ -1,10 +1,13 @@
-"""Renovación agent - gestiona renovaciones de pólizas vía WhatsApp."""
+"""Renovation agent - manages policy renewals via WhatsApp."""
 
 import logging
 from datetime import datetime
 from infra.agent_runner import create_langchain_agent, run_langchain_agent
+from core.agent_safeguards import task_tool_already_called, _TASK_DONE_SUFFIX, auto_create_task_if_needed, force_redirect_if_task_done
 from core.memory import get_global_history
 from infra.llm import get_llm
+from services.erp_client import ERPClient
+from core.firebase_db import get_company_config
 
 from tools.zoa.tasks_tool import create_task_activity_tool
 from tools.communication.end_chat_tool import end_chat_tool
@@ -14,11 +17,15 @@ from tools.sales.retarificacion_tool import (
     get_town_by_cp_tool,
     consultar_catastro_tool,
     create_retarificacion_project_tool,
+    finalizar_proyecto_hogar_tool,
+    get_last_project_ids,
 )
 
 from agents.domains.ventas.renovacion_agent_prompts import get_prompt
 
 logger = logging.getLogger(__name__)
+
+AGENT_NAME = "renovacion_agent"
 
 
 def renovacion_agent(payload: dict) -> dict:
@@ -27,9 +34,11 @@ def renovacion_agent(payload: dict) -> dict:
     memory = session.get("agent_memory", {})
     history = get_global_history(memory)
 
-    company_id = payload.get("phone_number_id") or session.get("company_id", "")
+    company_id = payload.get("company_id") or payload.get("phone_number_id") or session.get("company_id", "")
     wa_id = payload.get("wa_id")
-    global_mem = memory.get("global", {})
+    if "global" not in memory:
+        memory["global"] = {}
+    global_mem = memory["global"]
     nif_value = global_mem.get("nif") or "NO_IDENTIFICADO"
 
     now = datetime.now()
@@ -37,15 +46,93 @@ def renovacion_agent(payload: dict) -> dict:
     current_time = now.strftime("%H:%M")
     current_year = now.year
 
+    # Extract IDs from memory for the prompt if they exist
+    proyecto_id = memory.get("global", {}).get("proyecto_id", "NO_DISPONIBLE")
+    id_pasarela = memory.get("global", {}).get("id_pasarela", "NO_DISPONIBLE")
+
     channel = payload.get("channel", "whatsapp")
+    is_aichat = payload.get("is_aichat", False)
+
+    # Define closing instructions based on channel
+    if is_aichat:
+        closing_instructions = """
+   - **PRESENTACIÓN DE OFERTAS:** Muestra SIEMPRE TODAS las ofertas devueltas por la herramienta, sin omitir ninguna.
+   - Si el cliente responde que **SÍ** le interesa alguna opción (o pregunta cómo contratar):
+     1. **NO** ejecutes ninguna herramienta de creación de tareas (PROHIBIDO en AiChat).
+     2. Responde directamente: "Perfecto, puedes proceder con la contratación usando estos datos. ¿Necesitas ayuda con algo más?"
+   
+   - Si el cliente responde que **NO** (o dice "gracias", "adiós"):
+     1. Despídete amablemente.
+     2. Ejecuta `end_chat_tool`.
+"""
+    else:
+        closing_instructions = """
+   - **PRESENTACIÓN DE OFERTAS:** Muestra SIEMPRE TODAS las ofertas devueltas por la herramienta, sin omitir ninguna.
+   - Si el cliente responde que **SÍ** le interesa alguna opción (o pregunta cómo contratar):
+     1. Ejecuta `create_task_activity_tool` con:
+        - title: "Interesado en oferta renovación"
+        - description: "Cliente interesado en oferta presentada. Llamar para cerrar."
+        - activity_title: "Llamar para cerrar venta"
+     2. Responde al cliente: "Perfecto, he registrado tu interés. Un gestor revisará tu solicitud y te contactará muy pronto para finalizar la contratación. ¿Necesitas algo más?"
+   
+   - Si el cliente responde que **NO** (o dice "gracias", "adiós"):
+     1. Despídete amablemente.
+     2. Ejecuta `end_chat_tool`.
+"""
+
+    # Identificar tarificador (Avant2 vs Merlin) dinámicamente desde Firebase
+    try:
+        company_config = get_company_config(company_id) or {}
+        erp_config = company_config.get('erp', {})
+        tarificador = str(erp_config.get('tarificador', 'merlin')).lower().strip()
+        logger.info(f"[RENOVACION_AGENT] Dynamic tarificador for {company_id}: {tarificador}")
+    except Exception as e:
+        logger.error(f"[RENOVACION_AGENT] Error identifying tarificador: {e}")
+        tarificador = "merlin"
+
     system_prompt = get_prompt(channel).format(
         current_date=current_date,
         current_time=current_time,
         current_year=current_year,
         company_id=company_id,
+        tarificador=tarificador,
         nif_value=nif_value,
         wa_id=wa_id or "NO_DISPONIBLE",
+        proyecto_id=proyecto_id,
+        id_pasarela=id_pasarela,
+        closing_instructions=closing_instructions,
     )
+
+    task_done = task_tool_already_called(memory, AGENT_NAME)
+
+    # Persistent flag: once user requests a second tarification, keep tools unlocked
+    # until the second project is created (create_retarificacion_project_tool called again)
+    in_second_tarification = global_mem.get("second_tarification", False)
+
+    if task_done:
+        tarif_keywords = ["hogar", "auto", "coche", "moto", "tarificar", "seguro", "póliza", "poliza"]
+        if any(kw in user_text.lower() for kw in tarif_keywords) or in_second_tarification:
+            if not in_second_tarification:
+                global_mem["second_tarification"] = True
+                memory["global"] = global_mem
+                logger.info("[RENOVACION_AGENT] User wants another tarification — setting persistent flag")
+                
+                # IMPORTANT: Clear task_created flag in memory for this agent to allow a new task
+                # for the second tarification.
+                history_list = memory.get("conversation_history", [])
+                for turn in reversed(history_list):
+                    if turn.get("agent") == AGENT_NAME:
+                        for tc in (turn.get("tool_calls") or []):
+                            if tc.get("name") == "create_task_activity_tool":
+                                tc["name"] = "create_task_activity_tool_OLD"
+                                logger.info("[RENOVACION_AGENT] Renamed old task tool call to allow new task creation")
+            else:
+                logger.info("[RENOVACION_AGENT] Continuing second tarification (persistent flag active)")
+            task_done = False
+
+    if task_done:
+        system_prompt += _TASK_DONE_SUFFIX
+        logger.info("[RENOVACION_AGENT] Task already created — restricting tools")
 
     llm = get_llm()
     tools = [
@@ -53,17 +140,66 @@ def renovacion_agent(payload: dict) -> dict:
         get_town_by_cp_tool,
         consultar_catastro_tool,
         create_retarificacion_project_tool,
-        create_task_activity_tool,
+        finalizar_proyecto_hogar_tool,
         end_chat_tool,
         redirect_to_receptionist_tool,
     ]
+    if not task_done:
+        tools.insert(4, create_task_activity_tool)
 
     agent = create_langchain_agent(llm, tools, system_prompt)
+    logger.info(f"[RENOVACION_AGENT] Before agent run - memory proyecto_id={global_mem.get('proyecto_id')}, id_pasarela={global_mem.get('id_pasarela')}")
     result = run_langchain_agent(agent, user_text, history, agent_name="renovacion_agent")
+    logger.info(f"[RENOVACION_AGENT] After agent run - checking for new project IDs")
+
+    _memory_patch = {}
+    new_pid, new_pas = get_last_project_ids()
+    logger.info(f"[RENOVACION_AGENT] get_last_project_ids returned: pid={new_pid}, pas={new_pas}")
+    if new_pid and new_pas:
+        logger.info(f"[RENOVACION_AGENT] Persisting project IDs: proyecto_id={new_pid}, id_pasarela={new_pas}")
+        global_mem["proyecto_id"] = str(new_pid)
+        global_mem["id_pasarela"] = int(new_pas)
+        memory["global"] = global_mem
+        _memory_patch = {"global": {"proyecto_id": str(new_pid), "id_pasarela": int(new_pas)}}
+    else:
+        logger.info(f"[RENOVACION_AGENT] No new IDs from tool. Current memory IDs: proyecto_id={global_mem.get('proyecto_id')}, id_pasarela={global_mem.get('id_pasarela')}")
+
+    # Clear second_tarification flag once the project tool has been called in this turn
+    tool_calls_result = result.get("tool_calls") or []
+    tc_names_result = {tc.get("name") for tc in tool_calls_result}
+    if in_second_tarification and "create_retarificacion_project_tool" in tc_names_result:
+        global_mem["second_tarification"] = False
+        memory["global"] = global_mem
+        logger.info("[RENOVACION_AGENT] Second tarification project created — clearing flag")
 
     output_text = result.get("output", "")
     action = result.get("action", "ask")
     tool_calls = result.get("tool_calls")
+
+    # Persist second_tarification flag in memory patch
+    if global_mem.get("second_tarification") is not None:
+        if "global" not in _memory_patch:
+            _memory_patch["global"] = {}
+        _memory_patch["global"]["second_tarification"] = global_mem["second_tarification"]
+
+    if not task_done:
+        updated_tool_calls = auto_create_task_if_needed(
+            tool_calls, output_text,
+            company_id=company_id, nif_value=nif_value, wa_id=wa_id or "",
+            title="Renovación de Póliza",
+            description=f"Cliente consulta renovación de póliza. NIF: {nif_value}.",
+            activity_title="Llamar para gestionar renovación",
+            agent_label="RENOVACION_AGENT",
+        )
+        if updated_tool_calls:
+            result["tool_calls"] = updated_tool_calls
+            tool_calls = updated_tool_calls
+
+    if task_done:
+        forced = force_redirect_if_task_done(output_text, action, tool_calls)
+        if forced:
+            logger.info("[RENOVACION_AGENT] Task done & LLM didn't redirect — forcing redirect")
+            return forced
 
     # Check if redirect to receptionist was triggered
     if "__REDIRECT_TO_RECEPTIONIST__" in output_text:
@@ -74,6 +210,7 @@ def renovacion_agent(payload: dict) -> dict:
             "domain": None,
             "message": clean_message,
             "tool_calls": tool_calls,
+            "memory": _memory_patch,
         }
 
     if action == "end_chat":
@@ -81,10 +218,12 @@ def renovacion_agent(payload: dict) -> dict:
             "action": "end_chat",
             "message": output_text,
             "tool_calls": tool_calls,
+            "memory": _memory_patch,
         }
 
     return {
         "action": action,
         "message": output_text,
         "tool_calls": tool_calls,
+        "memory": _memory_patch,
     }

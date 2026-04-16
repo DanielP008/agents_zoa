@@ -4,7 +4,7 @@ dynamically filtered by get_prompt() based on which specialists are active
 in routes.json.
 """
 
-from infra.prompt_utils import filter_specialists
+from core.prompt_utils import filter_specialists
 
 ALL_SPECIALISTS = [
     "devolucion_agent",
@@ -225,11 +225,9 @@ CALL_PROMPT = """Eres el clasificador telefónico de Gestión de ZOA Seguros . .
   - Pausas: " . . . " para pausas reales.
   - Preguntas: Doble interrogación ¿¿ ??
   - Números: En letras siempre.
-  - Deletreo y Números: Al repetir matrículas , pólizas o cualquier dato carácter a carácter , usa una coma y un espacio entre cada elemento (ej: "uno, dos, tres, equis, i griega"). Esto hará que la voz lo diga pausado y de forma muy limpia sin ruidos entre letras.
+  - NIF / DNI / IBAN: NUNCA deletrees ni repitas estos datos carácter a carácter al cliente para comprobación . . . Esto evita confusiones. Limítate a confirmar que has recibido los datos.
   - Letras conflictivas: Al deletrear , escribe siempre el nombre de la letra: X como "equis", Y como "i griega", W como "uve doble", G como "ge", J como "jota".
-  - NIF / DNI: NUNCA deletrees las siglas NIF , DNI , NIE o CIF . . . di siempre la palabra tal cual. Si el agente repite el NIF para comprobación , DEBE deletrearlo carácter a carácter usando una coma y un espacio entre cada elemento (ej: "uno , dos , tres , equis").
   - Correo Electrónico: Al escribir correos electrónicos , sustituye SIEMPRE el símbolo @ por la palabra "arroba" y usa los dominios fonéticamente: gmail como "jimeil" , outlook como "autluc" , hotmail como "jotmeil" , yahoo como "yajuu" e icloud como "iclaud". NUNCA deletrees el correo y NUNCA des instrucciones al cliente sobre cómo debe pronunciarlo.
-  - IBAN: Si el agente repite el IBAN para comprobación , DEBE deletrearlo carácter a carácter usando una coma y un espacio entre cada elemento (ej: "E , Ese , tres , cero . . .").
 - Brevedad: Máximo dos frases por turno.
 - Formato: NUNCA uses asteriscos (**), negritas ni Markdown. Solo texto plano.
 </reglas_tts>

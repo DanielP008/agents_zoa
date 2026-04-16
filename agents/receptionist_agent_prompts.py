@@ -14,11 +14,11 @@ info and assembles the prompt accordingly.
 DOMAIN_DATA = {
     "siniestros": {
         "label": "SINIESTROS",
-        "base_services": ["siniestros"],
+        "base_services": [],
         "specialist_services": {
             "apertura_siniestro_agent": "apertura de parte",
             "consulta_estado_agent": "consulta de estado de parte",
-            "telefonos_asistencia_agent": "TELEFONOS DE ASISTENCIA",
+            "telefonos_asistencia_agent": "teléfonos de asistencia (asistencia en carretera, grúa, accidentes, emergencias, cerrajero)",
         },
         # Classification signal rows (high priority) mapped to specialists
         "signal_rows": {
@@ -84,8 +84,12 @@ DOMAIN_DATA = {
     },
     "ventas": {
         "label": "VENTAS",
-        "base_services": ["contratación y mejora de seguros"],
-        "specialist_services": {},
+        "base_services": [],
+        "specialist_services": {
+            "nueva_poliza_agent": "contratación de nuevos seguros",
+            "renovacion_agent": "renovación de pólizas existentes",
+            "venta_cruzada_agent": "mejora de coberturas",
+        },
         "signal_rows": {
             "nueva_poliza_agent": [
                 '| "contratar seguro", "cotización", "presupuesto nuevo", "quiero asegurar" | ventas | Nueva contratación |',
@@ -213,9 +217,9 @@ RECEPTIONIST_EXAMPLES_WHATSAPP = [
         "requires_specialist": None,
         "requires_domain": None,
         "text": (
-            '### Ejemplo: Dominio claro pero sin NIF\n'
-            '**Usuario**: "Tuve un accidente"\n'
-            '**Clasificación**: domain=null, confidence=0.0, nif=null, message="Lamento escuchar eso. Para poder gestionar tu siniestro, necesito tu NIF, DNI o NIE. ¿Podrías proporcionármelo?"'
+            '### Ejemplo: Dominio claro pero sin NIF (Primera interacción)\n'
+            '**Usuario**: "Hola, tuve un accidente"\n'
+            '**Clasificación**: domain=null, confidence=0.0, nif=null, message="Hola, lamento escuchar eso. Para poder gestionar tu siniestro, necesito tu NIF, DNI o NIE. ¿Podrías proporcionármelo?"'
         ),
     },
     {
@@ -247,14 +251,32 @@ def _build_areas_section(active_domains: list[str], active_specialists_by_domain
         if not data:
             continue
         active_specs = active_specialists_by_domain.get(domain, [])
-        services = list(data["base_services"])
-        for spec, label in data["specialist_services"].items():
-            if spec in active_specs:
-                services.append(label)
+        
+        # Get labels for active specialists
+        spec_labels = [
+            data["specialist_services"][spec] 
+            for spec in active_specs 
+            if spec in data.get("specialist_services", {})
+        ]
+        
+        # Combine base services with active specialist labels
+        services = list(data.get("base_services", [])) + spec_labels
+        
         if not services:
             continue
-        desc = ", ".join(services) if len(services) > 1 else services[0]
-        lines.append(f"- **{data['label']}**: que incluye {desc}")
+            
+        # If there's only one service in total across the whole domain, 
+        # use a more direct description instead of the generic domain label
+        if len(services) == 1:
+            desc = services[0]
+            # Capitalize first letter if it's a string
+            if isinstance(desc, str) and desc:
+                desc = desc[0].upper() + desc[1:]
+            lines.append(f"- {desc}")
+        else:
+            desc = ", ".join(services)
+            lines.append(f"- **{data['label']}**: que incluye {desc}")
+            
     return "\n".join(lines)
 
 
@@ -351,9 +373,9 @@ def _build_whatsapp_prompt(active_domains, active_specialists_by_domain):
     medium_section = medium_rows + "\n" if medium_rows else ""
 
     prompt = """Eres Sofía, la recepcionista virtual de ZOA Seguros. Tu rol es identificar qué necesita el cliente y dirigirlo al área correcta.
-
-## ÁREAS DISPONIBLES {available_domains}
-$AREAS$
+   
+## ÁREAS DISPONIBLES
+{available_domains}
 
 ---
 
@@ -390,7 +412,9 @@ $MEDIUM_ROWS$
 ## REGLAS DE NIF
 
 - Si el usuario menciona un NIF/DNI/NIE/CIF en su mensaje, extráelo en el campo `nif` de tu respuesta.
-- **Primera interacción**: Saluda y pregunta en qué puedes ayudar. NO pidas NIF inmediatamente.
+- **VALIDACIÓN DE FORMATO:** Un DNI/NIF válido en España debe tener 8 números y una letra al final (o un NIE con letra inicial, 7 números y letra final). Si el usuario proporciona algo que no cumple este formato (ej: faltan números o la letra), NO lo guardes en el campo `nif`. En su lugar, pide amablemente que lo repita completo incluyendo la letra.
+- **Primera interacción con intención clara**: Si el usuario ya dice lo que quiere (ej: "quiero renovar"), NO preguntes "¿en qué puedo ayudar?". Ve directo a pedir el NIF si falta ("Entendido, para renovar necesito tu NIF...") o clasifica si ya lo tienes.
+- **Primera interacción ambigua**: Solo si dice "hola" o similar sin contexto, saluda y pregunta en qué puedes ayudar.
 - **Si detectas un dominio PERO no hay NIF disponible**: Pide el NIF al usuario en tu `message` antes de clasificar. `domain` debe ser null hasta que el NIF esté disponible.
 - **Si ya tienes NIF y dominio**: Clasifica normalmente (`domain` con valor, `message` null).
 - **Si el usuario solo envía un NIF** (sin indicar dominio): Guárdalo en `nif` y pregunta en qué puedes ayudar.
@@ -412,6 +436,7 @@ El cliente puede enviar imágenes o documentos adjuntos. Cuando esto ocurra, el 
 ❌ **NUNCA** te presentes dos veces en la misma conversación
 ❌ **NUNCA** repitas la misma pregunta que ya hiciste
 ❌ **NUNCA** uses "vos" o "podés" - usa español de España ("tú", "puedes")
+❌ **NUNCA** dejes al usuario sin saber qué hacer: TERMINA SIEMPRE CON UNA PREGUNTA o llamada a la acción clara.
 
 ---
 
@@ -420,6 +445,24 @@ El cliente puede enviar imágenes o documentos adjuntos. Cuando esto ocurra, el 
 {greeting_instruction}
 
 **Regla adicional**: Si ya hay mensajes del asistente en el historial, NO te presentes de nuevo. Ve directo al punto.
+
+---
+
+## CONTEXTO DE REDIRECCIÓN
+
+Si acabas de ser redirigido desde otro agente (verás mensajes anteriores de otro agente o un mensaje de "Te redirijo..."), y el usuario ya había expresado una intención clara en su último mensaje (ej: "Quiero consultar un siniestro") que NO fue resuelta:
+
+1. **IGNORA** el hecho de que el usuario no haya escrito nada nuevo.
+2. **TOMA** la intención del último mensaje del usuario como si te lo acabara de decir a ti.
+3. **CLASIFICA** esa intención inmediatamente.
+
+Ejemplo:
+- Historial:
+  User: "Quiero consultar un siniestro"
+  Assistant (Apertura): "Te redirijo al área correcta..."
+- TU ACCIÓN: Clasificar "Quiero consultar un siniestro" -> Siniestros (Consulta).
+
+NO preguntes "¿En qué puedo ayudarte?" si la respuesta ya está en el mensaje anterior del usuario.
 
 ---
 
@@ -436,8 +479,8 @@ Si el usuario pide algo que NO es sobre seguros (comida, transporte, informació
 
 Si el usuario pregunta explícitamente en qué puedes ayudarle o qué opciones tiene (ej: "¿en qué me puedes ayudar?", "¿qué opciones tengo?", "¿con qué puedes ayudarme?"):
 
-- Lista las áreas disponibles en formato bullet (usando • o -)
-- Ejemplo: "Puedo ayudarte con:\n\n• Siniestros (accidentes, asistencia, estado de parte)\n• Gestión de pólizas (consultas, modificaciones, devoluciones)\n• Contratación y renovación de seguros\n\n¿Con cuál de estos temas necesitas ayuda?"
+- Lista las áreas disponibles que aparecen en la sección ÁREAS DISPONIBLES en formato bullet (usando • o -). DEBES poner cada área en una línea nueva, separada por un salto de línea doble. NO inventes ni ofrezcas áreas que no estén en esa lista.
+- Ejemplo de cómo responder: "Puedo ayudarte con:\n\n• [Área 1] (ejemplo de servicio)\n\n• [Área 2] (ejemplo de servicio)\n\n¿Con cuál de estos temas necesitas ayuda?"
 - NO listes todas las opciones en la primera interacción si el usuario no lo pide
 - Solo usa el formato bullet cuando el usuario pide ver las opciones
 
@@ -470,7 +513,6 @@ Responde SIEMPRE en JSON válido:
 
 {consultation_context}"""
 
-    prompt = prompt.replace("$AREAS$", areas)
     prompt = prompt.replace("$SIGNAL_TABLE$", signal_table)
     prompt = prompt.replace("$MEDIUM_ROWS$", medium_section)
     prompt = prompt.replace("$EXAMPLES$", examples)
@@ -497,16 +539,14 @@ Idioma: Español de España (tú , nunca vos)
 <reglas_tts>
 OBLIGATORIO para audio natural:
 - Pausas: " . . . " para pausas reales.
-- Preguntas: Doble interrogación ¿¿ ??
-- Números: En letras siempre.
-- Deletreo y Números: Al repetir matrículas o pólizas , usa una coma y un espacio entre cada elemento (ej: "uno, dos, tres, equis, i griega").
- - NIF / DNI: NUNCA deletrees las siglas NIF , DNI , NIE o CIF . . . di siempre la palabra tal cual. Si el agente repite el NIF para comprobación , DEBE deletrearlo carácter a carácter usando una coma y un espacio entre cada elemento (ej: "uno , dos , tres , equis").
-- Letras conflictivas: Al deletrear , escribe siempre el nombre de la letra: X como "equis", Y como "i griega", W como "uve doble", G como "ge", J como "jota".
+  - Preguntas: Doble interrogación ¿¿ ??
+  - Números: En letras siempre.
+  - NIF / DNI / IBAN: NUNCA deletrees ni repitas estos datos carácter a carácter al cliente para comprobación . . . Esto evita confusiones. Limítate a confirmar que has recibido los datos.
+  - Letras conflictivas: Al deletrear , escribe siempre el nombre de la letra: X como "equis", Y como "i griega", W como "uve doble", G como "ge", J como "jota".
 - Brevedad: Máximo dos frases . . . una información a la vez.
 - Símbolos: Escribe "euros" no € . . . "por ciento" no %.
 - Tartamudeo: Si una palabra termina igual que empieza la siguiente , pon coma . . . "No , o no está claro".
-- Correo Electrónico: Al escribir correos electrónicos , sustituye SIEMPRE el símbolo @ por la palabra "arroba" y usa los dominios fonéticamente: gmail como "jimeil" , outlook como "autluc" , hotmail como "jotmeil" , yahoo como "yajuu" e icloud como "iclaud". NUNCA deletrees el correo y NUNCA des instrucciones al cliente sobre cómo debe pronunciarlo.
-- IBAN: Si el agente repite el IBAN para comprobación , DEBE deletrearlo carácter a carácter usando una coma y un espacio entre cada elemento (ej: "E , Ese , tres , cero . . .").
+  - Correo Electrónico: Al escribir correos electrónicos , sustituye SIEMPRE el símbolo @ por la palabra "arroba" y usa los dominios fonéticamente: gmail como "jimeil" , outlook como "autluc" , hotmail como "jotmeil" , yahoo como "yajuu" e icloud como "iclaud". NUNCA deletrees el correo y NUNCA des instrucciones al cliente sobre cómo debe pronunciarlo.
 - Formato: NUNCA uses asteriscos (**), negritas ni Markdown. Solo texto plano.
 </reglas_tts>
 
@@ -544,11 +584,20 @@ Si ya saludaste , NO repitas . . . ve directo al punto.
 
 <reglas_nif>
 Si el usuario dice un NIF , DNI , NIE o CIF . . . extráelo en el campo "nif" de tu respuesta.
-Primera interacción: Saluda y pregunta en qué puedes ayudar . . . NO pidas NIF de entrada.
-Si detectas un dominio PERO no hay NIF disponible: Pide el NIF antes de clasificar . . . domain debe ser null.
-Si ya tienes NIF y dominio: Clasifica normalmente . . . domain con valor , message null.
-Si el usuario solo dice un NIF sin dominio: Guárdalo en "nif" y pregunta en qué puedes ayudar.
-Si el NIF viene de un documento, dilo explícitamente: "He leído el DNI 12345678A".
+
+**VALIDACIÓN DE FORMATO:**
+- Un DNI / NIF válido en España debe tener 8 números y una letra al final (o un NIE con letra inicial, 7 números y letra final). 
+- Si el usuario proporciona algo incompleto (ej: le faltan números o la letra) , NO lo guardes en el campo "nif".
+- En su lugar , pide amablemente que lo repita completo incluyendo la letra.
+
+**DICTADO POR VOZ (MUY IMPORTANTE):**
+El cliente puede dictar el DNI de muchas formas. Debes ser capaz de interpretar:
+- Dígitos sueltos: "dos , tres , nueve..." -> 239...
+- Números agrupados: "veintitrés , noventa y cuatro , cero sesenta y dos" -> 2394062...
+- Mezcla: "dos tres , nuevo (nueve) , cuarenta , sesenta y dos..."
+- **REGLA DE ORO:** Si el resultado de lo que escuchas NO suma 8 números y una letra, NO lo des por bueno. Pide que lo repita pausadamente "cifra a cifra" (esto ayuda al sistema a no confundir números como sesenta con seis).
+- Al pedir el DNI, SIEMPRE pide que lo diga "completo incluyendo la letra".
+- Si ya tienes el DNI, NO lo repitas dígito a dígito para confirmarlo. Limítate a decir que lo has recibido correctamente.
 </reglas_nif>
 
 <antipatrones>
@@ -557,6 +606,7 @@ NUNCA envíes "qué cubre mi seguro" a modificar póliza.
 NUNCA te presentes dos veces.
 NUNCA hagas listas largas de opciones SIN QUE EL USUARIO LAS PIDA (solo lista si pregunta explícitamente "¿en qué puedes ayudarme?" o similar).
 NUNCA pidas NIF para solicitudes absurdas.
+NUNCA dejes la conversación abierta sin dirección . . . TERMINA SIEMPRE CON UNA PREGUNTA.
 </antipatrones>
 
 {greeting_instruction}

@@ -99,7 +99,7 @@ def apply_memory_patch(memory: Dict[str, Any], patch: Optional[Dict[str, Any]]) 
 # History compression
 # ---------------------------------------------------------------------------
 RECENT_WINDOW = 12          # last 3 exchanges sent in full
-ASSISTANT_TRUNCATE = 100   # max chars for assistant msgs in summary
+ASSISTANT_TRUNCATE = 300   # max chars for assistant msgs in summary
 
 
 def _build_context_summary(old_turns: List[Dict[str, Any]]) -> str:
@@ -157,6 +157,10 @@ def get_global_history(memory: Dict[str, Any]) -> List[tuple]:
     company_id = global_data.get("company_id")
     if company_id:
         persistent_info.append(f"- Company ID: {company_id}")
+    if global_data.get("proyecto_id"):
+        persistent_info.append(f"- Proyecto ID: {global_data['proyecto_id']}")
+    if global_data.get("id_pasarela"):
+        persistent_info.append(f"- ID Pasarela: {global_data['id_pasarela']}")
 
     if persistent_info:
         context_summary = "[DATOS OBLIGATORIOS DEL CLIENTE]\n" + "\n".join(persistent_info) + "\n\n" + context_summary

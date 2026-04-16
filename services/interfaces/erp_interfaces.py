@@ -148,9 +148,10 @@ class ERPBaseInterface:
         self.company_id = company_id
         self.endpoint_url = os.environ.get(
             "ERP_ENDPOINT_URL",
-            "https://ebroker-api-673887944015.europe-southwest1.run.app"
+            "https://prod-flow-erp-673887944015.europe-southwest1.run.app"
         )
-        self.timeout = int(os.environ.get("ERP_TIMEOUT", "30"))
+        # Increased default timeout to 300s to allow long-running operations like Merlin retarification
+        self.timeout = int(os.environ.get("ERP_TIMEOUT", "300"))
 
     def _make_request(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Make a POST request to the ERP cloud function."""
@@ -169,21 +170,26 @@ class ERPBaseInterface:
                     headers=headers,
                     timeout=self.timeout
                 )
-                response.raise_for_status()
 
                 try:
                     result = response.json()
-                    logger.debug(f"ERP response: {result}")
-                    return result
                 except json.JSONDecodeError:
+                    if response.status_code >= 400:
+                        raise ERPClientError(f"HTTP {response.status_code}: {response.text[:300]}")
                     return {"status": response.status_code, "text": response.text}
+
+                if response.status_code >= 500:
+                    raise ERPClientError(f"HTTP {response.status_code}: {result}")
+
+                logger.debug(f"ERP response: {result}")
+                return result
 
             except requests.exceptions.Timeout:
                 raise ERPClientError("Request timeout - ERP service took too long to respond")
             except requests.exceptions.ConnectionError as e:
                 raise ERPClientError(f"Connection failed: {str(e)}")
-            except requests.exceptions.HTTPError as e:
-                raise ERPClientError(f"HTTP error: {str(e)}")
+            except ERPClientError:
+                raise
             except Exception as e:
                 raise ERPClientError(f"Unexpected error: {str(e)}")
 
@@ -356,3 +362,30 @@ class RenewalsInterface(ERPBaseInterface):
         if frequency:
             data["frequency"] = frequency
         return self.execute("renovaciones_recibos", data)
+
+class MerlinInterface(ERPBaseInterface):
+    """Interface for Merlin/Retarificacion operations."""
+    
+    def consulta_vehiculo(self, matricula: str) -> Tuple[Dict[str, Any], int]:
+        """Consulta DGT por matrícula. option='merlin_consulta_vehiculo'"""
+        if not matricula:
+            return {"error": "El campo 'matricula' es obligatorio."}, 400
+        return self.execute("merlin_consulta_vehiculo", {"matricula": matricula})
+
+    def get_town_by_cp(self, cp: str) -> Tuple[Dict[str, Any], int]:
+        """Obtiene población por CP. option='merlin_get_town_by_cp'"""
+        if not cp:
+            return {"error": "El campo 'cp' es obligatorio."}, 400
+        return self.execute("merlin_get_town_by_cp", {"cp": cp})
+
+    def consultar_catastro(self, data: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
+        """Consulta Catastro y calcula capitales. option='merlin_consultar_catastro'"""
+        return self.execute("merlin_consultar_catastro", data)
+
+    def create_project(self, data: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
+        """Crea proyecto en Merlin. option='merlin_create_project'"""
+        return self.execute("merlin_create_project", data)
+
+    def finalizar_proyecto_hogar(self, data: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
+        """Finaliza proyecto HOGAR con capitales elegidos. option='merlin_finalizar_proyecto_hogar'"""
+        return self.execute("merlin_finalizar_proyecto_hogar", data)

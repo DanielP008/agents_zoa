@@ -72,7 +72,11 @@ def handle_end_chat(wa_id: str, company_id: str, agent_message: str | None,
                     is_aichat: bool = False) -> dict:
     """Handle the end_chat action: delete session and return."""
     logger.info(f"[ORCHESTRATOR] end_chat triggered for wa_id={wa_id}")
+    
+    # 1. Get current session to preserve identifiers if needed (though delete_session is absolute)
+    # 2. Delete the session from PostgreSQL
     deleted = session_manager.delete_session(wa_id, company_id)
+    
     if deleted:
         logger.info(f"[ORCHESTRATOR] Session deleted for wa_id={wa_id}")
     else:
@@ -88,6 +92,7 @@ def handle_end_chat(wa_id: str, company_id: str, agent_message: str | None,
         "status": "completed",
         "session_deleted": deleted,
     }
+
 
 
 def handle_ask(response: dict, session: dict, session_id: str, memory: dict,
@@ -114,6 +119,10 @@ def handle_ask(response: dict, session: dict, session_id: str, memory: dict,
     return {"type": "text", "message": agent_message, "agent": target_agent}
 
 
+_RECEPTIONIST_AGENTS = frozenset({"receptionist_agent", "aichat_receptionist_agent"})
+_RECEPTIONIST_GREETING = "Dime, ¿Qué otra consulta tienes?"
+
+
 def handle_route(response: dict, session: dict, session_id: str, memory: dict,
                  target_agent: str, channel: str, session_manager,
                  allowlist: dict, is_aichat: bool = False) -> dict:
@@ -129,6 +138,15 @@ def handle_route(response: dict, session: dict, session_id: str, memory: dict,
         return {"error": error}
 
     agent_message = response.get("message")
+
+    # When routing back to the receptionist, replace the specialist's farewell
+    # with a clean greeting — the specialist already communicated everything.
+    if new_target in _RECEPTIONIST_AGENTS:
+        if agent_message and agent_message.strip():
+            agent_message = agent_message
+        else:
+            agent_message = _RECEPTIONIST_GREETING
+
     memory = record_assistant_turn(
         memory, message=agent_message, agent=target_agent,
         domain=new_domain, action="route",

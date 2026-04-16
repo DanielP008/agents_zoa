@@ -3,6 +3,7 @@ import logging
 import re
 from langchain.tools import tool
 from services.zoa_client import create_task_activity
+from core.request_context import get_client_name, get_wa_channel, get_wa_id
 
 logger = logging.getLogger(__name__)
 
@@ -40,8 +41,14 @@ def create_task_activity_tool(data: str) -> dict:
     - phone: str (optional, to link contact)
     - email: str (optional, to link contact)
     - mobile: str (optional, to link contact)
+    - nif: str (optional, to link contact)
+    - name: str (optional, to link contact by name if other identifiers fail)
     - pipeline_name: str (optional, 'Principal' para tasks, 'Cotizaciones'/'Renovaciones' para opportunities)
     """
+    # Disable task creation for AiChat
+    if get_wa_channel() == "aichat":
+        return {"error": "La creación de tareas no está soportada en AiChat."}
+
     VALID_ACTIVITY_TYPES = ["llamada", "reunion", "whatsapp", "email", "tarea"]
     
     try:
@@ -63,7 +70,25 @@ def create_task_activity_tool(data: str) -> dict:
 
         # Remove stage_name — ZOA auto-assigns to first stage
         payload.pop("stage_name", None)
-            
+
+        # Inject phone (wa_id) from context if not provided by the LLM
+        if not payload.get("phone"):
+            ctx_phone = get_wa_id()
+            if ctx_phone:
+                payload["phone"] = ctx_phone
+                logger.info(f"[TASKS_TOOL] Injected phone from context: {ctx_phone}")
+
+        # Inject client name from context if not provided by the LLM
+        if not payload.get("name"):
+            ctx_name = get_client_name()
+            if ctx_name:
+                payload["name"] = ctx_name
+                logger.info(f"[TASKS_TOOL] Injected client_name from context: {ctx_name}")
+
+        # Ensure first name is uppercase as ZOA expects
+        if payload.get("name"):
+            payload["name"] = str(payload["name"]).upper()
+
         return create_task_activity(**payload)
     except json.JSONDecodeError as e:
         logger.error(f"[TASKS_TOOL] JSON parse error: {e} | raw data: {data[:200]}")

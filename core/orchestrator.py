@@ -1,8 +1,6 @@
 """Central orchestrator: receives messages, preprocesses, routes through agents, persists state."""
 
 import logging
-import threading
-
 from core.action_handlers import (
     handle_ask,
     handle_end_chat,
@@ -21,10 +19,10 @@ from core.memory import (
 from core.preprocessors import extract_attachments, process_attachments_ocr, try_silent_nif_lookup
 from core.routing.allowlist import build_agent_allowlist, load_routes_config
 from core.routing.main_router import route_request
-from infra.agent_runner import set_wa_context
-from infra.db import SessionManager
+from core.request_context import set_wa_context
+from core.session_store import get_session_manager
 from infra.timing import start_trace, dump_trace
-from services.zoa_client import send_whatsapp_response
+from services.zoa_client import send_whatsapp_response_sync
 
 logger = logging.getLogger(__name__)
 
@@ -32,10 +30,10 @@ logger = logging.getLogger(__name__)
 # Module-level singletons / constants
 # ---------------------------------------------------------------------------
 _DEFAULT_AGENT = "receptionist_agent"
-_MAX_CHAIN_DEPTH = 5
+_MAX_CHAIN_DEPTH = 10
 _ROUTE_BLOCKED_MSG = "No pude derivarte en este momento. ¿Podés intentar de nuevo?"
 
-session_manager = SessionManager()
+session_manager = get_session_manager()
 
 _ROUTES_CONFIG = load_routes_config()
 _AGENT_ALLOWLIST = build_agent_allowlist(_ROUTES_CONFIG)
@@ -69,6 +67,11 @@ def _preprocess_message(payload: dict, session: dict) -> tuple[dict, dict, str]:
             existing = []
         memory = update_global(memory, attachments=existing + attachments)
 
+    # Silent CRM lookup for NIF (Parallelize with OCR if possible, but for now we keep order)
+    memory, _ = try_silent_nif_lookup(memory, wa_id, company_id)
+
+    # Run OCR (now after NIF lookup to potentially use NIF in OCR prompt if needed, 
+    # but mainly to keep it separate from the main routing if it's slow)
     memory, ocr_text = process_attachments_ocr(memory)
     if ocr_text:
         mensaje = f"{mensaje}\n\n{ocr_text}" if mensaje else ocr_text
@@ -77,8 +80,21 @@ def _preprocess_message(payload: dict, session: dict) -> tuple[dict, dict, str]:
         mensaje = "[adjunto sin contenido extraíble]"
         payload["mensaje"] = mensaje
 
-    # Silent CRM lookup for NIF
-    memory, _ = try_silent_nif_lookup(memory, wa_id, company_id)
+    # Silent CRM lookup for Name (if not already known)
+    global_mem = memory.get("global", {})
+    if not global_mem.get("name") and wa_id and company_id:
+        try:
+            from services.zoa_client import search_contact_by_phone
+            contact_response = search_contact_by_phone(wa_id, company_id)
+            if contact_response.get("success"):
+                data = contact_response.get("data", [])
+                if isinstance(data, list) and data:
+                    name = data[0].get("name")
+                    if name:
+                        memory = update_global(memory, name=name)
+                        logger.info(f"[ORCHESTRATOR] Found name from CRM: {name}")
+        except Exception as e:
+            logger.error(f"[ORCHESTRATOR] Name lookup error: {e}")
 
     # Persist identifiers in global memory
     if wa_id:
@@ -90,21 +106,19 @@ def _preprocess_message(payload: dict, session: dict) -> tuple[dict, dict, str]:
     return memory, session, mensaje
 
 
-def _send_whatsapp_async(text: str, phone_number_id: str, wa_id: str) -> None:
-    """Fire-and-forget WhatsApp send in a background thread."""
-    def _send():
-        try:
-            send_whatsapp_response(text=text, company_id=phone_number_id, wa_id=wa_id)
-        except Exception:
-            logger.exception("[ORCHESTRATOR] Fire-and-forget WhatsApp send failed")
-
-    threading.Thread(target=_send, daemon=True).start()
+def _send_whatsapp(text: str, phone_number_id: str, wa_id: str) -> None:
+    """Send WhatsApp message synchronously (Cloud Run kills daemon threads after response)."""
+    try:
+        send_whatsapp_response_sync(text=text, company_id=phone_number_id, wa_id=wa_id)
+        logger.info(f"[ORCHESTRATOR] WhatsApp message sent to {wa_id}")
+    except Exception:
+        logger.exception("[ORCHESTRATOR] WhatsApp send failed")
 
 
 # ---------------------------------------------------------------------------
 # Routing chain
 # ---------------------------------------------------------------------------
-
+# TO-DO: think if this is necessary.
 def _run_routing_chain(payload: dict, session: dict, memory: dict,
                        target_agent: str) -> tuple[dict, dict, str, int]:
     """Execute the silent-passthrough routing loop.
@@ -127,8 +141,11 @@ def _run_routing_chain(payload: dict, session: dict, memory: dict,
         if action == "end_chat":
             break
 
+        if action == "transfer_call":
+            break
+
         # Silent passthrough: route with no user-facing message
-        if action == "route" and not agent_message:
+        if action == "route":
             new_target = response.get("next_agent")
             new_domain = resolve_domain(response, session)
 
@@ -136,6 +153,23 @@ def _run_routing_chain(payload: dict, session: dict, memory: dict,
             if error:
                 response = {"_routing_error": error}
                 break
+
+            # If there is a message, send it and record it
+            if agent_message:
+                # 1. Send to WhatsApp
+                if payload.get("phone_number_id") and payload.get("channel") == "whatsapp":
+                     _send_whatsapp(agent_message, payload["phone_number_id"], payload.get("wa_id"))
+                
+                # 2. Record in memory
+                memory = append_turn(
+                    memory,
+                    role="assistant",
+                    text=agent_message,
+                    agent=target_agent,
+                    domain=new_domain,
+                    action="route",
+                    tool_calls=response.get("tool_calls")
+                )
 
             session["target_agent"] = new_target
             session["domain"] = new_domain
@@ -145,7 +179,7 @@ def _run_routing_chain(payload: dict, session: dict, memory: dict,
             memory = update_global(
                 memory,
                 last_agent=target_agent,
-                last_action="passthrough",
+                last_action="route" if agent_message else "passthrough",
                 last_domain=new_domain,
             )
             session["agent_memory"] = memory
@@ -183,10 +217,22 @@ def process_message(payload: dict) -> dict:
     # 1. Session
     session = session_manager.get_session(wa_id, company_id)
     
+    # TODO: Is this the best way to determine the target agent?
     # Use specialized receptionist for AiChat
     is_aichat = payload.get("is_aichat", False)
     default_agent = "aichat_receptionist_agent" if is_aichat else _DEFAULT_AGENT
     target_agent = session.get("target_agent") or default_agent
+
+    # TODO: What is this?
+    # Override agent if force_agent is set (e.g. dial_agent during business hours)
+    force_agent = payload.get("force_agent")
+    if force_agent:
+        target_agent = force_agent
+    
+    # Optional override if current agent matches a specific key (e.g. force exit dial_agent if out of hours)
+    force_agent_if_current = payload.get("force_agent_if_current", {})
+    if target_agent in force_agent_if_current:
+        target_agent = force_agent_if_current[target_agent]
 
     if is_aichat:
         logger.info(f"[ORCHESTRATOR] Processing AiChat message for user {wa_id}. Target agent: {target_agent}")
@@ -198,11 +244,21 @@ def process_message(payload: dict) -> dict:
     # 2. Preprocessing
     memory, session, mensaje = _preprocess_message(payload, session)
     payload["session"] = session
+    
+    # Update mensaje if it was changed during preprocessing (OCR/NIF)
+    if payload.get("mensaje"):
+        mensaje = payload["mensaje"]
+    
+    # If NIF was extracted in this turn, ensure it's available for routing
+    global_mem = memory.get("global", {})
+    nif_value = global_mem.get("nif")
 
+    # TODO: What is this?
     # Set WhatsApp context so agent_runner can send "please wait" on tool use
-    set_wa_context(wa_id, phone_number_id, channel)
+    client_name = global_mem.get("client_name", "")
+    set_wa_context(wa_id, phone_number_id, channel, client_name=client_name)
 
-    # 3. Routing chain
+    # 3. Routing chain. The routing chain lets the agent chain route the message to the next agent.
     response, memory, target_agent, chain_depth = _run_routing_chain(
         payload, session, memory, target_agent,
     )
@@ -224,13 +280,28 @@ def process_message(payload: dict) -> dict:
     # Guard: if agent returned ask/finish with empty message, use fallback
     if action in ("ask", "finish") and (not agent_message or not agent_message.strip()):
         logger.warning(f"[ORCHESTRATOR] Agent '{target_agent}' returned empty message with action='{action}'. Using fallback.")
-        agent_message = "Disculpa, tuve un problema procesando tu mensaje. ¿Podrías repetirlo?"
+        agent_message = "Disculpa, no he podido procesar tu mensaje. ¿Podrías repetírmelo?"
         response["message"] = agent_message
 
     # 3a. end_chat can happen inside the loop
     if action == "end_chat":
         return handle_end_chat(wa_id, company_id, agent_message, channel,
                                session_manager, is_aichat=payload.get("is_aichat", False))
+
+    # 3b. transfer_call: dial_agent wants to transfer to a PBX extension
+    if action == "transfer_call":
+        extension = response.get("extension", "")
+        logger.info(f"[ORCHESTRATOR] transfer_call to extension={extension} for wa_id={wa_id}")
+        deleted = session_manager.delete_session(wa_id, company_id)
+        dump_trace(channel)
+        return {
+            "type": "transfer",
+            "message": agent_message,
+            "extension": extension,
+            "agent": target_agent,
+            "status": "transfer",
+            "session_deleted": deleted,
+        }
 
     # Append user turn AFTER routing chain resolved
     memory = append_turn(
@@ -249,7 +320,7 @@ def process_message(payload: dict) -> dict:
     # 4. Send WhatsApp (fire-and-forget)
     if agent_message and action in ("ask", "finish", "route"):
         if phone_number_id and channel == "whatsapp":
-            _send_whatsapp_async(agent_message, phone_number_id, wa_id)
+            _send_whatsapp(agent_message, phone_number_id, wa_id)
 
     # 5. Dispatch to action handler
     common = dict(

@@ -8,49 +8,73 @@ from infra.llm import get_llm
 from core.memory import get_global_history
 from infra.llm_utils import safe_structured_invoke
 from infra.config import get_routes_path
-from infra.decision_schemas import ReceptionistDecision
+from core.schemas import ReceptionistDecision
 from core.routing.allowlist import get_active_specialists
-from agents.receptionist_agent_prompts import get_prompt
+from agents.receptionist_agent_prompts import get_prompt, DOMAIN_DATA
 
 logger = logging.getLogger(__name__)
 
 _ROUTES_PATH = get_routes_path()
 
-with open(_ROUTES_PATH, "r") as f:
-    _ROUTES_CONFIG = json.load(f)
-    _VALID_DOMAINS = set(
-        k for k, v in _ROUTES_CONFIG["domains"].items()
-        if v.get("enabled", True)
-    )
-
-# Build active domains and specialist mapping for prompt assembly
-_ACTIVE_DOMAINS = [
-    k for k, v in _ROUTES_CONFIG["domains"].items()
-    if v.get("enabled", True) and v.get("classifier")
-]
-_ACTIVE_SPECIALISTS_BY_DOMAIN = {
-    domain: get_active_specialists(domain, _ROUTES_CONFIG)
-    for domain in _ACTIVE_DOMAINS
-}
+def is_valid_nif(nif: str) -> bool:
+    """Check if the provided NIF/DNI/NIE/CIF matches a valid Spanish format.
+    
+    Standard patterns:
+    - DNI: 8 digits + 1 letter (e.g. 12345678A)
+    - NIE: 1 letter (XYZ) + 7 digits + 1 letter (e.g. X1234567L)
+    - CIF/Other: 1 letter + 7 digits + 1 letter/digit (e.g. B12345678)
+    """
+    if not nif:
+        return False
+    
+    # Remove any spaces or dashes
+    nif = nif.replace(" ", "").replace("-", "").upper()
+    
+    patterns = [
+        r"^\d{8}[A-Z]$",        # DNI
+        r"^[XYZ]\d{7}[A-Z]$",   # NIE
+        r"^[A-Z]\d{7}[A-Z0-9]$" # CIF / Others
+    ]
+    
+    for pattern in patterns:
+        if re.match(pattern, nif):
+            return True
+    return False
 
 def _extract_nif_from_text(text: str) -> str:
     if not text:
         return ""
+    # We use the same patterns as is_valid_nif but with word boundaries for extraction
     patterns = [
-        r"\b\d{8}[A-Za-z]\b",
-        r"\b[XYZ]\d{7}[A-Za-z]\b",
-        r"\b[A-Za-z]\d{7}[A-Za-z0-9]\b",
+        r"\b\d{8}[A-Z]\b",
+        r"\b[XYZ]\d{7}[A-Z]\b",
+        r"\b[A-Z]\d{7}[A-Z0-9]\b",
     ]
     for pattern in patterns:
         match = re.search(pattern, text, re.IGNORECASE)
         if match:
-            return match.group(0).upper()
+            val = match.group(0).upper()
+            if is_valid_nif(val):
+                return val
     return ""
 
 def _build_nif_memory_patch(nif: str) -> dict:
     return {"global": {"nif": nif, "nif_lookup_failed": False}}
 
 def receptionist_agent(payload: dict) -> dict:
+    # Reload config to be dynamic
+    with open(_ROUTES_PATH, "r") as f:
+        routes_config = json.load(f)
+    
+    active_domains = [
+        k for k, v in routes_config["domains"].items()
+        if v.get("enabled", True) and v.get("classifier")
+    ]
+    active_specialists_by_domain = {
+        domain: get_active_specialists(domain, routes_config)
+        for domain in active_domains
+    }
+
     session = payload.get("session", {})
     memory = session.get("agent_memory", {})
     user_text = payload.get("mensaje", "")
@@ -79,8 +103,8 @@ def receptionist_agent(payload: dict) -> dict:
     # Domain shortcut: only if we already have NIF
     if session.get("domain") and nif_value:
         existing_domain = session.get("domain")
-        if existing_domain in _ROUTES_CONFIG["domains"] and _ROUTES_CONFIG["domains"][existing_domain].get("enabled", True):
-            domain_config = _ROUTES_CONFIG["domains"][existing_domain]
+        if existing_domain in routes_config["domains"] and routes_config["domains"][existing_domain].get("enabled", True):
+            domain_config = routes_config["domains"][existing_domain]
             if domain_config.get("classifier"):
                 return {
                     "action": "route",
@@ -104,16 +128,41 @@ def receptionist_agent(payload: dict) -> dict:
         else:
             history_messages.append(HumanMessage(content=text))
 
-    active_domains_map = {
-        k: v.get("receptionist_label", k.capitalize())
-        for k, v in _ROUTES_CONFIG["domains"].items()
-        if v.get("classifier") and v.get("enabled", True)
-    }
-    available_domains_str = ", ".join(active_domains_map.values())
+    active_domains_map = {}
+    for k, v in routes_config["domains"].items():
+        if not v.get("enabled", True) or not v.get("classifier"):
+            continue
+            
+        active_specs = get_active_specialists(k, routes_config)
+        if not active_specs:
+            continue
+            
+        # Build description from specialist labels
+        domain_data = DOMAIN_DATA.get(k, {})
+        spec_services = domain_data.get("specialist_services", {})
+        
+        labels = []
+        for spec in active_specs:
+            if spec in spec_services:
+                labels.append(spec_services[spec])
+        
+        if labels:
+            desc = ", ".join(labels)
+            label = v.get("receptionist_label", k.capitalize())
+            active_domains_map[k] = f"{label} ({desc})"
+
+    # Use double newline for clear separation in WhatsApp
+    # We add a trailing newline to each item to force the LLM to respect it
+    available_domains_str = "\n\n".join([f"• {label}" for label in active_domains_map.values()])
 
     greeting_instruction = ""
     if is_first_interaction:
-        greeting_instruction = "Esta es la PRIMERA interacción. Preséntate brevemente como Sofía de ZOA Seguros y pregunta en qué puedes ayudar."
+        greeting_instruction = (
+            "Esta es la PRIMERA interacción. "
+            "SI el usuario solo dice 'hola' o similar, preséntate brevemente como Sofía de ZOA Seguros y pregunta en qué puedes ayudar. "
+            "PERO SI el usuario ya dice lo que quiere (ej: 'quiero renovar', 'tuve un accidente'), NO saludes ni preguntes '¿en qué ayudo?'. "
+            "Ve DIRECTAMENTE a pedir el NIF si falta o a clasificar si ya tienes todo."
+        )
     else:
         greeting_instruction = "Esta NO es la primera interacción. NO te vuelvas a presentar. Ve directo al grano."
 
@@ -129,12 +178,13 @@ def receptionist_agent(payload: dict) -> dict:
 
     # Get prompt based on channel, filtered to active domains/specialists
     channel = payload.get("channel", "whatsapp")
-    system_prompt_template = get_prompt(channel, _ACTIVE_DOMAINS, _ACTIVE_SPECIALISTS_BY_DOMAIN)
+    system_prompt_template = get_prompt(channel, active_domains, active_specialists_by_domain)
 
     # Format the system prompt manually so history messages (which may
     # contain JSON with curly braces from OCR) are never parsed as templates.
+    # We use a very explicit instruction in the available_domains placeholder
     formatted_system = system_prompt_template.format(
-        available_domains=available_domains_str,
+        available_domains="\n\n" + available_domains_str + "\n\n",
         greeting_instruction=greeting_instruction,
         consultation_context=consultation_context,
         nif_status=nif_status,
@@ -162,17 +212,29 @@ def receptionist_agent(payload: dict) -> dict:
         error_context="receptionist_decision"
     )
 
-    # --- NIF extraction ---
+    # --- NIF extraction & validation ---
     extracted_nif = ""
     # If the decision contains a NIF, use it
     if decision.nif:
-        extracted_nif = decision.nif.strip().upper()
+        extracted_nif = decision.nif.strip().replace(" ", "").replace("-", "").upper()
     
     # If not, try to extract it from the user text
     if not extracted_nif:
         extracted_nif = _extract_nif_from_text(user_text)
 
-    # If NIF was found (either in decision or extracted from text)
+    # Validate the extracted NIF format
+    if extracted_nif and not is_valid_nif(extracted_nif):
+        logger.warning(f"[RECEPTIONIST] Invalid NIF format detected: {extracted_nif}. Ignoring it.")
+        extracted_nif = ""
+        # If the LLM thought it was valid but it wasn't, we override the message to ask again
+        if channel == "call":
+            decision.message = "Disculpa . . . No he podido leer bien tu DNI . . . ¿¿Podrías repetirlo completo cifra a cifra incluyendo la letra???"
+        else:
+            decision.message = "Lo siento, el DNI/NIF que me has dado no parece tener un formato válido. ¿Podrías indicarlo completo incluyendo la letra?"
+        decision.domain = None # Force to stay in receptionist until valid NIF is given
+        decision.confidence = 0.0
+
+    # If NIF was found and is valid
     if extracted_nif:
         # If we didn't have a NIF before, or if the new NIF is different, update it
         if not nif_value or nif_value != extracted_nif:
@@ -187,7 +249,7 @@ def receptionist_agent(payload: dict) -> dict:
     if domain and domain in active_domains_map:
         if nif_value:
             # Both domain and NIF available -> route
-            domain_config = _ROUTES_CONFIG["domains"][domain]
+            domain_config = routes_config["domains"][domain]
             classifier_agent = domain_config.get("classifier")
             if classifier_agent:
                 # Merge patches to clear consultation_completed
@@ -221,9 +283,9 @@ def receptionist_agent(payload: dict) -> dict:
     if not message:
         # If NIF was just provided but no domain, acknowledge it
         if memory_patch and "nif" in memory_patch.get("global", {}):
-            message = "Gracias, he recibido tu documento. ¿En qué puedo ayudarte hoy? ¿Necesitas abrir un siniestro, consultar una póliza o algo más?"
+            message = f"Gracias, he recibido tu documento. ¿En qué puedo ayudarte hoy?\n\n{available_domains_str}"
         else:
-            message = f"Disculpa, no entendí bien. ¿Tu consulta es sobre {available_domains_str}?"
+            message = f"Disculpa, no entendí bien. ¿Tu consulta es sobre alguna de estas áreas?\n\n{available_domains_str}"
 
     final_patch = memory_patch or {}
     if "global" not in final_patch:

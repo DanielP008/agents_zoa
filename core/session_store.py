@@ -26,6 +26,15 @@ DB_NAME = os.getenv("DB_NAME", "postgres")
 DB_PORT = os.getenv("DB_PORT", "5432")
 
 _POOL = None
+_SESSION_MANAGER = None
+
+
+def get_session_manager():
+    """Return a shared SessionManager singleton."""
+    global _SESSION_MANAGER
+    if _SESSION_MANAGER is None:
+        _SESSION_MANAGER = SessionManager()
+    return _SESSION_MANAGER
 
 
 def _init_connection_pool():
@@ -260,7 +269,7 @@ class SessionManager:
     def unlock_session(self, user_id: str, company_id: str) -> None:
         """Release the processing lock on a session."""
         session_id = self._get_composite_id(user_id, company_id)
-        query = text("UPDATE sessions SET processing = FALSE WHERE session_id = :sid")
+        query = text("UPDATE sessions SET processing = FALSE, updated_at = NOW() WHERE session_id = :sid")
 
         _execute_with_retry(
             self.pool, "unlock_session", query, {"sid": session_id},

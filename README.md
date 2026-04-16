@@ -3,6 +3,8 @@
 AI multi-agent system to automate customer service for insurance brokers.  
 Processes WhatsApp messages through a hierarchy of specialized agents with persistent memory.
 
+> **Note:** This project was developed during my time at **Zoa Suite**, where I was responsible for building and maintaining this repository to handle the middleware logic described in this documentation.
+
 ---
 
 ## Table of Contents
@@ -94,18 +96,25 @@ Processes WhatsApp messages through a hierarchy of specialized agents with persi
 ### Agent Hierarchy
 
 ```
-receptionist_agent
+dial_agent (Call Router - Business Hours)
+│   └── transfer_call_tool → PBX Extensions (201, 202, etc.)
+│
+receptionist_agent (Standard Flow / After-hours)
 │
 ├── classifier_siniestros_agent
 │   ├── telefonos_asistencia_agent    → Tow truck/assistance numbers
 │   ├── apertura_siniestro_agent      → Report new claim
 │   └── consulta_estado_agent         → Check existing claim status
 │
-├── classifier_gestion_agent          → (pending)
-│   └── ...
+├── classifier_gestion_agent
+│   ├── consultar_poliza_agent        → Query policy details
+│   ├── modificar_poliza_agent        → Handle policy modifications
+│   └── devolucion_agent              → Process returns
 │
-└── classifier_ventas_agent           → (pending)
-    └── ...
+└── classifier_ventas_agent
+    ├── renovacion_agent              → Handle policy renewals
+    ├── nueva_poliza_agent            → Process new policy applications
+    └── venta_cruzada_agent           → Cross-selling opportunities
 ```
 
 ---
@@ -183,11 +192,18 @@ return {
 
 ### Receptionist (`receptionist_agent.py`)
 
-- **Function**: Classifies the message domain (claims, management, sales)
-- **First interaction**: Shows welcome message if it cannot classify
-- **Subsequent interactions**: Asks for clarification if it cannot classify
-- **Architecture**: Uses `llm.with_structured_output()` for structured decisions
-- **Output**: Always `route` with passthrough or `ask` to clarify
+- **Function**: Classifies the message domain (claims, management, sales).
+- **First interaction**: Shows welcome message if it cannot classify.
+- **NIF/DNI Validation**: Strictly validates identification formats (8 numbers + 1 letter) and suggests "digit-by-digit" dictation in voice channels if incorrect.
+- **Architecture**: Uses `llm.with_structured_output()` for structured decisions.
+- **Output**: Always `route` with passthrough or `ask` to clarify.
+
+### Dial Agent (`dial_agent.py`)
+
+- **Function**: Specialized agent for handling incoming calls during business hours.
+- **Goal**: Understand the user's intent (sales, claims, etc.) and route the call to the appropriate internal PBX extension.
+- **Rules**: Never asks for DNI, never solves queries, always transfers to human specialists.
+- **Tools**: Uses `transfer_call_tool` to execute the PBX transfer.
 
 ### Classifier Siniestros (`classifier_agent.py`)
 
@@ -204,6 +220,29 @@ return {
 | `apertura_siniestro_agent`    | Collects data and registers new claim      | `agent_factory` with tools |
 | `consulta_estado_agent`       | Checks status of existing claims           | `agent_factory` with tools |
 
+### Classifier Gestion (`classifier_gestion_agent.py`)
+
+- **Function**: Handles policy management inquiries.
+- **Specialists**:
+  - `consultar_poliza_agent`: Queries policy details.
+  - `modificar_poliza_agent`: Handles policy modifications (currently disabled).
+  - `devolucion_agent`: Processes returns (currently disabled).
+
+### Classifier Ventas (`classifier_ventas_agent.py`)
+
+- **Function**: Manages sales and renewals.
+- **Specialists**:
+  - `renovacion_agent`: Handles policy renewals.
+  - `nueva_poliza_agent`: Processes new policy applications (currently disabled).
+  - `venta_cruzada_agent`: Suggests cross-selling opportunities (currently disabled).
+  - `wildix_card_agent`: Handles Wildix card interactions.
+
+### Common Agents
+
+- `generic_knowledge_agent`: Handles general queries not specific to a domain.
+- `aichat_receptionist_agent`: Specialized receptionist for AI Chat interactions.
+
+
 ### Implementation Patterns
 
 **All agents follow these established patterns:**
@@ -214,7 +253,11 @@ return {
 
 - **Structured Output**: Use `llm.with_structured_output()` for decision agents (routing/classification)
 
-- **Path Resolution**: Use `hooks.get_contracts_path()` and `get_config_path()` for consistent file access across the project
+- **Path Resolution**: Use `hooks.get_z_contracts_path()` and `get_config_path()` for consistent file access across the project
+
+- **Prompts Management**: Each agent has a corresponding `*_prompts.py` file in its directory for prompt isolation.
+
+- **Infrastructure Core**: Use `infra/agent_runner.py` for executing agent logic and `infra/llm.py` for multi-provider LLM access.
 
 - **Response Building**: Return standardized dicts with consistent `action`, `message`, `memory` structure
 
@@ -296,15 +339,38 @@ cp .env.example .env
 |--------------------|--------------------------------------|-----------------------------|
 | `GEMINI_API_KEY`   | Google AI API key                    | `AIza...`                   |
 | `GEMINI_MODEL`     | Main model                           | `gemini-2.5-flash`          |
-| `ZOA_ENDPOINT_URL` | ZOA API URL for WhatsApp             | `https://flow-zoa-...`      |
+| `ZOA_ENDPOINT_URL` | ZOA API URL for WhatsApp             | `https://prod-flow-zoa-...` |
+| `ZOA_API_KEY`      | ZOA API Key                          | `sk_test_...`               |
+| `FIREBASE_PROJECT_ID` | Firebase Project ID for schedule lookup | `zoa-suite`                |
+| `FIREBASE_CREDENTIALS_PATH` | Path to JSON service account key     | `firebase-key.json`        |
+| `WILDIX_TRANSFER_CONTEXT` | Context for Wildix call transfers | `from-internal`            |
 
 **Optional variables:**
 
 | Variable                   | Description                    | Default                    |
 |----------------------------|--------------------------------|----------------------------|
-| `GEMINI_OCR_MODEL`         | Model for OCR                  | `gemini-1.5-flash`         |
-| `LANGSMITH_API_KEY`        | Key for tracing                | -                          |
-| `LANGCHAIN_TRACING_V2`     | Enable tracing                 | `false`                    |
+| `GEMINI_OCR_MODEL`         | Model for OCR                  | `gemini-2.0-flash`         |
+| `GEMINI_MODEL_FAST`        | Model for fast tasks           | `gemini-2.0-flash`         |
+| `LANGSMITH_TRACING`        | Enable tracing                 | `true`                     |
+| `LANGSMITH_ENDPOINT`       | LangSmith Endpoint             | `https://eu.api.smith...`  |
+| `LANGSMITH_PROJECT`        | LangSmith Project Name         | `agents-repo-test`         |
+| `ERP_ENDPOINT_URL`         | ERP API URL                    | `https://prod-flow-erp...` |
+| `DB_HOST`                  | Database Host                  | `34.175.165.97`            |
+| `WILDIX_API_KEY`           | Wildix API Key                 | `wsk-v1-...`               |
+| `MERLIN_BASE_URL`          | Merlin API URL                 | `https://drseguros...`     |
+
+### Extended Configuration
+
+New providers and configurations are supported:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `LLM_PROVIDER` | Main LLM provider (`gemini`, `mistral`) | `mistral` |
+| `MISTRAL_API_KEY` | API Key for Mistral AI | - |
+| `FAST_LLM_PROVIDER` | Provider for fast tasks (`openai`, `gemini`) | `openai` |
+| `OPENAI_API_KEY` | API Key for OpenAI | - |
+| `OPENAI_MODEL_FAST` | Model for fast tasks | `gpt-5.2` |
+
 
 ### Database
 
@@ -320,7 +386,7 @@ CREATE TABLE sessions (
 );
 ```
 
-### Routing (`core/routing/routes.json`)
+### Routing (`z_contracts/routes.json`)
 
 Defines the agent hierarchy and their labels. Access via `core.hooks.get_routes_path()`:
 
@@ -329,13 +395,34 @@ Defines the agent hierarchy and their labels. Access via `core.hooks.get_routes_
   "default": "receptionist_agent",
   "domains": {
     "siniestros": {
+      "enabled": true,
       "receptionist_label": "siniestros",
       "classifier": "classifier_siniestros_agent",
-      "specialists": [
-        "telefonos_asistencia_agent",
-        "apertura_siniestro_agent",
-        "consulta_estado_agent"
-      ]
+      "specialists": {
+        "telefonos_asistencia_agent": {"enabled": true},
+        "apertura_siniestro_agent": {"enabled": true},
+        "consulta_estado_agent": {"enabled": false}
+      }
+    },
+    "gestion": {
+      "enabled": true,
+      "receptionist_label": "gestión de una poliza",
+      "classifier": "classifier_gestion_agent",
+      "specialists": {
+        "devolucion_agent": {"enabled": false},
+        "consultar_poliza_agent": {"enabled": true},
+        "modificar_poliza_agent": {"enabled": false}
+      }
+    },
+    "ventas": {
+      "enabled": true,
+      "receptionist_label": "contratación o renovación de una póliza",
+      "classifier": "classifier_ventas_agent",
+      "specialists": {
+        "nueva_poliza_agent": {"enabled": false},
+        "venta_cruzada_agent": {"enabled": false},
+        "renovacion_agent": {"enabled": true}
+      }
     }
   }
 }
@@ -453,6 +540,48 @@ zoa_agents/
 ├── Dockerfile
 ├── docker-compose.yml
 └── requirements.txt
+
+## Updated Module Structure (Current)
+
+```
+zoa_agents/
+├── agents/
+│   ├── domains/
+│   │   ├── common/             # Generic knowledge agents
+│   │   ├── gestion/            # Policy management agents
+│   │   ├── siniestros/         # Claims agents
+│   │   └── ventas/             # Sales and renewal agents
+│   ├── receptionist_agent.py   # Domain classifier & NIF validation
+│   ├── dial_agent.py           # Call router for business hours
+│   └── aichat_receptionist_agent.py
+│
+├── api/                        # API Handlers
+│   ├── aichat_handler.py
+│   ├── wildix_handler.py       # Webhook for Wildix calls (w/ schedule check)
+│   └── wildix_card_handler.py
+│
+├── core/
+│   ├── preprocessors.py        # NIF/DNI/NIE validation helpers
+│   ├── orchestrator.py         # Flow orchestration (handles transfers)
+│   ├── ...
+│
+├── infra/                      # Infrastructure & Config
+│   ├── llm.py                  # Multi-provider LLM factory
+│   ├── db.py                   # Database connection
+│   ├── agent_runner.py         # LangChain agent wrapper (w/ task fail-safe)
+│   └── tracing.py              # Observability & LangSmith setup
+│
+├── services/                   # External Services
+│   ├── schedule_service.py     # Firebase-based business hours lookup
+│   ├── erp_client.py
+│   ├── ocr_service.py
+│   └── zoa_client.py
+│
+└── tools/                      # Agent Tools
+    ├── communication/          # end_chat_tool, transfer_call_tool, etc.
+    ├── ...
+```
+
 ```
 
 ---
@@ -467,6 +596,27 @@ zoa_agents/
 | Database       | PostgreSQL (Cloud SQL)          |
 | Runtime        | Python 3.11                     |
 | Container      | Docker                          |
+| LLM Providers  | Mistral AI, OpenAI              |
+
+## Services & Integrations
+
+The system now includes dedicated services for external integrations:
+
+- **OCR Service** (`services/ocr_service.py`): Handles document parsing and text extraction.
+- **Schedule Service** (`services/schedule_service.py`): Checks business hours against Firebase Firestore for call routing.
+- **ERP Client** (`services/erp_client.py`): Interface for Enterprise Resource Planning system interactions.
+- **ZOA Client** (`services/zoa_client.py`): Client for ZOA API interactions (includes LangSmith traceability).
+- **Local CP DB** (`services/local_cp_db.py`): Local database service for postal codes.
+
+## Infrastructure (`infra/`)
+
+Core infrastructure components have been moved to the `infra/` directory for better separation of concerns:
+
+- `llm.py`: Enhanced LLM factory supporting multiple providers (Gemini, Mistral, OpenAI).
+- `db.py`: Database connection management.
+- `config.py`: Centralized configuration.
+- `tracing.py`: OpenTelemetry and LangSmith tracing setup.
+
 
 ## Architecture Highlights
 
@@ -482,10 +632,13 @@ zoa_agents/
 ## Roadmap
 
 - [x] **Architecture Refactoring**: Centralized LangChain agents, error handling, and memory management
-- [ ] Implementar `classifier_gestion_agent`
-- [ ] Implementar `classifier_ventas_agent`
+- [x] Implementar `classifier_gestion_agent`
+- [x] Implementar `classifier_ventas_agent`
+- [x] Migrar credenciales DB a variables de entorno
+- [x] Implementar `dial_agent` para derivación telefónica en horario comercial
+- [x] Integrar validación NIF/DNI/NIE en todos los agentes
+- [x] Implementar `Schedule Service` con Firebase
 - [ ] Agregar summary automático de conversación
-- [ ] Migrar credenciales DB a variables de entorno
 - [ ] Agregar tests unitarios para nuevos módulos core
 - [ ] Add monitoring/metrics for LLM calls and agent performance
 

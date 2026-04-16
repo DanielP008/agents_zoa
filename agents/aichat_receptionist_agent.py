@@ -3,11 +3,28 @@ from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from infra.llm import get_llm
 from core.memory import get_global_history
 from infra.llm_utils import safe_structured_invoke
-from infra.decision_schemas import ReceptionistDecision
+from core.schemas import ReceptionistDecision
 from agents.aichat_receptionist_prompts import get_prompt
+
+from infra.config import get_routes_path
+from core.routing.allowlist import get_active_specialists
 
 def aichat_receptionist_agent(payload: dict) -> dict:
     """Receptionist agent specialized for AiChat channel."""
+    # Reload config to be dynamic
+    routes_path = get_routes_path()
+    with open(routes_path, "r") as f:
+        routes_config = json.load(f)
+    
+    active_domains = [
+        k for k, v in routes_config["domains"].items()
+        if v.get("enabled", True) and v.get("classifier")
+    ]
+    active_specialists_by_domain = {
+        domain: get_active_specialists(domain, routes_config)
+        for domain in active_domains
+    }
+
     session = payload.get("session", {})
     memory = session.get("agent_memory", {})
     user_text = payload.get("mensaje", "")

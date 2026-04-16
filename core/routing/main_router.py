@@ -20,6 +20,8 @@ from agents.domains.ventas.renovacion_agent import renovacion_agent
 from agents.domains.ventas.nueva_poliza_agent import nueva_poliza_agent
 from agents.domains.ventas.venta_cruzada_agent import venta_cruzada_agent
 
+from agents.dial_agent import dial_agent
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -28,21 +30,23 @@ logger = logging.getLogger(__name__)
 _AGENT_REGISTRY: dict[str, callable] = {
     "receptionist_agent": receptionist_agent,
     "aichat_receptionist_agent": aichat_receptionist_agent,
-    # Siniestros
+    # Claims
     "classifier_siniestros_agent": classifier_siniestros_agent,
     "apertura_siniestro_agent": apertura_siniestro_agent,
     "consulta_estado_agent": consulta_estado_agent,
     "telefonos_asistencia_agent": telefonos_asistencia_agent,
-    # Gestión
+    # Management
     "classifier_gestion_agent": classifier_gestion_agent,
     "devolucion_agent": devolucion_agent,
     "consultar_poliza_agent": consultar_poliza_agent,
     "modificar_poliza_agent": modificar_poliza_agent,
-    # Ventas
+    # Sales
     "classifier_ventas_agent": classifier_ventas_agent,
     "renovacion_agent": renovacion_agent,
     "nueva_poliza_agent": nueva_poliza_agent,
     "venta_cruzada_agent": venta_cruzada_agent,
+    # Special
+    "dial_agent": dial_agent,
 }
 
 

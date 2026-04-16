@@ -1,9 +1,10 @@
 """Centralized LangChain 1.x agent creation and execution."""
 
-import contextvars
 import logging
+import re
 from typing import Any, Dict, List, Optional
 
+from langsmith import traceable
 from langchain.agents import create_agent, AgentState
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
@@ -12,59 +13,6 @@ from langchain.tools import BaseTool
 from infra.timing import Timer, set_current_agent
 
 logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# "Please wait" message — sent once per request on first qualifying tool call
-# ---------------------------------------------------------------------------
-_WAIT_MESSAGE = (
-    "Vale, voy a revisar tu ficha de cliente. "
-    "Por favor espera unos segundos y te contesto enseguida."
-)
-_EXCLUDED_TOOLS = frozenset({
-    "end_chat_tool",
-    "redirect_to_receptionist_tool",
-    "send_whatsapp_tool",
-})
-
-# Context vars — set by the orchestrator before invoking the agent chain
-_wa_id: contextvars.ContextVar[str] = contextvars.ContextVar("_wa_id", default="")
-_phone_number_id: contextvars.ContextVar[str] = contextvars.ContextVar("_phone_number_id", default="")
-_wa_channel: contextvars.ContextVar[str] = contextvars.ContextVar("_wa_channel", default="")
-_wait_msg_sent: contextvars.ContextVar[bool] = contextvars.ContextVar("_wait_msg_sent", default=False)
-
-
-def set_wa_context(wa_id: str, phone_number_id: str, channel: str) -> None:
-    """Set WhatsApp context for the current request (called by orchestrator)."""
-    _wa_id.set(wa_id or "")
-    _phone_number_id.set(phone_number_id or "")
-    _wa_channel.set(channel or "")
-    _wait_msg_sent.set(False)
-
-
-class _WaitMessageCallback(BaseCallbackHandler):
-    """Sends a 'please wait' WhatsApp message on the first qualifying tool call."""
-
-    def on_tool_start(self, serialized: Dict[str, Any], input_str: str, **kwargs) -> None:
-        tool_name = serialized.get("name", "")
-        if tool_name in _EXCLUDED_TOOLS:
-            return
-        if _wait_msg_sent.get(False):
-            return
-
-        wa_id = _wa_id.get("")
-        phone_id = _phone_number_id.get("")
-        channel = _wa_channel.get("")
-
-        if not wa_id or not phone_id or channel != "whatsapp":
-            return
-
-        _wait_msg_sent.set(True)
-        try:
-            from services.zoa_client import send_whatsapp_response
-            send_whatsapp_response(text=_WAIT_MESSAGE, company_id=phone_id, wa_id=wa_id)
-            logger.info(f"[AGENT_RUNNER] Wait message sent to {wa_id}")
-        except Exception:
-            logger.exception("[AGENT_RUNNER] Failed to send wait message")
 
 
 def _extract_text_from_content(content: Any) -> str:
@@ -113,9 +61,9 @@ def create_langchain_agent(
 
 
 _EMPTY_RESPONSE_FALLBACK = (
-    "Disculpa, tuve un problema procesando tu mensaje. ¿Podrías repetirlo?"
+    "Disculpa, no he podido procesar tu mensaje. ¿Podrías repetírmelo?"
 )
-_MAX_EMPTY_RETRIES = 2
+_MAX_EMPTY_RETRIES = 3
 
 
 def run_langchain_agent(
@@ -148,11 +96,16 @@ def run_langchain_agent(
     try:
         model_name_str = getattr(agent, "_llm_model_name", "")
 
-        # Inject wait-message callback if WhatsApp context is active
+        # Inject wait-message callback if WhatsApp context is active.
+        # Lazy import to avoid circular dependency (infra → core). This is a
+        # pragmatic trade-off: the callback needs context vars set by the
+        # orchestrator, and injecting it through 12+ agent call sites would add
+        # unnecessary churn for no functional benefit.
+        from core.request_context import get_wa_id, get_wa_channel, WaitMessageCallback, _phone_number_id
         config = invoke_kwargs.pop("config", {})
         callbacks = list(config.get("callbacks", []))
-        if _wa_id.get("") and _phone_number_id.get("") and _wa_channel.get("") == "whatsapp":
-            callbacks.append(_WaitMessageCallback())
+        if get_wa_id() and _phone_number_id.get("") and get_wa_channel() == "whatsapp":
+            callbacks.append(WaitMessageCallback())
         if callbacks:
             config["callbacks"] = callbacks
         if config:
@@ -215,6 +168,9 @@ def run_langchain_agent(
                     elif tool_name == "redirect_to_receptionist_tool":
                         redirect_tool_message_text = _extract_text_from_content(msg.content)
                         continue
+                    elif tool_name == "create_task_activity_tool":
+                        # Skip adding the tool result to the final output text if it's a task creation
+                        continue
 
                 if hasattr(msg, 'content'):
                     msg_text = _extract_text_from_content(msg.content)
@@ -237,47 +193,52 @@ def run_langchain_agent(
                     output = f"{output}\n\n{redirect_tool_message_text}".strip()
                     logger.info("[AGENT_RUNNER] Appended redirect flag to output")
 
-        if tool_calls_executed:
-            logger.info(f"[AGENT_RUNNER] Tool calls executed: {[tc['name'] for tc in tool_calls_executed]}")
-
-        # Fallback pattern detection
-        if isinstance(output, str) and "Fue un placer ayudarte" in output and "excelente día" in output:
-            logger.info("[AGENT_RUNNER] Detected end_chat by message pattern")
-            action = "end_chat"
-
-        if action == "end_chat":
-            logger.info("[AGENT_RUNNER] end_chat detected!")
+        # Clean output from internal tool execution markers like [HERRAMIENTAS EJECUTADAS: ...]
+        if isinstance(output, str):
+            output = re.sub(r'\[HERRAMIENTAS EJECUTADAS:.*?\]', '', output).strip()
 
         # --- Empty response guard: retry once, then fallback ---
         if not output or not output.strip():
-            if not tool_calls_executed:
-                logger.warning(
-                    f"[AGENT_RUNNER] Empty response from {agent_name}, retrying once..."
-                )
-                try:
-                    with Timer("agent", f"{agent_name}_retry", model=model_name_str):
-                        retry_result = agent.invoke({"messages": messages}, **invoke_kwargs)
-                    retry_output = ""
-                    if isinstance(retry_result, dict):
-                        retry_msgs = retry_result.get("messages", [])
-                        if retry_msgs:
-                            last_msg = retry_msgs[-1]
-                            if hasattr(last_msg, 'content'):
-                                retry_output = _extract_text_from_content(last_msg.content)
-                            elif isinstance(last_msg, dict):
-                                retry_output = _extract_text_from_content(last_msg.get("content", ""))
-                    elif hasattr(retry_result, 'content'):
-                        retry_output = _extract_text_from_content(retry_result.content)
+            logger.warning(
+                f"[AGENT_RUNNER] Empty response from {agent_name}, retrying once..."
+            )
+            try:
+                with Timer("agent", f"{agent_name}_retry", model=model_name_str):
+                    retry_result = agent.invoke({"messages": messages}, **invoke_kwargs)
 
-                    if retry_output and retry_output.strip():
-                        logger.info(f"[AGENT_RUNNER] Retry succeeded for {agent_name}")
-                        output = retry_output
-                    else:
-                        logger.warning(f"[AGENT_RUNNER] Retry also empty for {agent_name}, using fallback")
-                        output = _EMPTY_RESPONSE_FALLBACK
-                except Exception as retry_err:
-                    logger.error(f"[AGENT_RUNNER] Retry failed for {agent_name}: {retry_err}")
+                retry_output = ""
+                retry_action = "ask"
+                retry_tool_calls = []
+
+                if isinstance(retry_result, dict):
+                    retry_msgs = retry_result.get("messages", [])
+                    if retry_msgs:
+                        last_msg = retry_msgs[-1]
+                        retry_output = _extract_text_from_content(last_msg.content if hasattr(last_msg, 'content') else last_msg.get("content", ""))
+
+                        # Re-detect action and tool calls for retry
+                        for msg in retry_msgs:
+                            if hasattr(msg, 'tool_calls'):
+                                for tc in (msg.tool_calls or []):
+                                    retry_tool_calls.append({"name": tc.get("name"), "args": tc.get("args", {})})
+                                    if tc.get("name") == "end_chat_tool": retry_action = "end_chat"
+                elif hasattr(retry_result, 'content'):
+                    retry_output = _extract_text_from_content(retry_result.content)
+
+                if retry_output and retry_output.strip():
+                    logger.info(f"[AGENT_RUNNER] Retry succeeded for {agent_name}")
+                    output = retry_output
+                    action = retry_action
+                    if retry_tool_calls: tool_calls_executed = retry_tool_calls
+                else:
+                    logger.warning(f"[AGENT_RUNNER] Retry also empty for {agent_name}, using fallback")
                     output = _EMPTY_RESPONSE_FALLBACK
+            except Exception as retry_err:
+                logger.error(f"[AGENT_RUNNER] Retry failed for {agent_name}: {retry_err}")
+                output = _EMPTY_RESPONSE_FALLBACK
+
+        if tool_calls_executed:
+            logger.info(f"[AGENT_RUNNER] Tool calls executed: {[tc['name'] for tc in tool_calls_executed]}")
 
         return {
             "output": output,

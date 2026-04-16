@@ -1,36 +1,20 @@
 """ZOA client with backward-compatible function wrappers."""
 
+import threading
 import re
 import logging
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List, Union
 
+from langsmith import traceable
 from services.interfaces.zoa_interfaces import (
     ContactsInterface,
     ConversationsInterface,
     CardActionsInterface,
-    SchedulerInterface,
     AiChatInterface,
 )
 
 logger = logging.getLogger(__name__)
-
-def is_business_open(company_id: str) -> bool:
-    """Check if the business is currently open via ZOA scheduler.
-    
-    Returns True if open (AI should NOT process), False if closed (AI should process).
-    """
-    interface = SchedulerInterface()
-    result, _ = interface.execute(
-        company_id=company_id,
-        option="search",
-        request_data={},
-    )
-    logger.info(f"[SCHEDULER] ZOA response: {result}")
-    is_open = result.get("is_open", result.get("data", False))
-    if isinstance(is_open, str):
-        is_open = is_open.lower() in ("true", "1", "yes")
-    return bool(is_open)
 
 
 def extract_nif_from_contact_search(response: Dict[str, Any]) -> str:
@@ -44,22 +28,28 @@ def extract_nif_from_contact_search(response: Dict[str, Any]) -> str:
         return data.get("nif", "") or ""
     return response.get("nif", "") or ""
 
-def download_media(wamid: str, company_id: str) -> Dict[str, Any]:
-    """Download media via ZOA (action=conversations, option=search) using wamid."""
+def download_media(wamid: str, company_id: str, media_id: str = None) -> Dict[str, Any]:
+    """Download media via ZOA (action=conversations, option=search) using wamid and/or media_id."""
+    request_data = {}
+    if wamid:
+        request_data["wamid"] = wamid
+    if media_id:
+        request_data["media_id"] = media_id
+
     interface = ConversationsInterface()
     result, _ = interface.execute(
         company_id=company_id,
         option="search",
-        request_data={"wamid": wamid},
+        request_data=request_data,
     )
     return result
 
-def send_whatsapp_response(
+def send_whatsapp_response_sync(
     text: str,
     company_id: str,
     wa_id: str = None,
 ) -> dict:
-    """Send a WhatsApp message through ZOA."""
+    """Send a WhatsApp message through ZOA (Synchronous)."""
     conversation_id = f"{company_id}_{wa_id}"
     
     interface = ConversationsInterface()
@@ -73,6 +63,28 @@ def send_whatsapp_response(
         }
     )
     return result
+
+def send_whatsapp_response(
+    text: str,
+    company_id: str,
+    wa_id: str = None,
+) -> dict:
+    """
+    Send a WhatsApp message through ZOA in a background thread (fire-and-forget).
+    
+    This prevents the agent from blocking while waiting for the message to be sent.
+    """
+    def _task():
+        try:
+            send_whatsapp_response_sync(text, company_id, wa_id)
+        except Exception as e:
+            logger.error(f"[ZOA_CLIENT] Failed to send async WhatsApp message: {e}")
+
+    thread = threading.Thread(target=_task, daemon=True)
+    thread.start()
+    
+    # Return a dummy success response immediately
+    return {"success": True, "message": "Message queued in background"}
 
 def send_aichat_response(
     text: str,
@@ -92,6 +104,60 @@ def send_aichat_response(
         }
     )
     return result
+
+def create_aichat_card(
+    company_id: str,
+    user_id: str,
+    call_id: str,
+    body_type: str,
+    data: Dict[str, Any],
+    complete: bool = False,
+) -> Dict[str, Any]:
+    """Create a tarification card (auto_sheet / home_sheet) via ZOA AI Chat."""
+    logger.info(f"[ZOA_CLIENT] Creating card: body_type={body_type}, call_id={call_id}, complete={complete}")
+    interface = AiChatInterface()
+    result, status = interface.execute(
+        company_id=company_id,
+        option="create",
+        request_data={
+            "user_id": user_id,
+            "body_type": body_type,
+            "call_id": call_id,
+            "complete": str(complete).lower(),
+            "data": data,
+        },
+    )
+    if status != 200:
+        logger.error(f"[ZOA_CLIENT] Card create failed ({status}): {result}")
+    return result
+
+
+def update_aichat_card(
+    company_id: str,
+    user_id: str,
+    call_id: str,
+    body_type: str,
+    data: Dict[str, Any],
+    complete: bool = False,
+) -> Dict[str, Any]:
+    """Update an existing tarification card via ZOA AI Chat."""
+    logger.info(f"[ZOA_CLIENT] Updating card: body_type={body_type}, call_id={call_id}, complete={complete}")
+    interface = AiChatInterface()
+    result, status = interface.execute(
+        company_id=company_id,
+        option="update",
+        request_data={
+            "user_id": user_id,
+            "body_type": body_type,
+            "call_id": call_id,
+            "complete": str(complete).lower(),
+            "data": data,
+        },
+    )
+    if status != 200:
+        logger.error(f"[ZOA_CLIENT] Card update failed ({status}): {result}")
+    return result
+
 
 def search_contact_by_phone(
     phone: str,
@@ -120,6 +186,7 @@ def fetch_policy(policy_number: str) -> Dict[str, Any]:
         "valid_until": "2026-12-31"
     }
 
+@traceable(name="ZOA CRM Create Activity", run_type="tool")
 def create_task_activity(
     company_id: str,
     title: str,
@@ -144,8 +211,10 @@ def create_task_activity(
     email: Optional[str] = None,
     nif: Optional[str] = None,
     mobile: Optional[str] = None,
+    name: Optional[str] = None,
     pipeline_name: Optional[str] = None,
     stage_name: Optional[str] = None,
+    manager_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Create a card and optionally an activity in ZOA (action='cardact').
@@ -153,7 +222,7 @@ def create_task_activity(
     To link to a contact, provide at least one of: phone, email, nif, mobile.
     For 'llamada' activities, date and start_time are auto-set to now+5min if not provided.
     """
-    # tags_name must always include "<Dominio>-<Ramo>" (e.g. "Siniestros-Hogar")
+    # tags_name must always include "<Domain>-<Line>" (e.g. "Claims-Home")
     text_low = f"{title}\n{description or ''}".lower()
     if any(k in text_low for k in ("siniestro", "asistencia", "grua", "grúa", "carretera")):
         domain_tag = "Siniestros"
@@ -228,10 +297,8 @@ def create_task_activity(
                 pipeline_name = "Renovaciones"
             else:
                 pipeline_name = "Cotizaciones"
-        elif card_type_lower == "task":
-            pipeline_name = "Principal"
         else:
-            pipeline_name = "Principal"
+            pipeline_name = "Cotizaciones"
 
     # Build request data with required fields and defaults
     request_data = {
@@ -246,6 +313,7 @@ def create_task_activity(
 
     # Optional fields mapping
     optional_fields = {
+        "manager_id": manager_id,
         "description": description,
         "tags_name": tags_name,
         "type_of_activity": type_of_activity,
@@ -261,8 +329,8 @@ def create_task_activity(
         "email": email,
         "nif": nif,
         "mobile": mobile,
-        "pipeline_name": pipeline_name
-        #"stage_name": stage_name, # switch to Nuevo
+        "name": name,
+        "pipeline_name": pipeline_name,
     }
     
     # Update with non-None optional fields

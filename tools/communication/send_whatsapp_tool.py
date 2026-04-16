@@ -1,7 +1,7 @@
 """Tool to send a WhatsApp message to the current client."""
 import logging
 from langchain.tools import tool
-from services.zoa_client import send_whatsapp_response
+from services.zoa_client import send_whatsapp_response_sync
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ def send_whatsapp_tool(text: str, company_id: str, wa_id: str) -> str:
         Confirmación del envío o mensaje de error.
     """
     try:
-        result = send_whatsapp_response(text=text, company_id=company_id, wa_id=wa_id)
+        result = send_whatsapp_response_sync(text=text, company_id=company_id, wa_id=wa_id)
         logger.info(f"[SEND_WHATSAPP_TOOL] Message sent to {wa_id}: {text[:80]}...")
         return "Mensaje de WhatsApp enviado correctamente al cliente."
     except Exception as e:

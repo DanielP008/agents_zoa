@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from infra.llm import get_llm_fast
 from core.memory import get_agent_memory, get_global_history
 from infra.llm_utils import safe_structured_invoke
-from infra.decision_schemas import ClassificationDecision
+from core.schemas import ClassificationDecision
 from infra.config import get_routes_path
 from core.routing.allowlist import get_active_specialists
 from agents.domains.ventas.classifier_agent_prompts import get_prompt
@@ -62,15 +62,11 @@ def classifier_ventas_agent(payload: dict) -> dict:
                 } 
             }
 
-    # Always confirm before routing — never silently passthrough.
-    confirmation = _sanitize_question(decision.question) or _CONFIRMATIONS.get(
-        decision.route, "Para confirmar, ¿es esto lo que necesitas?"
-    )
     return {
         "action": "route",
         "next_agent": decision.route, 
         "domain": "ventas",
-        "message": confirmation
+        "message": None
     }
 
 def classify_message(payload: dict) -> ClassificationDecision:

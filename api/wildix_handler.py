@@ -9,16 +9,19 @@ import hashlib
 import logging
 import requests
 from core.orchestrator import process_message
-from infra.db import SessionManager
+from core.session_store import get_session_manager
 from infra.timing import Timer, get_trace
+from services.schedule_service import is_within_business_hours
 
 logger = logging.getLogger(__name__)
 
 WILDIX_API_BASE = "https://wim.wildix.com/v2/voicebots/sessions"
 WILDIX_API_KEY = os.getenv("WILDIX_API_KEY", "")
 WILDIX_WEBHOOK_SECRET = os.getenv("WILDIX_WEBHOOK_SECRET", "")
+WILDIX_TRANSFER_CONTEXT = os.getenv("WILDIX_TRANSFER_CONTEXT", "from-internal")
 
-session_manager = SessionManager()
+
+session_manager = get_session_manager()
 
 
 def _verify_signature(request) -> bool:
@@ -44,7 +47,7 @@ def _verify_signature(request) -> bool:
 
 def handle_wildix(request):
     """Handle incoming Wildix Voice Bot webhook."""
-    
+    logger.info(f"[WILDIX] Received webhook payload: {request.get_data(as_text=True)}")
     # Verify signature (optional - logs warning but doesn't block)
     if not _verify_signature(request):
         logger.warning("[WILDIX] Invalid or missing signature - proceeding anyway")
@@ -68,22 +71,32 @@ def handle_wildix(request):
         logger.info("[WILDIX] Empty text, ignoring")
         return _json_response({"status": "ignored", "reason": "empty_text"})
     
+    # Use botId directly as search key — it must be present in the 'ids' array
+    # of the corresponding Firebase document (clientIDs collection).
+    search_id = bot_id or "default"
+    logger.info(f"[WILDIX] Using bot_id={search_id} as Firebase lookup key")
+
     # Handle session reset
     if text.upper() == "BORRAR TODO":
-        return _handle_session_reset(session_id, bot_id)
-    
+        return _handle_session_reset(session_id, search_id)
+
     # Try to acquire session lock (prevents concurrent processing for same call)
-    if not session_manager.try_lock_session(session_id, bot_id or "default"):
+    if not session_manager.try_lock_session(session_id, search_id):
         logger.info("[WILDIX] Session %s busy, ignoring: '%s'", session_id, text)
         return _json_response({"status": "ignored", "reason": "session_busy"})
     
     try:
+        in_business_hours = is_within_business_hours(search_id)
+        
+        # Log decision for debugging
+        logger.info(f"[WILDIX] Business hours check: search_id={search_id} | in_hours={in_business_hours}")
+
         # Build payload compatible with orchestrator
         payload = {
-            "wa_id": session_id,  # Use sessionId as user identifier
+            "wa_id": session_id,
             "mensaje": text,
-            "phone_number_id": bot_id,  # Use botId as company identifier
-            "company_id": bot_id,
+            "phone_number_id": search_id,
+            "company_id": search_id,
             "channel": "call",
             "wildix_metadata": {
                 "session_id": session_id,
@@ -92,6 +105,12 @@ def handle_wildix(request):
                 "event_id": event_id,
             }
         }
+
+        if in_business_hours:
+            payload["force_agent"] = "dial_agent"
+        else:
+            # If outside hours, ensure we don't stay stuck in dial_agent from a previous in-hours call
+            payload["force_agent_if_current"] = {"dial_agent": "receptionist_agent"}
         
         # Process through orchestrator
         response = process_message(payload)
@@ -99,10 +118,17 @@ def handle_wildix(request):
         
         # Send response to Wildix
         is_end_chat = response.get("status") == "completed" and response.get("session_deleted")
+        is_transfer = response.get("status") == "transfer" and response.get("extension")
         
         if agent_message:
             wildix_response = _send_to_wildix(session_id, agent_message, event_id)
             logger.info(f"[WILDIX] Sent response: {agent_message[:50]}... wildix_status={wildix_response}")
+
+        # Transfer call to PBX extension
+        if is_transfer:
+            extension = response["extension"]
+            transfer_result = _transfer_wildix(session_id, extension)
+            logger.info(f"[WILDIX] Transfer to extension {extension}: {transfer_result}")
         
         # If end_chat, hang up the call after sending the final message
         if is_end_chat:
@@ -121,10 +147,11 @@ def handle_wildix(request):
             "status": "ok",
             "response": response,
             "wildix_sent": bool(agent_message),
-            "hangup": is_end_chat
+            "hangup": is_end_chat,
+            "transfer": is_transfer,
         })
     finally:
-        session_manager.unlock_session(session_id, bot_id or "default")
+        session_manager.unlock_session(session_id, search_id)
 
 
 def _handle_session_reset(session_id: str, bot_id: str):
@@ -191,6 +218,33 @@ def _hangup_wildix(session_id: str) -> dict:
             return {"status": "hangup", "code": resp.status_code}
         except requests.exceptions.RequestException as e:
             logger.error(f"[WILDIX] Hangup error: {e}")
+            return {"error": str(e)}
+
+
+def _transfer_wildix(session_id: str, extension: str) -> dict:
+    """Transfer a Wildix Voice Bot call to a PBX extension."""
+    if not WILDIX_API_KEY:
+        return {"error": "no_api_key"}
+
+    url = f"{WILDIX_API_BASE}/{session_id}/transfer"
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "Authorization": f"Bearer {WILDIX_API_KEY}",
+    }
+    body = {
+        "context": WILDIX_TRANSFER_CONTEXT,
+        "extension": extension,
+    }
+
+    with Timer("wildix", "wildix_transfer"):
+        try:
+            resp = requests.post(url, headers=headers, json=body, timeout=10)
+            resp.raise_for_status()
+            logger.info(f"[WILDIX] Transfer OK → ext {extension} (context={WILDIX_TRANSFER_CONTEXT})")
+            return {"status": "transferred", "code": resp.status_code, "extension": extension}
+        except requests.exceptions.RequestException as e:
+            logger.error(f"[WILDIX] Transfer error to ext {extension}: {e}")
             return {"error": str(e)}
 
 
