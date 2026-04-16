@@ -1,9 +1,9 @@
 # ZOA Agents
 
-> **Note:** This project was developed during my time at **Zoa Suite**, where I was responsible for building and maintaining this repository to handle the middleware logic described in this documentation.
-
 AI multi-agent system to automate customer service for insurance brokers.  
 Processes WhatsApp messages through a hierarchy of specialized agents with persistent memory.
+
+> **Note:** This project was developed during my time at **Zoa Suite**, where I was responsible for building and maintaining this repository to handle the middleware logic described in this documentation.
 
 ---
 
